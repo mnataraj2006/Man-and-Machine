@@ -60,15 +60,12 @@ export default function Facilities() {
 
         {/* Section Header */}
         <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#E58A32]"></span>
-            <span 
-              className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E58A32] font-bold"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              THE FACILITY SPECIFICATION
-            </span>
-          </div>
+          <span 
+            className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E58A32] font-bold"
+            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+          >
+            THE FACILITY SPECIFICATION
+          </span>
           <h2 
             className="uppercase text-[#F5F5F5] font-bold tracking-tight"
             style={{
@@ -100,8 +97,7 @@ export default function Facilities() {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#09090B] via-transparent to-transparent"></div>
 
-              <div className="absolute top-3 left-3 bg-[#09090B]/85 backdrop-blur-sm px-2.5 py-1 rounded-md border border-[#292929] flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#E58A32]"></span>
+              <div className="absolute top-3 left-3 bg-[#09090B]/85 backdrop-blur-sm px-2.5 py-1 rounded-md border border-[#292929]">
                 <span className="text-[9.5px] text-[#F5F5F5] font-bold uppercase tracking-wider" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                   {galleryItems[0].title}
                 </span>
@@ -177,8 +173,7 @@ export default function Facilities() {
                 loading="lazy"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#10102A] via-transparent to-transparent"></div>
-              <div className="absolute top-4 left-4 bg-[#09090B]/85 backdrop-blur-md px-3 py-1.5 rounded-full border border-[#292936] flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#E58A32]"></span>
+              <div className="absolute top-4 left-4 bg-[#09090B]/85 backdrop-blur-md px-3 py-1.5 rounded-full border border-[#292936]">
                 <span 
                   className="text-xs text-[#F5F5F5] uppercase font-bold"
                   style={{ fontFamily: "'Space Grotesk', sans-serif" }}

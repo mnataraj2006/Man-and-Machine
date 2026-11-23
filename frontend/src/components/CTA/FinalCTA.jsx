@@ -6,15 +6,12 @@ export default function FinalCTA({ onOpenJoinModal }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 sm:gap-8">
           <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-0.5 bg-[#E58A32]"></span>
-              <span 
-                className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E58A32] font-bold"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                MAN &amp; MACHINE / TAMIL NADU
-              </span>
-            </div>
+            <span 
+              className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E58A32] font-bold"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              MAN &amp; MACHINE / TAMIL NADU
+            </span>
             <h2 
               className="uppercase text-[#F5F5F5] font-bold tracking-tight"
               style={{

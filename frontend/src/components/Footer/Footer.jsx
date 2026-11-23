@@ -35,10 +35,9 @@ export default function Footer({ onOpenJoinModal }) {
               <a
                 key={b.id}
                 href="#branches"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#10102A] border border-[#292936] text-[11px] font-bold uppercase tracking-wider text-[#B8B8C7] hover:text-[#E58A32] hover:border-[#E58A32] transition-colors"
+                className="inline-flex items-center px-3 py-1.5 rounded-lg bg-[#10102A] border border-[#292936] text-[11px] font-bold uppercase tracking-wider text-[#B8B8C7] hover:text-[#E58A32] hover:border-[#E58A32] transition-colors"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-[#E58A32]"></span>
                 <span>{b.city}</span>
               </a>
             ))}
@@ -128,8 +127,7 @@ export default function Footer({ onOpenJoinModal }) {
             <div className="flex flex-col gap-3 text-[#B8B8C7] text-xs pt-1 border-t border-[#292936]/60">
               {branches.map((b) => (
                 <div key={b.id} className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-1.5 font-bold text-[#F5F5F5]">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#E58A32]"></span>
+                  <div className="font-bold text-[#F5F5F5]">
                     <span className="uppercase">{b.city} BRANCH</span>
                   </div>
                   <div className="pl-3 flex flex-col text-[11.5px] text-[#B8B8C7]">

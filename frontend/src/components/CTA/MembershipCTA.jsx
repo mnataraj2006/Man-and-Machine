@@ -9,15 +9,12 @@ export default function MembershipCTA({ onOpenJoinModal }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 sm:gap-10">
           <div className="flex flex-col gap-2.5 sm:gap-3 max-w-2xl">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-white/80 animate-pulse"></span>
-              <span 
-                className="text-[10px] sm:text-xs uppercase tracking-widest text-white/90 font-bold"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                START YOUR TRANSFORMATION
-              </span>
-            </div>
+            <span 
+              className="text-[10px] sm:text-xs uppercase tracking-widest text-white/90 font-bold"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              START YOUR TRANSFORMATION
+            </span>
 
             <h2 
               className="uppercase tracking-tight text-white font-bold leading-tight"

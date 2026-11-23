@@ -97,9 +97,8 @@ export default function Header({ onOpenJoinModal }) {
             >
               MAN &amp; MACHINE
             </span>
-            <span className="text-[8px] sm:text-[9.5px] uppercase tracking-widest text-[#A3A3A3] flex items-center gap-1 sm:gap-1.5 truncate">
+            <span className="text-[8px] sm:text-[9.5px] uppercase tracking-widest text-[#A3A3A3] truncate">
               FITNESS CENTRE
-              <span className="w-1.5 h-1.5 rounded-full bg-[#E58A32] inline-block shrink-0 shadow-[0_0_8px_rgba(229,138,50,0.6)]"></span>
             </span>
           </div>
         </a>

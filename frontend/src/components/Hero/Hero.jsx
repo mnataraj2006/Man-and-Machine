@@ -163,8 +163,7 @@ export default function Hero({ onOpenJoinModal }) {
             src={heroImageSrc}
             loading="eager"
           />
-          <div className="absolute bottom-3 left-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#09090B]/85 backdrop-blur-sm border border-[#292929]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#E58A32]"></span>
+          <div className="absolute bottom-3 left-3 z-20 px-2.5 py-1 rounded-md bg-[#09090B]/85 backdrop-blur-sm border border-[#292929]">
             <span className="text-[9.5px] uppercase font-bold text-[#F5F5F5] tracking-wider" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               HIGH PERFORMANCE FACILITY
             </span>

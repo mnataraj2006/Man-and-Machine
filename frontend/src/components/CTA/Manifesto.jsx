@@ -26,13 +26,6 @@ export default function Manifesto() {
       ref={sectionRef}
       className="w-full min-h-[65vh] lg:min-h-0 py-16 sm:py-24 bg-[#060614] border-y border-[#292929] relative overflow-hidden flex items-center justify-center"
     >
-      {/* Background Dot Grid */}
-      <div 
-        className={`absolute inset-0 opacity-15 bg-[radial-gradient(#E58A32_1px,transparent_1px)] [background-size:24px_24px] transition-transform duration-1000 ${
-          isVisible ? 'scale-100' : 'scale-105'
-        }`}
-      />
-
       <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center flex flex-col items-center gap-4 sm:gap-6">
         {/* Telemetry pill */}
         <div 

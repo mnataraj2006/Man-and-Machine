@@ -19,15 +19,12 @@ export default function Branches() {
         {/* ── Section Header ── */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6 border-b border-[#292936] pb-6 sm:pb-8">
           <div className="flex flex-col gap-2.5 max-w-2xl">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#E58A32]"></span>
-              <span 
-                className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E58A32] font-bold"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                OUR BRANCHES
-              </span>
-            </div>
+            <span 
+              className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E58A32] font-bold"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              OUR BRANCHES
+            </span>
 
             <h2 
               className="uppercase text-[#F5F5F5] font-bold tracking-tight"
@@ -46,8 +43,7 @@ export default function Branches() {
           </div>
 
           {/* Tagline Badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#141414] border border-[#292936] w-fit shrink-0">
-            <span className="w-2 h-2 rounded-full bg-[#E58A32] animate-pulse"></span>
+          <div className="inline-flex items-center px-3.5 py-2 rounded-xl bg-[#141414] border border-[#292936] w-fit shrink-0">
             <span 
               className="text-[11px] font-bold uppercase tracking-wider text-[#F5F5F5]"
               style={{ fontFamily: "'Space Grotesk', sans-serif" }}

@@ -30,15 +30,12 @@ export default function Testimonials() {
         {/* Section Header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-[#292936] pb-5 sm:pb-8">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#E58A32]"></span>
-              <span 
-                className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E58A32] font-bold"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                VERIFIED REVIEWS
-              </span>
-            </div>
+            <span 
+              className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E58A32] font-bold"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              VERIFIED REVIEWS
+            </span>
             <h2 
               className="uppercase text-[#F5F5F5] font-bold tracking-tight mt-1"
               style={{

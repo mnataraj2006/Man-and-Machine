@@ -20,15 +20,12 @@ export default function LocationAndHours() {
         {/* ── Section Header ── */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#292936] pb-6">
           <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#E58A32]"></span>
-              <span 
-                className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E58A32] font-bold"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                REGIONAL DIRECTORY &amp; TIMINGS
-              </span>
-            </div>
+            <span 
+              className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E58A32] font-bold"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              REGIONAL DIRECTORY &amp; TIMINGS
+            </span>
             <h2 
               className="uppercase text-[#F5F5F5] font-bold tracking-tight"
               style={{
@@ -188,15 +185,12 @@ export default function LocationAndHours() {
 
               {/* Map Header */}
               <div className="relative z-10 p-3.5 sm:p-4 bg-[#09090B]/90 backdrop-blur-md border-b border-[#292936] flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#E58A32] animate-ping"></span>
-                  <span 
-                    className="text-[10px] sm:text-xs text-[#F5F5F5] uppercase font-bold tracking-widest truncate"
-                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                  >
-                    LIVE SATELLITE TELEMETRY
-                  </span>
-                </div>
+                <span 
+                  className="text-[10px] sm:text-xs text-[#F5F5F5] uppercase font-bold tracking-widest truncate"
+                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                >
+                  LIVE SATELLITE TELEMETRY
+                </span>
                 <span className="font-mono text-[#E58A32] text-[10.5px] sm:text-xs shrink-0">
                   {coordinates[selectedCityId] || coordinates.kovilpatti}
                 </span>
