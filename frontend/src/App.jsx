@@ -34,23 +34,23 @@ export default function App() {
           {/* 2. Social Proof / Credibility Strip */}
           <SocialProof />
 
-          {/* 3. Our Branches Section (Kovilpatti, Karur, Sivakasi) */}
-          <Branches />
-
-          {/* 4. About Section */}
+          {/* 3. About Section */}
           <About />
 
-          {/* 5. Training Disciplines Section */}
+          {/* 4. Training Disciplines Section */}
           <Training />
 
-          {/* 6. Facilities Bento Grid Section */}
+          {/* 5. Facilities Bento Grid Section */}
           <Facilities />
 
-          {/* 7. Statement / Manifesto Break */}
+          {/* 6. Statement / Manifesto Break */}
           <Manifesto />
 
-          {/* 8. Testimonials Section */}
+          {/* 7. Verified Reviews Section */}
           <Testimonials />
+
+          {/* 8. Our Branches Section (One Brand. Three Locations.) */}
+          <Branches />
 
           {/* 9. Membership CTA Section */}
           <MembershipCTA onOpenJoinModal={handleOpenJoin} />
