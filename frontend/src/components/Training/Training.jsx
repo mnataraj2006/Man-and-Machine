@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export default function Training() {
+  const [activeAccordion, setActiveAccordion] = useState(0);
+
   const programs = [
     {
       num: '01',
@@ -32,11 +34,15 @@ export default function Training() {
     },
   ];
 
+  const toggleAccordion = (index) => {
+    setActiveAccordion(activeAccordion === index ? -1 : index);
+  };
+
   return (
-    <section className="w-full py-16 sm:py-24 bg-[#060614]" id="training">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-8 sm:gap-12">
+    <section className="w-full py-14 sm:py-20 lg:py-24 bg-[#060614]" id="training">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-6 sm:gap-10 lg:gap-12">
         {/* Section Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#292936] pb-6 sm:pb-8">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 sm:gap-4 border-b border-[#292929] pb-5 sm:pb-8">
           <div className="flex flex-col gap-2 max-w-2xl">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[#E58A32]"></span>
@@ -51,26 +57,96 @@ export default function Training() {
               className="uppercase text-[#F5F5F5] font-bold tracking-tight"
               style={{
                 fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: 'clamp(1.8rem, 4vw, 2.75rem)',
-                lineHeight: '1.1',
+                fontSize: 'clamp(1.75rem, 4vw, 2.75rem)',
+                lineHeight: '1.08',
               }}
             >
               TRAIN WITH PURPOSE.
             </h2>
-            <p className="text-sm sm:text-base text-[#B8B8C7]">
+            <p className="text-xs sm:text-sm lg:text-base text-[#A3A3A3] leading-relaxed">
               Whether your goal is strength, conditioning, muscle development, or simply building athletic resilience, training begins with consistent progressive execution.
             </p>
           </div>
           <span 
-            className="text-xs uppercase tracking-widest text-[#B8B8C7] hidden md:block shrink-0"
+            className="text-xs uppercase tracking-widest text-[#A3A3A3] hidden md:block shrink-0"
             style={{ fontFamily: "'Space Grotesk', sans-serif" }}
           >
             SYS.V3 // RIGOROUS PROTOCOLS
           </span>
         </div>
 
-        {/* 4 Program Cards — 1 col mobile, 2 col tablet, 4 col desktop */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        {/* ── MOBILE: Interactive Compact Accordion (< 768px) ── */}
+        <div className="block md:hidden flex flex-col gap-2.5">
+          {programs.map((program, idx) => {
+            const isOpen = activeAccordion === idx;
+            return (
+              <div
+                key={program.num}
+                className={`rounded-xl border transition-all duration-300 overflow-hidden ${
+                  isOpen 
+                    ? 'bg-[#141414] border-[#E58A32] shadow-[0_0_15px_rgba(229,138,50,0.12)]' 
+                    : 'bg-[#10102A]/80 border-[#292929] hover:border-[#383838]'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleAccordion(idx)}
+                  aria-expanded={isOpen}
+                  className="w-full px-4 py-3.5 flex items-center justify-between text-left cursor-pointer focus:outline-none min-h-[52px]"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span 
+                      className="text-sm font-mono font-bold text-[#E58A32] shrink-0"
+                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                    >
+                      {program.num}
+                    </span>
+                    <span 
+                      className={`text-sm font-bold uppercase tracking-wider truncate transition-colors ${
+                        isOpen ? 'text-[#E58A32]' : 'text-[#F5F5F5]'
+                      }`}
+                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                    >
+                      {program.title}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span 
+                      className={`material-symbols-outlined text-[20px] transition-transform duration-300 ${
+                        isOpen ? 'rotate-45 text-[#E58A32]' : 'text-[#A3A3A3]'
+                      }`}
+                    >
+                      add
+                    </span>
+                  </div>
+                </button>
+
+                {/* Expanded Content Drawer */}
+                <div 
+                  className={`transition-all duration-300 ease-in-out px-4 overflow-hidden ${
+                    isOpen ? 'max-h-48 pb-4 opacity-100' : 'max-h-0 pb-0 opacity-0'
+                  }`}
+                >
+                  <div className="pt-2 border-t border-[#292929]/70 flex flex-col gap-2.5">
+                    <p className="text-xs text-[#A3A3A3] leading-relaxed">
+                      {program.description}
+                    </p>
+                    <div className="flex items-center justify-between pt-1 text-[11px] font-mono">
+                      <span className="text-[#A3A3A3]">{program.spec}</span>
+                      <span className="text-[#E58A32] font-bold bg-[#E58A32]/10 px-2 py-0.5 rounded border border-[#E58A32]/30">
+                        {program.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── DESKTOP & TABLET: 4-Column Card Grid (>= 768px) ── */}
+        <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {programs.map((program) => (
             <div
               key={program.num}
@@ -105,6 +181,7 @@ export default function Training() {
             </div>
           ))}
         </div>
+
       </div>
     </section>
   );

@@ -12,7 +12,7 @@ export default function FinalCTA({ onOpenJoinModal }) {
                 className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E58A32] font-bold"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
-                MAN &amp; MACHINE / KOVILPATTI
+                MAN &amp; MACHINE / TAMIL NADU
               </span>
             </div>
             <h2 

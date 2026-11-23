@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import Header from './components/Navbar/Header.jsx';
 import Hero from './components/Hero/Hero.jsx';
 import SocialProof from './components/Stats/SocialProof.jsx';
-import Branches from './components/Branches/Branches.jsx';
 import About from './components/About/About.jsx';
 import Training from './components/Training/Training.jsx';
 import Facilities from './components/Facilities/Facilities.jsx';
 import Manifesto from './components/CTA/Manifesto.jsx';
+import Transformations from './components/Transformations/Transformations.jsx';
 import Testimonials from './components/Reviews/Testimonials.jsx';
+import Branches from './components/Branches/Branches.jsx';
 import MembershipCTA from './components/CTA/MembershipCTA.jsx';
 import LocationAndHours from './components/Location/LocationAndHours.jsx';
 import FinalCTA from './components/CTA/FinalCTA.jsx';
@@ -46,19 +47,22 @@ export default function App() {
           {/* 6. Statement / Manifesto Break */}
           <Manifesto />
 
-          {/* 7. Verified Reviews Section */}
+          {/* 7. Member Transformations Spotlight */}
+          <Transformations />
+
+          {/* 8. Verified Reviews Section */}
           <Testimonials />
 
-          {/* 8. Our Branches Section (One Brand. Three Locations.) */}
+          {/* 9. Our Branches Section (One Brand. Three Locations.) */}
           <Branches />
 
-          {/* 9. Membership CTA Section */}
+          {/* 10. Membership High-Conversion CTA Section */}
           <MembershipCTA onOpenJoinModal={handleOpenJoin} />
 
-          {/* 10. Location & Hours Section */}
+          {/* 11. Location & Hours Interactive Section */}
           <LocationAndHours />
 
-          {/* 11. Final CTA */}
+          {/* 12. Final CTA */}
           <FinalCTA onOpenJoinModal={handleOpenJoin} />
         </div>
       </main>
