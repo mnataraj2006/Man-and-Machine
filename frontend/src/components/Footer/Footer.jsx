@@ -48,8 +48,6 @@ export default function Footer({ onOpenJoinModal }) {
           <div className="grid grid-cols-2 gap-2 text-xs border-y border-[#292936]/60 py-4">
             <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#home">Home</a>
             <a className="text-[#E58A32] hover:underline font-semibold transition-colors py-1" href="#branches">Our Branches</a>
-            <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#about">About Ethos</a>
-            <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#training">Training Programs</a>
             <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#facilities">Facilities &amp; Gear</a>
             <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#reviews">Verified Reviews</a>
             <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#contact">Contact &amp; Location</a>
@@ -160,8 +158,6 @@ export default function Footer({ onOpenJoinModal }) {
             <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs sm:text-sm">
               <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#home">Home</a>
               <a className="text-[#E58A32] hover:underline font-semibold transition-colors py-1" href="#branches">Our Branches</a>
-              <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#about">About Ethos</a>
-              <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#training">Training Programs</a>
               <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#facilities">Equipment &amp; Facilities</a>
               <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#reviews">Member Reviews</a>
               <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#contact">Contact &amp; Location</a>

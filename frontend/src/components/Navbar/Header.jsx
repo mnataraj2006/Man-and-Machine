@@ -7,8 +7,6 @@ export default function Header({ onOpenJoinModal }) {
 
   const navLinks = [
     { name: 'HOME', href: '#home' },
-    { name: 'ABOUT', href: '#about' },
-    { name: 'TRAINING', href: '#training' },
     { name: 'FACILITIES', href: '#facilities' },
     { name: 'REVIEWS', href: '#reviews' },
     { name: 'OUR BRANCHES', href: '#branches' },
