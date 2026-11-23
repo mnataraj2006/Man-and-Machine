@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Header from './components/Navbar/Header.jsx';
 import Hero from './components/Hero/Hero.jsx';
 import SocialProof from './components/Stats/SocialProof.jsx';
+import Branches from './components/Branches/Branches.jsx';
 import About from './components/About/About.jsx';
 import Training from './components/Training/Training.jsx';
 import Facilities from './components/Facilities/Facilities.jsx';
@@ -33,16 +34,19 @@ export default function App() {
           {/* 2. Social Proof / Credibility Strip */}
           <SocialProof />
 
-          {/* 3. About Section */}
+          {/* 3. Our Branches Section (Kovilpatti, Karur, Sivakasi) */}
+          <Branches />
+
+          {/* 4. About Section */}
           <About />
 
-          {/* 4. Training Disciplines Section */}
+          {/* 5. Training Disciplines Section */}
           <Training />
 
-          {/* 5. Facilities Bento Grid Section */}
+          {/* 6. Facilities Bento Grid Section */}
           <Facilities />
 
-          {/* 6. Statement / Manifesto Break */}
+          {/* 7. Statement / Manifesto Break */}
           <Manifesto />
 
           {/* 8. Testimonials Section */}

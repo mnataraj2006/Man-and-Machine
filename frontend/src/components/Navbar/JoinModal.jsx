@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 export default function JoinModal({ isOpen, onClose }) {
   const [selectedPlan, setSelectedPlan] = useState('quarterly');
-  const [formData, setFormData] = useState({ name: '', phone: '', goal: 'Strength & Hypertrophy' });
+  const [formData, setFormData] = useState({ name: '', phone: '', branch: 'Kovilpatti', goal: 'Strength & Hypertrophy' });
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   // Prevent background scrolling while modal is open
@@ -88,7 +88,7 @@ export default function JoinModal({ isOpen, onClose }) {
               WELCOME TO MAN &amp; MACHINE
             </h3>
             <p className="text-sm sm:text-base text-[#B8B8C7] max-w-md leading-relaxed">
-              Thank you, <span className="text-[#F5F5F5] font-bold">{formData.name}</span>! Our head trainer in Kovilpatti will contact you at <span className="text-[#E58A32] font-mono">{formData.phone}</span> shortly.
+              Thank you, <span className="text-[#F5F5F5] font-bold">{formData.name}</span>! Our head trainer for the <span className="text-[#E58A32] font-bold">{formData.branch}</span> branch will contact you at <span className="text-[#E58A32] font-mono">{formData.phone}</span> shortly.
             </p>
             <div className="mt-4 flex flex-col sm:flex-row gap-3 justify-center w-full sm:w-auto">
               <a
@@ -119,7 +119,7 @@ export default function JoinModal({ isOpen, onClose }) {
                 className="text-[9.5px] sm:text-[10px] uppercase tracking-widest text-[#E58A32] font-bold truncate"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
-                MEMBERSHIP REGISTRATION • KOVILPATTI
+                MEMBERSHIP REGISTRATION • 3 LOCATIONS
               </span>
             </div>
             <h3 
@@ -205,20 +205,36 @@ export default function JoinModal({ isOpen, onClose }) {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] uppercase font-bold text-[#B8B8C7] mb-1">
-                  Primary Fitness Objective
-                </label>
-                <select
-                  value={formData.goal}
-                  onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
-                  className="w-full bg-[#10102A] border border-[#292936] rounded-xl px-3.5 py-3 text-[#F5F5F5] text-base sm:text-sm focus:outline-none focus:border-[#E58A32] transition-colors"
-                >
-                  <option>Strength &amp; Heavy Iron (Powerlifting)</option>
-                  <option>Hypertrophy &amp; Muscle Building</option>
-                  <option>Fat Loss &amp; Metabolic Conditioning</option>
-                  <option>1-on-1 Personalized Coaching</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] uppercase font-bold text-[#B8B8C7] mb-1">
+                    Select Your Branch
+                  </label>
+                  <select
+                    value={formData.branch}
+                    onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
+                    className="w-full bg-[#10102A] border border-[#292936] rounded-xl px-3.5 py-3 text-[#F5F5F5] text-base sm:text-sm focus:outline-none focus:border-[#E58A32] transition-colors"
+                  >
+                    <option value="Kovilpatti">Kovilpatti (Flagship Center)</option>
+                    <option value="Karur">Karur Branch</option>
+                    <option value="Sivakasi">Sivakasi Branch</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] uppercase font-bold text-[#B8B8C7] mb-1">
+                    Primary Fitness Objective
+                  </label>
+                  <select
+                    value={formData.goal}
+                    onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
+                    className="w-full bg-[#10102A] border border-[#292936] rounded-xl px-3.5 py-3 text-[#F5F5F5] text-base sm:text-sm focus:outline-none focus:border-[#E58A32] transition-colors"
+                  >
+                    <option>Strength &amp; Heavy Iron (Powerlifting)</option>
+                    <option>Hypertrophy &amp; Muscle Building</option>
+                    <option>Fat Loss &amp; Metabolic Conditioning</option>
+                    <option>1-on-1 Personalized Coaching</option>
+                  </select>
+                </div>
               </div>
 
               <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">

@@ -5,6 +5,7 @@ export default function Header({ onOpenJoinModal }) {
 
   const navLinks = [
     { name: 'HOME', href: '#home' },
+    { name: 'OUR BRANCHES', href: '#branches' },
     { name: 'ABOUT', href: '#about' },
     { name: 'TRAINING', href: '#training' },
     { name: 'FACILITIES', href: '#facilities' },
@@ -171,7 +172,7 @@ export default function Header({ onOpenJoinModal }) {
               </a>
 
               <div className="text-center text-[10px] text-[#B8B8C7] uppercase tracking-wider pt-1">
-                Kovilpatti • Est. Fitness Community
+                Kovilpatti • Karur • Sivakasi • One Fitness Culture
               </div>
             </div>
           </div>

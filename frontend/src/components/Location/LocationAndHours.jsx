@@ -14,7 +14,7 @@ export default function LocationAndHours() {
                   className="text-[10px] sm:text-xs uppercase tracking-widest text-[#B8B8C7] font-bold"
                   style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                 >
-                  LOCATION &amp; HOURS
+                  HEADQUARTERS &amp; REGIONAL LOCATIONS
                 </span>
               </div>
               <h2 
@@ -25,8 +25,11 @@ export default function LocationAndHours() {
                   lineHeight: '1.1',
                 }}
               >
-                FIND MAN &amp; MACHINE
+                FIND YOUR FACILITY
               </h2>
+              <p className="text-sm text-[#B8B8C7] leading-relaxed">
+                Operating across Kovilpatti, Karur, and Sivakasi. Detailed below is our flagship Kovilpatti facility.
+              </p>
             </div>
 
             {/* Address Card */}

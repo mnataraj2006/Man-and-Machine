@@ -32,7 +32,7 @@ export default function Hero({ onOpenJoinModal }) {
             className="text-[#B8B8C7] font-bold text-[9px] sm:text-[10px] tracking-wider sm:tracking-widest uppercase truncate"
             style={{ fontFamily: "'Space Grotesk', sans-serif" }}
           >
-            KOVILPATTI • EST. FITNESS COMMUNITY
+            THREE CITIES • ONE FITNESS CULTURE
           </span>
         </div>
 
@@ -83,13 +83,13 @@ export default function Hero({ onOpenJoinModal }) {
 
           {/* Secondary */}
           <a
-            href="#facilities"
+            href="#branches"
             className="inline-flex items-center justify-center gap-2 transition-all duration-200 bg-transparent hover:border-[#E58A32] text-[#F5F5F5] font-bold text-xs uppercase tracking-wider px-6 sm:px-7 py-3.5 sm:py-4 rounded-lg border border-[#292936] text-center min-h-[48px]"
             style={{
               fontFamily: "'Space Grotesk', sans-serif",
             }}
           >
-            <span>EXPLORE THE GYM</span>
+            <span>EXPLORE OUR BRANCHES</span>
           </a>
         </div>
       </div>

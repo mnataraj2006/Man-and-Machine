@@ -15,9 +15,9 @@ export default function SocialProof() {
       highlight: false,
     },
     {
-      value: 'KOVILPATTI',
+      value: '3 CITIES',
       star: false,
-      label: 'ELITE STRENGTH COMMUNITY',
+      label: 'ONE FITNESS CULTURE',
       highlight: false,
     },
     {
