@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Activity,
   CheckCircle2,
+  CreditCard,
 } from 'lucide-react';
 import clientService from '../../services/clientService.js';
 
