@@ -1,28 +1,67 @@
 const authService = require('../services/authService');
 
 /**
+ * Validate Indian phone numbers: 10 digits starting with 6, 7, 8, or 9
+ * Accepts optional +91 or 91 country code prefix.
+ */
+const isValidIndianPhone = (phone) => {
+  if (!phone) return false;
+  const digits = phone.replace(/\D/g, '');
+  return (
+    (digits.length === 10 && /^[6-9]\d{9}$/.test(digits)) ||
+    (digits.length === 12 && digits.startsWith('91') && /^91[6-9]\d{9}$/.test(digits))
+  );
+};
+
+/**
+ * Validate password strength: minimum 8 characters, at least one letter and one number
+ */
+const isStrongPassword = (password) => {
+  if (!password || password.length < 8) return false;
+  const hasLetter = /[a-zA-Z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  return hasLetter && hasNumber;
+};
+
+/**
  * @route   POST /api/auth/register
- * @desc    Register a new member
+ * @desc    Register a new client account
  * @access  Public
  */
 const register = async (req, res, next) => {
   try {
-    const { name, email, password, phone, city } = req.body;
+    const {
+      name,
+      email,
+      phone,
+      password,
+      confirmPassword,
+      branchId,
+      fitnessGoal,
+      experienceLevel,
+    } = req.body;
 
+    // 1. Name validation (2 to 80 characters)
     if (!name || !name.trim()) {
       return res.status(400).json({
         success: false,
         message: 'Full name is required.',
       });
     }
-
-    if (!email || !email.trim()) {
+    if (name.trim().length < 2 || name.trim().length > 80) {
       return res.status(400).json({
         success: false,
-        message: 'Valid email address is required.',
+        message: 'Full name must be between 2 and 80 characters.',
       });
     }
 
+    // 2. Email validation
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address is required.',
+      });
+    }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
       return res.status(400).json({
@@ -31,19 +70,57 @@ const register = async (req, res, next) => {
       });
     }
 
-    if (!password || password.length < 6) {
+    // 3. Indian Phone validation
+    if (!phone || !phone.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 6 characters.',
+        message: 'Mobile number is required.',
+      });
+    }
+    if (!isValidIndianPhone(phone)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid 10-digit Indian mobile number.',
       });
     }
 
-    const result = await authService.registerUser({
+    // 4. Password validation (min 8 chars, strength check)
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password is required.',
+      });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters long.',
+      });
+    }
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must include at least one letter and one number for account security.',
+      });
+    }
+
+    // 5. Confirm password match if provided
+    if (confirmPassword !== undefined && password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match.',
+      });
+    }
+
+    // Execute client registration (role is securely hard-locked to CLIENT)
+    const result = await authService.registerClient({
       name,
       email,
-      password,
       phone,
-      city,
+      password,
+      branchId,
+      fitnessGoal,
+      experienceLevel,
     });
 
     return res.status(201).json({
@@ -59,7 +136,7 @@ const register = async (req, res, next) => {
 
 /**
  * @route   POST /api/auth/login
- * @desc    Authenticate user & return token
+ * @desc    Authenticate user & return token and role
  * @access  Public
  */
 const login = async (req, res, next) => {
@@ -88,20 +165,37 @@ const login = async (req, res, next) => {
 
 /**
  * @route   GET /api/auth/me
- * @desc    Get currently logged in member profile
+ * @desc    Get currently logged in member profile with role & branch
  * @access  Private (JWT Protected)
  */
-const getMe = async (req, res) => {
+const getMe = async (req, res, next) => {
+  try {
+    const details = await authService.getMemberDetails(req.user._id);
+    if (!details) {
+      return res.status(404).json({
+        success: false,
+        message: 'Member profile not found.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      user: details,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @route   POST /api/auth/logout
+ * @desc    Clear session
+ * @access  Public
+ */
+const logout = async (req, res) => {
   return res.status(200).json({
     success: true,
-    user: {
-      id: req.user._id,
-      name: req.user.name,
-      email: req.user.email,
-      phone: req.user.phone || '',
-      city: req.user.city || 'Kovilpatti',
-      createdAt: req.user.createdAt,
-    },
+    message: 'Logged out successfully',
   });
 };
 
@@ -109,4 +203,5 @@ module.exports = {
   register,
   login,
   getMe,
+  logout,
 };

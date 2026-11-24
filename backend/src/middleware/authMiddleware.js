@@ -29,12 +29,21 @@ const protect = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, secret);
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await User.findById(decoded.id)
+      .select('-password')
+      .populate('branchId', 'name city address phone');
 
     if (!user) {
       return res.status(401).json({
         success: false,
         message: 'Not authorized, user not found',
+      });
+    }
+
+    if (user.status === 'SUSPENDED' || user.status === 'INACTIVE') {
+      return res.status(403).json({
+        success: false,
+        message: 'Account is deactivated or suspended. Please contact management.',
       });
     }
 
@@ -48,4 +57,20 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = { protect };
+/**
+ * Role-based authorization middleware.
+ * Usage: authorize('ADMIN'), authorize('TRAINER', 'ADMIN'), authorize('CLIENT')
+ */
+const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: `Access denied. Role '${req.user ? req.user.role : 'GUEST'}' is not permitted to access this area.`,
+      });
+    }
+    next();
+  };
+};
+
+module.exports = { protect, authorize };

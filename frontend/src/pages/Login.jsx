@@ -44,11 +44,12 @@ export default function Login({ onNavigate, onOpenRegister }) {
     setIsSubmitting(true);
 
     try {
-      await authService.login({ email: email.trim(), password });
+      const result = await authService.login({ email: email.trim(), password });
+      const targetRoute = authService.getDashboardRoute(result.user?.role);
       if (onNavigate) {
-        onNavigate('/account');
+        onNavigate(targetRoute);
       } else {
-        window.history.pushState({}, '', '/account');
+        window.history.pushState({}, '', targetRoute);
         window.dispatchEvent(new PopStateEvent('popstate'));
       }
     } catch (err) {
@@ -403,9 +404,9 @@ export default function Login({ onNavigate, onOpenRegister }) {
                 type="button"
                 onClick={() => {
                   if (onNavigate) {
-                    onNavigate('/register');
+                    onNavigate('/signup');
                   } else {
-                    window.history.pushState({}, '', '/register');
+                    window.history.pushState({}, '', '/signup');
                     window.dispatchEvent(new PopStateEvent('popstate'));
                   }
                 }}

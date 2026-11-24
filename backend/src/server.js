@@ -3,7 +3,9 @@ const cors = require('cors');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
+const seedBranches = require('./config/seedBranches');
 const authRoutes = require('./routes/authRoutes');
+const branchRoutes = require('./routes/branchRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -46,18 +48,22 @@ app.get('/api/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/branches', branchRoutes);
 
 // Root route
 app.get('/', (req, res) => {
   res.json({
     name: 'Man & Machine Fitness API',
     status: 'online',
-    version: '1.0.0',
+    version: '1.1.0',
     endpoints: {
-      health: '/api/health',
+      health: 'GET /api/health',
+      branches: 'GET /api/branches',
       auth: {
         register: 'POST /api/auth/register',
+        signup: 'POST /api/auth/signup',
         login: 'POST /api/auth/login',
+        logout: 'POST /api/auth/logout',
         me: 'GET /api/auth/me (Protected)',
       },
     },
@@ -84,16 +90,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server only after connecting to MongoDB
+// Start server only after connecting to MongoDB and seeding branches
 const startServer = async () => {
   try {
     await connectDB();
+    await seedBranches();
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
   } catch (error) {
     console.error('Failed to start server due to database connection error');
-    // Exit if unable to establish DB connection
     process.exit(1);
   }
 };

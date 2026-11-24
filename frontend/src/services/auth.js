@@ -40,31 +40,30 @@ export const authService = {
       return data;
     } catch (error) {
       if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
-        throw new Error('Unable to connect to the server. Please try again.');
+        throw new Error('Unable to connect to the server. Please check your connection and try again.');
       }
       throw error;
     }
   },
 
   /**
-   * Register a new member account.
-   * @param {Object} userData - { name, email, password, phone, city }
-   * @returns {Promise<Object>} API response { success, token, user }
+   * Register a new client account.
+   * Public registration always assigns role: "CLIENT".
    */
-  register: async ({ name, email, password, phone, city }) => {
+  register: async (formData) => {
     try {
       const response = await fetch(`${BASE_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, email, password, phone, city }),
+        body: JSON.stringify(formData),
       });
 
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.message || 'Registration failed.');
+        throw new Error(data.message || 'Registration failed. Please check the details entered.');
       }
 
       if (data.token && data.user) {
@@ -75,14 +74,21 @@ export const authService = {
       return data;
     } catch (error) {
       if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
-        throw new Error('Unable to connect to the server. Please try again.');
+        throw new Error('Unable to connect to the server. Please check your connection and try again.');
       }
       throw error;
     }
   },
 
   /**
-   * Retrieve currently authenticated member profile.
+   * Signup alias for register
+   */
+  signup: async (formData) => {
+    return authService.register(formData);
+  },
+
+  /**
+   * Retrieve currently authenticated member profile with role & branch.
    * @returns {Promise<Object|null>}
    */
   getMe: async () => {
@@ -124,10 +130,26 @@ export const authService = {
   },
 
   /**
-   * Get JWT token.
+   * Get user role (CLIENT, TRAINER, ADMIN)
    */
-  getToken: () => {
-    return localStorage.getItem(TOKEN_KEY);
+  getRole: () => {
+    const user = authService.getUser();
+    return user ? user.role : null;
+  },
+
+  /**
+   * Determine the appropriate dashboard route for a user role.
+   */
+  getDashboardRoute: (role) => {
+    switch (role) {
+      case 'ADMIN':
+        return '/admin/dashboard';
+      case 'TRAINER':
+        return '/trainer/dashboard';
+      case 'CLIENT':
+      default:
+        return '/client/dashboard';
+    }
   },
 
   /**
@@ -140,7 +162,10 @@ export const authService = {
   /**
    * Remove auth session and log out.
    */
-  logout: () => {
+  logout: async () => {
+    try {
+      await fetch(`${BASE_URL}/auth/logout`, { method: 'POST' }).catch(() => {});
+    } catch {}
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
   },

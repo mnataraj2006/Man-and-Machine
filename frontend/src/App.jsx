@@ -12,7 +12,10 @@ import FinalCTA from './components/CTA/FinalCTA.jsx';
 import Footer from './components/Footer/Footer.jsx';
 import JoinModal from './components/Navbar/JoinModal.jsx';
 import Login from './pages/Login.jsx';
-import Register from './pages/Register.jsx';
+import Signup from './pages/Signup.jsx';
+import ClientDashboard from './pages/ClientDashboard.jsx';
+import AdminDashboard from './pages/AdminDashboard.jsx';
+import TrainerDashboard from './pages/TrainerDashboard.jsx';
 import Account from './pages/Account.jsx';
 import authService from './services/auth.js';
 
@@ -20,21 +23,55 @@ export default function App() {
   const [joinModalOpen, setJoinModalOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
+  // Route Guard: verify authentication and role permissions
+  const checkRoutePermission = (path) => {
+    const isAuthed = authService.isAuthenticated();
+    const role = authService.getRole();
+
+    // Protected routes requiring authentication
+    if (path.startsWith('/client/') || path.startsWith('/admin/') || path.startsWith('/trainer/') || path === '/account') {
+      if (!isAuthed) {
+        return '/login';
+      }
+
+      // Role authorization enforcement
+      if (path.startsWith('/admin/')) {
+        if (role !== 'ADMIN') {
+          return authService.getDashboardRoute(role);
+        }
+      }
+
+      if (path.startsWith('/trainer/')) {
+        if (role !== 'TRAINER' && role !== 'ADMIN') {
+          return authService.getDashboardRoute(role);
+        }
+      }
+
+      if (path === '/account') {
+        return authService.getDashboardRoute(role);
+      }
+    }
+    return path;
+  };
+
   useEffect(() => {
     const handleLocationChange = () => {
       const path = window.location.pathname;
-      if (path === '/account' && !authService.isAuthenticated()) {
-        window.history.replaceState({}, '', '/login');
-        setCurrentPath('/login');
+      const validPath = checkRoutePermission(path);
+      if (validPath !== path) {
+        window.history.replaceState({}, '', validPath);
+        setCurrentPath(validPath);
       } else {
         setCurrentPath(path);
       }
     };
 
     // Check initial path on load
-    if (window.location.pathname === '/account' && !authService.isAuthenticated()) {
-      window.history.replaceState({}, '', '/login');
-      setCurrentPath('/login');
+    const initialPath = window.location.pathname;
+    const initialValid = checkRoutePermission(initialPath);
+    if (initialValid !== initialPath) {
+      window.history.replaceState({}, '', initialValid);
+      setCurrentPath(initialValid);
     }
 
     window.addEventListener('popstate', handleLocationChange);
@@ -42,43 +79,69 @@ export default function App() {
   }, []);
 
   const navigate = (path) => {
-    if (path === '/account' && !authService.isAuthenticated()) {
-      path = '/login';
-    }
-    if (window.location.pathname !== path) {
-      window.history.pushState({}, '', path);
-      setCurrentPath(path);
+    const validPath = checkRoutePermission(path);
+    if (window.location.pathname !== validPath) {
+      window.history.pushState({}, '', validPath);
+      setCurrentPath(validPath);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleOpenJoin = () => navigate('/login');
+  const handleOpenJoin = () => navigate('/signup');
   const handleCloseJoin = () => setJoinModalOpen(false);
 
-  // If path is /account, render protected Account page
-  if (currentPath === '/account') {
-    if (!authService.isAuthenticated()) {
-      navigate('/login');
-      return null;
-    }
+  // ── ROUTE MATCHERS ──
+
+  // Client Dashboard
+  if (currentPath === '/client/dashboard') {
     return (
-      <Account 
+      <ClientDashboard 
         onNavigate={navigate} 
         onLogout={() => navigate('/login')} 
       />
     );
   }
 
-  // If path is /register, render the dedicated Register page
-  if (currentPath === '/register') {
+  // Admin Dashboard
+  if (currentPath === '/admin/dashboard') {
     return (
-      <Register 
+      <AdminDashboard 
+        onNavigate={navigate} 
+        onLogout={() => navigate('/login')} 
+      />
+    );
+  }
+
+  // Trainer Dashboard
+  if (currentPath === '/trainer/dashboard') {
+    return (
+      <TrainerDashboard 
+        onNavigate={navigate} 
+        onLogout={() => navigate('/login')} 
+      />
+    );
+  }
+
+  // Legacy /account route - redirects to client dashboard
+  if (currentPath === '/account') {
+    return (
+      <ClientDashboard 
+        onNavigate={navigate} 
+        onLogout={() => navigate('/login')} 
+      />
+    );
+  }
+
+  // Dedicated Signup & Register routes
+  if (currentPath === '/signup' || currentPath === '/register') {
+    return (
+      <Signup 
         onNavigate={navigate} 
       />
     );
   }
 
-  // If path is /login, render the dedicated Login page
+  // Dedicated Login page
   if (currentPath === '/login') {
     return (
       <Login 

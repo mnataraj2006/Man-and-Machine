@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema(
       required: [true, 'Please provide your full name'],
       trim: true,
       minlength: [2, 'Name must be at least 2 characters'],
-      maxlength: [60, 'Name cannot exceed 60 characters'],
+      maxlength: [80, 'Name cannot exceed 80 characters'],
     },
     email: {
       type: String,
@@ -20,21 +20,35 @@ const userSchema = new mongoose.Schema(
         /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
         'Please provide a valid email address',
       ],
+      index: true,
+    },
+    phone: {
+      type: String,
+      required: [true, 'Please provide your mobile number'],
+      trim: true,
     },
     password: {
       type: String,
       required: [true, 'Please provide a password'],
-      minlength: [6, 'Password must be at least 6 characters'],
+      minlength: [8, 'Password must be at least 8 characters'],
     },
-    phone: {
+    role: {
       type: String,
-      trim: true,
-      default: '',
+      enum: ['ADMIN', 'TRAINER', 'CLIENT'],
+      default: 'CLIENT',
+      index: true,
     },
-    city: {
+    branchId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Branch',
+      default: null,
+      index: true,
+    },
+    status: {
       type: String,
-      trim: true,
-      default: 'Kovilpatti',
+      enum: ['ACTIVE', 'PENDING', 'SUSPENDED', 'INACTIVE'],
+      default: 'ACTIVE',
+      index: true,
     },
   },
   {
@@ -62,9 +76,12 @@ userSchema.methods.toSafeObject = function () {
     id: this._id,
     name: this.name,
     email: this.email,
-    phone: this.phone || '',
-    city: this.city || 'Kovilpatti',
+    phone: this.phone,
+    role: this.role,
+    branchId: this.branchId,
+    status: this.status,
     createdAt: this.createdAt,
+    updatedAt: this.updatedAt,
   };
 };
 
