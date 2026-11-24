@@ -1,7 +1,7 @@
 import React from 'react';
 import { branches } from '../../data/branches.js';
 
-export default function Footer({ onOpenJoinModal }) {
+export default function Footer({ onOpenJoinModal, onNavigate }) {
   return (
     <footer className="w-full bg-[#040410] border-t border-[#292936] pt-10 sm:pt-16 pb-8 sm:pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-8 sm:gap-12">
@@ -50,12 +50,21 @@ export default function Footer({ onOpenJoinModal }) {
             <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#facilities">Facilities &amp; Gear</a>
             <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#reviews">Verified Reviews</a>
             <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#contact">Contact &amp; Location</a>
-            <button
-              onClick={onOpenJoinModal}
+            <a
+              href="/login"
+              onClick={(e) => {
+                e.preventDefault();
+                if (onNavigate) {
+                  onNavigate('/login');
+                } else {
+                  window.history.pushState({}, '', '/login');
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }
+              }}
               className="text-left text-[#E58A32] hover:underline cursor-pointer py-1 font-semibold"
             >
               Membership Plans
-            </button>
+            </a>
           </div>
 
           {/* Rating Badge + Social Row */}
@@ -159,12 +168,21 @@ export default function Footer({ onOpenJoinModal }) {
               <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#facilities">Equipment &amp; Facilities</a>
               <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#reviews">Member Reviews</a>
               <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#contact">Contact &amp; Location</a>
-              <button
-                onClick={onOpenJoinModal}
+              <a
+                href="/login"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (onNavigate) {
+                    onNavigate('/login');
+                  } else {
+                    window.history.pushState({}, '', '/login');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }
+                }}
                 className="text-left text-[#E58A32] hover:underline cursor-pointer py-1 font-semibold"
               >
                 Membership Plans
-              </button>
+              </a>
             </div>
           </div>
 

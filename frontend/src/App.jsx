@@ -33,7 +33,7 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleOpenJoin = () => setJoinModalOpen(true);
+  const handleOpenJoin = () => navigate('/login');
   const handleCloseJoin = () => setJoinModalOpen(false);
 
   // If path is /login, render the dedicated Login page
@@ -82,18 +82,18 @@ export default function App() {
           <Branches />
 
           {/* 7. Membership High-Conversion CTA Section */}
-          <MembershipCTA onOpenJoinModal={handleOpenJoin} />
+          <MembershipCTA onOpenJoinModal={handleOpenJoin} onNavigate={navigate} />
 
           {/* 8. Location & Hours Interactive Section */}
           <LocationAndHours />
 
           {/* 9. Final CTA */}
-          <FinalCTA onOpenJoinModal={handleOpenJoin} />
+          <FinalCTA onOpenJoinModal={handleOpenJoin} onNavigate={navigate} />
         </div>
       </main>
 
       {/* Footer */}
-      <Footer onOpenJoinModal={handleOpenJoin} />
+      <Footer onOpenJoinModal={handleOpenJoin} onNavigate={navigate} />
 
       {/* Interactive Registration / Join Modal */}
       <JoinModal isOpen={joinModalOpen} onClose={handleCloseJoin} />

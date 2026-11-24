@@ -123,13 +123,22 @@ export default function Header({ onOpenJoinModal, onNavigate }) {
 
         {/* Header Right Actions */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <button
-            onClick={onOpenJoinModal}
+          <a
+            href="/login"
+            onClick={(e) => {
+              e.preventDefault();
+              if (onNavigate) {
+                onNavigate('/login');
+              } else {
+                window.history.pushState({}, '', '/login');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }
+            }}
             className="hidden sm:inline-flex items-center justify-center bg-[#E58A32] hover:bg-[#F09A43] text-white font-bold text-xs uppercase tracking-wider px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg shadow-[0_0_15px_rgba(229,138,50,0.30)] transition-all duration-200 active:scale-95 cursor-pointer whitespace-nowrap min-h-[36px]"
             style={{ fontFamily: "'Space Grotesk', sans-serif" }}
           >
             JOIN NOW
-          </button>
+          </a>
           
           {/* Desktop-only user icon */}
           <a 

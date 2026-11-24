@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function FinalCTA({ onOpenJoinModal }) {
+export default function FinalCTA({ onOpenJoinModal, onNavigate }) {
   return (
     <section className="w-full py-16 sm:py-20 bg-[#060614] border-t border-[#292936]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -27,8 +27,17 @@ export default function FinalCTA({ onOpenJoinModal }) {
             </p>
           </div>
           <div className="w-full md:w-auto">
-            <button
-              onClick={onOpenJoinModal}
+            <a
+              href="/login"
+              onClick={(e) => {
+                e.preventDefault();
+                if (onNavigate) {
+                  onNavigate('/login');
+                } else {
+                  window.history.pushState({}, '', '/login');
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }
+              }}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#E58A32] hover:bg-[#F09A43] text-white font-bold text-xs uppercase tracking-wider px-8 py-4 rounded-xl shadow-[0_0_24px_rgba(229,138,50,0.35)] active:scale-95 transition-all group cursor-pointer min-h-[48px]"
               style={{ fontFamily: "'Space Grotesk', sans-serif" }}
             >
@@ -36,7 +45,7 @@ export default function FinalCTA({ onOpenJoinModal }) {
               <span className="material-symbols-outlined text-[18px] group-hover:translate-x-1.5 transition-transform">
                 arrow_forward
               </span>
-            </button>
+            </a>
           </div>
         </div>
       </div>
