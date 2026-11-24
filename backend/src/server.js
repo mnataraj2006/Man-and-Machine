@@ -6,6 +6,7 @@ const connectDB = require('./config/db');
 const seedBranches = require('./config/seedBranches');
 const authRoutes = require('./routes/authRoutes');
 const branchRoutes = require('./routes/branchRoutes');
+const clientRoutes = require('./routes/clientRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -49,6 +50,7 @@ app.get('/api/health', (req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/branches', branchRoutes);
+app.use('/api/client', clientRoutes);
 
 // Root route
 app.get('/', (req, res) => {

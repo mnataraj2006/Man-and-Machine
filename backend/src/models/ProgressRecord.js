@@ -1,0 +1,54 @@
+const mongoose = require('mongoose');
+
+const progressRecordSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    type: {
+      type: String,
+      enum: ['BODY_WEIGHT', 'STRENGTH_PR'],
+      required: true,
+      index: true,
+    },
+    weightKg: {
+      type: Number,
+      default: null,
+    },
+    exerciseName: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    weightLiftedKg: {
+      type: Number,
+      default: null,
+    },
+    reps: {
+      type: Number,
+      default: null,
+    },
+    note: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    date: {
+      type: Date,
+      default: Date.now,
+      index: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+progressRecordSchema.index({ userId: 1, type: 1, date: -1 });
+
+const ProgressRecord = mongoose.model('ProgressRecord', progressRecordSchema);
+
+module.exports = ProgressRecord;

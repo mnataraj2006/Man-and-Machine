@@ -13,10 +13,20 @@ import Footer from './components/Footer/Footer.jsx';
 import JoinModal from './components/Navbar/JoinModal.jsx';
 import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
-import ClientDashboard from './pages/ClientDashboard.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import TrainerDashboard from './pages/TrainerDashboard.jsx';
-import Account from './pages/Account.jsx';
+import ClientLayout from './components/Client/ClientLayout.jsx';
+import DashboardHome from './pages/Client/DashboardHome.jsx';
+import Workouts from './pages/Client/Workouts.jsx';
+import WorkoutDetail from './pages/Client/WorkoutDetail.jsx';
+import Attendance from './pages/Client/Attendance.jsx';
+import Progress from './pages/Client/Progress.jsx';
+import Membership from './pages/Client/Membership.jsx';
+import Payments from './pages/Client/Payments.jsx';
+import Trainer from './pages/Client/Trainer.jsx';
+import Notifications from './pages/Client/Notifications.jsx';
+import Profile from './pages/Client/Profile.jsx';
+import Settings from './pages/Client/Settings.jsx';
 import authService from './services/auth.js';
 
 export default function App() {
@@ -92,13 +102,48 @@ export default function App() {
 
   // ── ROUTE MATCHERS ──
 
-  // Client Dashboard
-  if (currentPath === '/client/dashboard') {
+  // Client Application Area: Unified Layout with Dedicated Pages
+  if (currentPath.startsWith('/client') || currentPath === '/account') {
+    let clientContent = null;
+
+    if (currentPath === '/client/dashboard' || currentPath === '/client' || currentPath === '/account') {
+      clientContent = <DashboardHome onNavigate={navigate} />;
+    } else if (currentPath === '/client/workouts') {
+      clientContent = <Workouts onNavigate={navigate} />;
+    } else if (currentPath.startsWith('/client/workouts/')) {
+      const workoutId = currentPath.replace('/client/workouts/', '');
+      clientContent = <WorkoutDetail workoutId={workoutId} onNavigate={navigate} />;
+    } else if (currentPath === '/client/attendance') {
+      clientContent = <Attendance onNavigate={navigate} />;
+    } else if (currentPath === '/client/progress') {
+      clientContent = <Progress onNavigate={navigate} />;
+    } else if (currentPath === '/client/membership') {
+      clientContent = <Membership onNavigate={navigate} />;
+    } else if (currentPath === '/client/payments') {
+      clientContent = <Payments onNavigate={navigate} />;
+    } else if (currentPath === '/client/trainer') {
+      clientContent = <Trainer onNavigate={navigate} />;
+    } else if (currentPath === '/client/notifications') {
+      clientContent = <Notifications onNavigate={navigate} />;
+    } else if (currentPath === '/client/profile') {
+      clientContent = <Profile onNavigate={navigate} />;
+    } else if (currentPath === '/client/settings') {
+      clientContent = <Settings onNavigate={navigate} onLogout={() => navigate('/login')} />;
+    } else {
+      clientContent = <DashboardHome onNavigate={navigate} />;
+    }
+
     return (
-      <ClientDashboard 
-        onNavigate={navigate} 
-        onLogout={() => navigate('/login')} 
-      />
+      <ClientLayout
+        currentPath={currentPath}
+        onNavigate={navigate}
+        onLogout={() => {
+          authService.logout();
+          navigate('/login');
+        }}
+      >
+        {clientContent}
+      </ClientLayout>
     );
   }
 
@@ -116,16 +161,6 @@ export default function App() {
   if (currentPath === '/trainer/dashboard') {
     return (
       <TrainerDashboard 
-        onNavigate={navigate} 
-        onLogout={() => navigate('/login')} 
-      />
-    );
-  }
-
-  // Legacy /account route - redirects to client dashboard
-  if (currentPath === '/account') {
-    return (
-      <ClientDashboard 
         onNavigate={navigate} 
         onLogout={() => navigate('/login')} 
       />
