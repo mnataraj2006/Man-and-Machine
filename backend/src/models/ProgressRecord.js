@@ -8,9 +8,20 @@ const progressRecordSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    recordedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    source: {
+      type: String,
+      enum: ['CLIENT', 'TRAINER_ASSESSMENT'],
+      default: 'CLIENT',
+      index: true,
+    },
     type: {
       type: String,
-      enum: ['BODY_WEIGHT', 'STRENGTH_PR'],
+      enum: ['BODY_WEIGHT', 'STRENGTH_PR', 'ASSESSMENT'],
       required: true,
       index: true,
     },
@@ -35,6 +46,29 @@ const progressRecordSchema = new mongoose.Schema(
       type: String,
       default: '',
       trim: true,
+    },
+    trainerAssessment: {
+      postureScore: {
+        type: Number,
+        min: 1,
+        max: 10,
+        default: null,
+      },
+      mobilityNotes: {
+        type: String,
+        default: '',
+      },
+      recommendations: {
+        type: String,
+        default: '',
+      },
+      metrics: {
+        chestCm: Number,
+        waistCm: Number,
+        hipsCm: Number,
+        armsCm: Number,
+        bodyFatPercentage: Number,
+      },
     },
     date: {
       type: Date,

@@ -42,6 +42,21 @@ import AdminReports from './pages/Admin/Reports.jsx';
 import AdminNotifications from './pages/Admin/Notifications.jsx';
 import AdminEnquiries from './pages/Admin/Enquiries.jsx';
 import AdminSettings from './pages/Admin/Settings.jsx';
+
+// Trainer Application Suite
+import TrainerLayout from './components/Trainer/TrainerLayout.jsx';
+import TrainerDashboardHome from './pages/Trainer/DashboardHome.jsx';
+import TrainerClients from './pages/Trainer/Clients.jsx';
+import TrainerClientDetail from './pages/Trainer/ClientDetail.jsx';
+import TrainerWorkouts from './pages/Trainer/Workouts.jsx';
+import TrainerWorkoutCreate from './pages/Trainer/WorkoutCreate.jsx';
+import TrainerSchedule from './pages/Trainer/Schedule.jsx';
+import TrainerSessions from './pages/Trainer/Sessions.jsx';
+import TrainerProgress from './pages/Trainer/Progress.jsx';
+import TrainerAttendance from './pages/Trainer/Attendance.jsx';
+import TrainerNotifications from './pages/Trainer/Notifications.jsx';
+import TrainerProfile from './pages/Trainer/Profile.jsx';
+import TrainerSettings from './pages/Trainer/Settings.jsx';
 import authService from './services/auth.js';
 
 export default function App() {
@@ -208,13 +223,53 @@ export default function App() {
     );
   }
 
-  // Trainer Dashboard
-  if (currentPath === '/trainer/dashboard') {
+  // Trainer Application Area: Unified Multi-Page Trainer Portal
+  if (currentPath.startsWith('/trainer')) {
+    let trainerContent = null;
+
+    if (currentPath === '/trainer/dashboard' || currentPath === '/trainer') {
+      trainerContent = <TrainerDashboardHome onNavigate={navigate} />;
+    } else if (currentPath.startsWith('/trainer/clients/')) {
+      const clientId = currentPath.replace('/trainer/clients/', '');
+      trainerContent = <TrainerClientDetail clientId={clientId} onNavigate={navigate} />;
+    } else if (currentPath === '/trainer/clients') {
+      trainerContent = <TrainerClients onNavigate={navigate} />;
+    } else if (currentPath === '/trainer/workouts/create') {
+      trainerContent = <TrainerWorkoutCreate workoutId="create" onNavigate={navigate} />;
+    } else if (currentPath.startsWith('/trainer/workouts/')) {
+      const workoutId = currentPath.replace('/trainer/workouts/', '');
+      trainerContent = <TrainerWorkoutCreate workoutId={workoutId} onNavigate={navigate} />;
+    } else if (currentPath === '/trainer/workouts') {
+      trainerContent = <TrainerWorkouts onNavigate={navigate} />;
+    } else if (currentPath === '/trainer/schedule') {
+      trainerContent = <TrainerSchedule onNavigate={navigate} />;
+    } else if (currentPath === '/trainer/sessions') {
+      trainerContent = <TrainerSessions onNavigate={navigate} />;
+    } else if (currentPath === '/trainer/progress') {
+      trainerContent = <TrainerProgress onNavigate={navigate} />;
+    } else if (currentPath === '/trainer/attendance') {
+      trainerContent = <TrainerAttendance onNavigate={navigate} />;
+    } else if (currentPath === '/trainer/notifications') {
+      trainerContent = <TrainerNotifications onNavigate={navigate} />;
+    } else if (currentPath === '/trainer/profile') {
+      trainerContent = <TrainerProfile onNavigate={navigate} />;
+    } else if (currentPath === '/trainer/settings') {
+      trainerContent = <TrainerSettings onNavigate={navigate} onLogout={() => navigate('/login')} />;
+    } else {
+      trainerContent = <TrainerDashboardHome onNavigate={navigate} />;
+    }
+
     return (
-      <TrainerDashboard 
-        onNavigate={navigate} 
-        onLogout={() => navigate('/login')} 
-      />
+      <TrainerLayout
+        currentPath={currentPath}
+        onNavigate={navigate}
+        onLogout={() => {
+          authService.logout();
+          navigate('/login');
+        }}
+      >
+        {trainerContent}
+      </TrainerLayout>
     );
   }
 

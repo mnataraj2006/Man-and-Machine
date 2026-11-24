@@ -8,6 +8,17 @@ const workoutSessionSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    trainerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
+    loggedBy: {
+      type: String,
+      enum: ['CLIENT', 'TRAINER'],
+      default: 'CLIENT',
+    },
     workoutPlanId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'WorkoutPlan',
@@ -64,6 +75,7 @@ const workoutSessionSchema = new mongoose.Schema(
 );
 
 workoutSessionSchema.index({ userId: 1, date: -1 });
+workoutSessionSchema.index({ trainerId: 1, date: -1 });
 
 const WorkoutSession = mongoose.model('WorkoutSession', workoutSessionSchema);
 

@@ -140,6 +140,50 @@ export default function Trainer() {
                   'Specializes in structural posture, progressive overload protocols, and competition preparation. Dedicated to guiding each athlete through correct form to ensure maximal results without injury.'}
               </p>
             </div>
+
+            {/* Coach Directives & Notes */}
+            {data.notes && data.notes.length > 0 && (
+              <div className="flex flex-col gap-3 pt-2">
+                <span className="text-xs font-bold uppercase text-[#E58A32] flex items-center gap-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  COACH DIRECTIVES &amp; FEEDBACK
+                </span>
+                <div className="flex flex-col gap-2.5">
+                  {data.notes.map((n) => (
+                    <div key={n._id} className="p-4 rounded-xl bg-[#1C1C1C] border border-[#292929] flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white uppercase">{n.title}</span>
+                        <span className="text-[10px] text-[#737373]">{new Date(n.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-xs text-[#A3A3A3] leading-relaxed">{n.content}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Upcoming Appointments */}
+            {data.upcomingSessions && data.upcomingSessions.length > 0 && (
+              <div className="flex flex-col gap-3 pt-2">
+                <span className="text-xs font-bold uppercase text-emerald-400 flex items-center gap-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                  <Calendar className="w-3.5 h-3.5" />
+                  UPCOMING SESSIONS WITH COACH
+                </span>
+                <div className="flex flex-col gap-2.5">
+                  {data.upcomingSessions.map((s) => (
+                    <div key={s._id} className="p-3.5 rounded-xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-white uppercase">{s.sessionType}</span>
+                        <span className="text-[11px] text-[#A3A3A3]">{s.durationMinutes} Minutes Floor Coaching</span>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-[#E58A32]">
+                        {new Date(s.scheduledAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (

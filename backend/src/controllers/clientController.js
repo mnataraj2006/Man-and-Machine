@@ -9,6 +9,8 @@ const Payment = require('../models/Payment');
 const Notification = require('../models/Notification');
 const TrainerProfile = require('../models/TrainerProfile');
 const Branch = require('../models/Branch');
+const TrainingAppointment = require('../models/TrainingAppointment');
+const TrainerNote = require('../models/TrainerNote');
 const bcrypt = require('bcryptjs');
 
 /**
@@ -669,7 +671,18 @@ const getTrainer = async (req, res, next) => {
     }
 
     const trainerUser = profile.trainerId;
-    const trainerProf = await TrainerProfile.findOne({ userId: trainerUser._id });
+    const [trainerProf, clientFacingNotes, upcomingSessions] = await Promise.all([
+      TrainerProfile.findOne({ userId: trainerUser._id }),
+      TrainerNote.find({
+        clientId: userId,
+        visibility: 'CLIENT_FACING',
+      }).sort({ createdAt: -1 }),
+      TrainingAppointment.find({
+        clientId: userId,
+        scheduledAt: { $gte: new Date() },
+        status: 'SCHEDULED',
+      }).sort({ scheduledAt: 1 }),
+    ]);
 
     res.status(200).json({
       success: true,
@@ -684,6 +697,8 @@ const getTrainer = async (req, res, next) => {
         bio: trainerProf?.bio || 'Head Strength Coach specializing in biomechanical execution and athlete transformation.',
         branch: trainerUser.branchId,
       },
+      notes: clientFacingNotes,
+      upcomingSessions,
     });
   } catch (err) {
     next(err);

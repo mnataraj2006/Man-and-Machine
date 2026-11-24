@@ -16,6 +16,34 @@ const workoutPlanSchema = new mongoose.Schema(
       type: String,
       default: 'Muscle Building',
     },
+    trainingLevel: {
+      type: String,
+      enum: ['Beginner', 'Intermediate', 'Advanced', 'All Levels'],
+      default: 'Intermediate',
+    },
+    weeklyFrequency: {
+      type: Number,
+      default: 4,
+    },
+    trainerInstructions: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    startDate: {
+      type: Date,
+      default: null,
+    },
+    endDate: {
+      type: Date,
+      default: null,
+    },
+    status: {
+      type: String,
+      enum: ['DRAFT', 'PUBLISHED', 'ARCHIVED'],
+      default: 'PUBLISHED',
+      index: true,
+    },
     isTemplate: {
       type: Boolean,
       default: false,
@@ -30,6 +58,7 @@ const workoutPlanSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null,
+      index: true,
     },
     branchId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -69,6 +98,10 @@ const workoutPlanSchema = new mongoose.Schema(
           type: String,
           required: true,
         },
+        targetMuscle: {
+          type: String,
+          default: 'General',
+        },
         sets: {
           type: Number,
           default: 3,
@@ -93,6 +126,10 @@ const workoutPlanSchema = new mongoose.Schema(
           type: String,
           default: '',
         },
+        dayOfWeek: {
+          type: String,
+          default: 'Monday',
+        },
       },
     ],
     isActive: {
@@ -105,6 +142,9 @@ const workoutPlanSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+workoutPlanSchema.index({ assignedTo: 1, isActive: 1 });
+workoutPlanSchema.index({ trainerId: 1, status: 1 });
 
 const WorkoutPlan = mongoose.model('WorkoutPlan', workoutPlanSchema);
 
