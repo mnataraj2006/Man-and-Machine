@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function Hero({ onOpenJoinModal }) {
+export default function Hero({ onOpenJoinModal, onNavigate }) {
   const heroImageSrc = "/images/hero/Man & Machine_ Train Hard, Stay Strong.png";
 
   return (
@@ -70,8 +70,17 @@ export default function Hero({ onOpenJoinModal }) {
           style={{ animationDelay: '280ms' }}
         >
           {/* Primary */}
-          <button
-            onClick={onOpenJoinModal}
+          <a
+            href="/login"
+            onClick={(e) => {
+              e.preventDefault();
+              if (onNavigate) {
+                onNavigate('/login');
+              } else {
+                window.history.pushState({}, '', '/login');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }
+            }}
             className="group inline-flex items-center justify-center gap-2 cursor-pointer transition-all duration-200 active:scale-95 bg-[#E58A32] hover:bg-[#F09A43] text-white font-bold text-xs uppercase tracking-wider px-6 sm:px-7 py-3.5 sm:py-4 rounded-xl shadow-[0_0_20px_rgba(229,138,50,0.30)] min-h-[48px] text-center"
             style={{
               fontFamily: "'Space Grotesk', sans-serif",
@@ -81,7 +90,7 @@ export default function Hero({ onOpenJoinModal }) {
             <span className="material-symbols-outlined text-[17px] group-hover:translate-x-1 transition-transform">
               arrow_forward
             </span>
-          </button>
+          </a>
 
           {/* Secondary */}
           <a

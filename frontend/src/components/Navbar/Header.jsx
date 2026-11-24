@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function Header({ onOpenJoinModal }) {
+export default function Header({ onOpenJoinModal, onNavigate }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -132,14 +132,23 @@ export default function Header({ onOpenJoinModal }) {
           </button>
           
           {/* Desktop-only user icon */}
-          <button 
-            onClick={onOpenJoinModal}
+          <a 
+            href="/login"
+            onClick={(e) => {
+              e.preventDefault();
+              if (onNavigate) {
+                onNavigate('/login');
+              } else {
+                window.history.pushState({}, '', '/login');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }
+            }}
             title="Member Portal"
             aria-label="Member Portal"
             className="hidden sm:flex w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#141414] border border-[#292929] items-center justify-center shrink-0 cursor-pointer hover:border-[#E58A32] hover:text-[#E58A32] text-[#F5F5F5] transition-colors"
           >
             <span className="material-symbols-outlined text-[18px] sm:text-[20px]">person</span>
-          </button>
+          </a>
 
           {/* Mobile Menu Hamburger Button */}
           <button
@@ -190,17 +199,24 @@ export default function Header({ onOpenJoinModal }) {
 
             {/* Drawer Bottom Actions */}
             <div className="pt-6 border-t border-[#292929] flex flex-col gap-3">
-              <button
-                onClick={() => {
+              <a
+                href="/login"
+                onClick={(e) => {
+                  e.preventDefault();
                   setMobileMenuOpen(false);
-                  onOpenJoinModal();
+                  if (onNavigate) {
+                    onNavigate('/login');
+                  } else {
+                    window.history.pushState({}, '', '/login');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }
                 }}
                 className="w-full bg-[#E58A32] text-white font-bold text-xs uppercase tracking-wider py-3.5 rounded-xl text-center shadow-[0_0_20px_rgba(229,138,50,0.30)] hover:bg-[#F09A43] active:scale-95 transition-all min-h-[48px] flex items-center justify-center gap-2 cursor-pointer"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
                 <span>JOIN MAN &amp; MACHINE</span>
                 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-              </button>
+              </a>
 
               <a
                 href="tel:+917598885566"
