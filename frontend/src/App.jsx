@@ -12,6 +12,9 @@ import FinalCTA from './components/CTA/FinalCTA.jsx';
 import Footer from './components/Footer/Footer.jsx';
 import JoinModal from './components/Navbar/JoinModal.jsx';
 import Login from './pages/Login.jsx';
+import Register from './pages/Register.jsx';
+import Account from './pages/Account.jsx';
+import authService from './services/auth.js';
 
 export default function App() {
   const [joinModalOpen, setJoinModalOpen] = useState(false);
@@ -19,13 +22,29 @@ export default function App() {
 
   useEffect(() => {
     const handleLocationChange = () => {
-      setCurrentPath(window.location.pathname);
+      const path = window.location.pathname;
+      if (path === '/account' && !authService.isAuthenticated()) {
+        window.history.replaceState({}, '', '/login');
+        setCurrentPath('/login');
+      } else {
+        setCurrentPath(path);
+      }
     };
+
+    // Check initial path on load
+    if (window.location.pathname === '/account' && !authService.isAuthenticated()) {
+      window.history.replaceState({}, '', '/login');
+      setCurrentPath('/login');
+    }
+
     window.addEventListener('popstate', handleLocationChange);
     return () => window.removeEventListener('popstate', handleLocationChange);
   }, []);
 
   const navigate = (path) => {
+    if (path === '/account' && !authService.isAuthenticated()) {
+      path = '/login';
+    }
     if (window.location.pathname !== path) {
       window.history.pushState({}, '', path);
       setCurrentPath(path);
@@ -36,15 +55,34 @@ export default function App() {
   const handleOpenJoin = () => navigate('/login');
   const handleCloseJoin = () => setJoinModalOpen(false);
 
+  // If path is /account, render protected Account page
+  if (currentPath === '/account') {
+    if (!authService.isAuthenticated()) {
+      navigate('/login');
+      return null;
+    }
+    return (
+      <Account 
+        onNavigate={navigate} 
+        onLogout={() => navigate('/login')} 
+      />
+    );
+  }
+
+  // If path is /register, render the dedicated Register page
+  if (currentPath === '/register') {
+    return (
+      <Register 
+        onNavigate={navigate} 
+      />
+    );
+  }
+
   // If path is /login, render the dedicated Login page
   if (currentPath === '/login') {
     return (
       <Login 
         onNavigate={navigate} 
-        onOpenRegister={() => {
-          navigate('/');
-          setTimeout(() => handleOpenJoin(), 150);
-        }}
       />
     );
   }

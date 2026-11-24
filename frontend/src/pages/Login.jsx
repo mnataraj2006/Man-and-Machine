@@ -45,10 +45,16 @@ export default function Login({ onNavigate, onOpenRegister }) {
 
     try {
       await authService.login({ email: email.trim(), password });
+      if (onNavigate) {
+        onNavigate('/account');
+      } else {
+        window.history.pushState({}, '', '/account');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
     } catch (err) {
       setServerNotice({
-        type: 'info',
-        message: err.message || 'Authentication service is currently preparing for launch.',
+        type: 'error',
+        message: err.message || 'Invalid email or password.',
       });
     } finally {
       setIsSubmitting(false);
@@ -233,16 +239,16 @@ export default function Login({ onNavigate, onOpenRegister }) {
               </p>
             </div>
 
-            {/* Server notice / Backend preparation alert */}
+            {/* Server notice / Authentication error alert */}
             {serverNotice && (
               <div 
                 role="alert"
-                className="p-4 rounded-xl bg-[#141414] border border-[#E58A32]/60 text-xs text-[#F5F5F5] flex items-start gap-3 animate-fadeInUp"
+                className="p-4 rounded-xl bg-[#141414] border border-[#E58A32] text-xs text-[#F5F5F5] flex items-start gap-3 animate-fadeInUp"
               >
-                <Info className="w-5 h-5 text-[#E58A32] shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-[#E58A32] shrink-0 mt-0.5" />
                 <div className="flex flex-col gap-1">
                   <span className="font-bold text-[#E58A32] uppercase tracking-wider text-[11px]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                    PORTAL IN PREPARATION
+                    AUTHENTICATION NOTICE
                   </span>
                   <p className="text-[#A3A3A3] leading-relaxed">
                     {serverNotice.message}
@@ -373,7 +379,7 @@ export default function Login({ onNavigate, onOpenRegister }) {
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>VERIFYING CREDENTIALS...</span>
+                    <span>SIGNING IN...</span>
                   </span>
                 ) : (
                   <>
@@ -396,10 +402,11 @@ export default function Login({ onNavigate, onOpenRegister }) {
               <button
                 type="button"
                 onClick={() => {
-                  if (onOpenRegister) {
-                    onOpenRegister();
+                  if (onNavigate) {
+                    onNavigate('/register');
                   } else {
-                    handleBackToWebsite();
+                    window.history.pushState({}, '', '/register');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
                   }
                 }}
                 className="w-full inline-flex items-center justify-center gap-2 bg-[#141414] hover:bg-[#191919] hover:border-[#E58A32] text-[#F5F5F5] hover:text-[#E58A32] border border-[#292929] font-bold text-xs uppercase tracking-wider py-3.5 px-6 rounded-xl transition-all duration-200 min-h-[48px] cursor-pointer"

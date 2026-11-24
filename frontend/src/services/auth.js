@@ -1,80 +1,148 @@
 /**
  * auth.js
  * -------
- * Authentication service layer abstraction for Man & Machine Fitness.
- * Isolates all member authentication requests for future backend integration.
- *
- * Base API URL is configured via Vite environment variable:
- *   VITE_API_URL=http://localhost:5000/api
- *
- * NOTE: The backend authentication service is currently in preparation.
- * No mock credentials or fake storage are used. When the real API is ready,
- * endpoints can be connected here without altering any UI components.
+ * Authentication service layer for Man & Machine Fitness.
+ * Communicates directly with the Express + MongoDB backend.
  */
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+const TOKEN_KEY = 'mm_auth_token';
+const USER_KEY = 'mm_auth_user';
 
 export const authService = {
   /**
    * Submit credentials for member login.
    * @param {Object} credentials - { email, password }
-   * @returns {Promise<Object>} API response
+   * @returns {Promise<Object>} API response { success, token, user }
    */
   login: async ({ email, password }) => {
-    // Structured for future Node.js / Express backend integration:
-    // const response = await fetch(`${BASE_URL}/auth/login`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ email, password }),
-    // });
-    // if (!response.ok) {
-    //   const err = await response.json().catch(() => ({}));
-    //   throw new Error(err.message || 'Invalid credentials');
-    // }
-    // return response.json();
+    try {
+      const response = await fetch(`${BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-    // Intentional fallback while backend authentication endpoints are being constructed:
-    return new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(
-          new Error(
-            'The member authentication backend is currently in development. Please contact your local branch or Kovilpatti HQ (+91 75988 85566) for account assistance.'
-          )
-        );
-      }, 600);
-    });
-  },
+      const data = await response.json().catch(() => ({}));
 
-  /**
-   * Request password reset instructions.
-   * @param {string} email
-   */
-  requestPasswordReset: async (email) => {
-    return new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(
-          new Error(
-            'Password reset service is launching soon. Please reach out to reception at your branch.'
-          )
-        );
-      }, 500);
-    });
+      if (!response.ok) {
+        throw new Error(data.message || 'Invalid email or password.');
+      }
+
+      if (data.token && data.user) {
+        localStorage.setItem(TOKEN_KEY, data.token);
+        localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      }
+
+      return data;
+    } catch (error) {
+      if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
+        throw new Error('Unable to connect to the server. Please try again.');
+      }
+      throw error;
+    }
   },
 
   /**
    * Register a new member account.
-   * @param {Object} userData
+   * @param {Object} userData - { name, email, password, phone, city }
+   * @returns {Promise<Object>} API response { success, token, user }
    */
-  register: async (userData) => {
-    return new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(
-          new Error(
-            'Online registration will be available shortly. Visit any Man & Machine facility to register.'
-          )
-        );
-      }, 500);
-    });
+  register: async ({ name, email, password, phone, city }) => {
+    try {
+      const response = await fetch(`${BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, email, password, phone, city }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed.');
+      }
+
+      if (data.token && data.user) {
+        localStorage.setItem(TOKEN_KEY, data.token);
+        localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      }
+
+      return data;
+    } catch (error) {
+      if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
+        throw new Error('Unable to connect to the server. Please try again.');
+      }
+      throw error;
+    }
+  },
+
+  /**
+   * Retrieve currently authenticated member profile.
+   * @returns {Promise<Object|null>}
+   */
+  getMe: async () => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return null;
+
+    try {
+      const response = await fetch(`${BASE_URL}/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        authService.logout();
+        return null;
+      }
+
+      const data = await response.json();
+      if (data.user) {
+        localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      }
+      return data.user;
+    } catch (error) {
+      return null;
+    }
+  },
+
+  /**
+   * Get cached user from localStorage.
+   */
+  getUser: () => {
+    try {
+      const stored = localStorage.getItem(USER_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Get JWT token.
+   */
+  getToken: () => {
+    return localStorage.getItem(TOKEN_KEY);
+  },
+
+  /**
+   * Check if user is currently authenticated.
+   */
+  isAuthenticated: () => {
+    return !!localStorage.getItem(TOKEN_KEY);
+  },
+
+  /**
+   * Remove auth session and log out.
+   */
+  logout: () => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
   },
 };
 
