@@ -1,9 +1,11 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const connectDB = require('./config/db');
 const seedBranches = require('./config/seedBranches');
+const seedAdmin = require('./scripts/seedAdmin');
 const authRoutes = require('./routes/authRoutes');
 const branchRoutes = require('./routes/branchRoutes');
 const clientRoutes = require('./routes/clientRoutes');
@@ -14,22 +16,40 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Allowed Origins for CORS
+const clientUrls = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map((url) => url.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
 const allowedOrigins = [
-  process.env.CLIENT_URL,
+  ...clientUrls,
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:3000',
-].filter(Boolean);
+];
 
 const corsOptions = {
   origin: (origin, callback) => {
     // Allow non-browser requests or matching origins
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+    const normalizedOrigin = origin.replace(/\/+$/, '');
+
+    let isVercel = false;
+    try {
+      isVercel = /\.vercel\.app$/.test(new URL(origin).hostname);
+    } catch (e) {
+      // ignore invalid URL format
+    }
+
+    if (
+      allowedOrigins.includes(normalizedOrigin) ||
+      process.env.NODE_ENV !== 'production' ||
+      isVercel
+    ) {
       return callback(null, true);
     }
-    return callback(new Error('Blocked by CORS policy'));
+    return callback(new Error(`Blocked by CORS policy: origin ${origin} is not allowed`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -47,6 +67,65 @@ app.get('/api/health', (req, res) => {
     success: true,
     message: 'Man & Machine API is running',
   });
+});
+
+// Available Membership Plans public / branch endpoint
+app.get('/api/membership-plans/available', async (req, res, next) => {
+  try {
+    const { branchId } = req.query;
+    const MembershipPlan = require('./models/MembershipPlan');
+    const Branch = require('./models/Branch');
+
+    let targetBranchId = branchId;
+    if (!targetBranchId) {
+      const defaultBranch = (await Branch.findOne({ city: 'Kovilpatti' })) || (await Branch.findOne());
+      targetBranchId = defaultBranch ? defaultBranch._id : null;
+    }
+
+    const plans = await MembershipPlan.find({ isActive: true })
+      .sort({ displayOrder: 1, createdAt: -1 })
+      .populate('branchPricing.branchId', 'name city code');
+
+    const availablePlans = [];
+    for (const plan of plans) {
+      const branchConfig = (plan.branchPricing || []).find(
+        (bp) =>
+          bp.branchId &&
+          (bp.branchId._id?.toString() === targetBranchId?.toString() ||
+            bp.branchId.toString() === targetBranchId?.toString())
+      );
+
+      if (branchConfig && branchConfig.isAvailable) {
+        availablePlans.push({
+          _id: plan._id,
+          name: plan.name,
+          code: plan.code,
+          description: plan.description,
+          planType: plan.planType,
+          durationDays: plan.durationDays || 30,
+          durationMonths: plan.durationMonths || 1,
+          benefits: plan.benefits && plan.benefits.length > 0 ? plan.benefits : plan.features || [],
+          basePrice: branchConfig.basePrice,
+          joiningFee: branchConfig.joiningFee || 0,
+          discountType: branchConfig.discountType || 'NONE',
+          discountValue: branchConfig.discountValue || 0,
+          finalPrice: branchConfig.finalPrice,
+          branch: branchConfig.branchId,
+        });
+      }
+    }
+
+    const branch = targetBranchId ? await Branch.findById(targetBranchId).select('name city code') : null;
+
+    res.status(200).json({
+      success: true,
+      count: availablePlans.length,
+      branch,
+      plans: availablePlans,
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // API Routes
@@ -101,6 +180,7 @@ const startServer = async () => {
   try {
     await connectDB();
     await seedBranches();
+    await seedAdmin();
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });

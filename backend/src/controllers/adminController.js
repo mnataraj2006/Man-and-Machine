@@ -14,6 +14,8 @@ const ProgressRecord = require('../models/ProgressRecord');
 const Notification = require('../models/Notification');
 const Enquiry = require('../models/Enquiry');
 const Exercise = require('../models/Exercise');
+const TrainerBooking = require('../models/TrainerBooking');
+const TrainingAppointment = require('../models/TrainingAppointment');
 
 // Helper to construct branch query filter
 const getBranchFilter = (branchId) => {
@@ -22,13 +24,60 @@ const getBranchFilter = (branchId) => {
   return {};
 };
 
+// Asia/Kolkata (IST: UTC+5:30) Date Boundary Helpers
+const getKolkataDateParts = (date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = formatter.format(date); // YYYY-MM-DD
+  const [year, month, day] = parts.split('-').map(Number);
+  return { year, month, day, dateStr: parts };
+};
+
+const getKolkataStartOfToday = () => {
+  const { dateStr } = getKolkataDateParts();
+  return new Date(`${dateStr}T00:00:00+05:30`);
+};
+
+const getKolkataStartOfMonth = (offsetMonths = 0) => {
+  const { year, month } = getKolkataDateParts();
+  let targetMonth = month - offsetMonths;
+  let targetYear = year;
+  while (targetMonth < 1) {
+    targetMonth += 12;
+    targetYear -= 1;
+  }
+  const mStr = String(targetMonth).padStart(2, '0');
+  return new Date(`${targetYear}-${mStr}-01T00:00:00+05:30`);
+};
+
+const getKolkataEndOfMonth = (offsetMonths = 0) => {
+  const { year, month } = getKolkataDateParts();
+  let nextMonth = month - offsetMonths + 1;
+  let nextYear = year;
+  while (nextMonth < 1) {
+    nextMonth += 12;
+    nextYear -= 1;
+  }
+  while (nextMonth > 12) {
+    nextMonth -= 12;
+    nextYear += 1;
+  }
+  const mStr = String(nextMonth).padStart(2, '0');
+  const nextStart = new Date(`${nextYear}-${mStr}-01T00:00:00+05:30`);
+  return new Date(nextStart.getTime() - 1);
+};
+
 // Helper for date range filter
 const getDateRangeFilter = (range, startDate, endDate, dateField = 'createdAt') => {
   const now = new Date();
   let filter = {};
 
   if (range === 'today') {
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfToday = getKolkataStartOfToday();
     filter[dateField] = { $gte: startOfToday };
   } else if (range === '7days') {
     const past7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -37,11 +86,11 @@ const getDateRangeFilter = (range, startDate, endDate, dateField = 'createdAt') 
     const past30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     filter[dateField] = { $gte: past30 };
   } else if (range === 'thisMonth') {
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfMonth = getKolkataStartOfMonth(0);
     filter[dateField] = { $gte: startOfMonth };
   } else if (range === 'lastMonth') {
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    const startOfLastMonth = getKolkataStartOfMonth(1);
+    const endOfLastMonth = getKolkataEndOfMonth(1);
     filter[dateField] = { $gte: startOfLastMonth, $lte: endOfLastMonth };
   } else if (range === 'custom' && (startDate || endDate)) {
     filter[dateField] = {};
@@ -66,9 +115,10 @@ const getDashboardOverview = async (req, res, next) => {
     const branchFilter = getBranchFilter(branchId);
     const now = new Date();
 
-    // 1. Total Clients
+    // 1. Total Clients & Active Clients (role CLIENT only, excludes ADMIN and TRAINER)
     const clientQuery = { role: 'CLIENT', ...branchFilter };
     const totalClients = await User.countDocuments(clientQuery);
+    const activeClients = await User.countDocuments({ ...clientQuery, status: 'ACTIVE' });
 
     // 2. Active Memberships
     const activeMembers = await Membership.countDocuments({
@@ -83,21 +133,25 @@ const getDashboardOverview = async (req, res, next) => {
       $or: [{ status: 'EXPIRED' }, { expiryDate: { $lt: now } }],
     });
 
-    // 4. Total Trainers
+    // 4. Total Trainers & Active Trainers (role TRAINER only)
     const trainerQuery = { role: 'TRAINER', ...branchFilter };
     const totalTrainers = await User.countDocuments(trainerQuery);
+    const activeTrainers = await User.countDocuments({ ...trainerQuery, status: 'ACTIVE' });
 
-    // 5. Today's Attendance
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // 5. Total Branches
+    const totalBranches = await Branch.countDocuments({ isActive: true });
+
+    // 6. Today's Attendance (Asia/Kolkata IST)
+    const startOfToday = getKolkataStartOfToday();
     const todayAttendance = await Attendance.countDocuments({
       ...branchFilter,
       date: { $gte: startOfToday },
     });
 
-    // 6. Monthly Revenue (Confirmed PAID only)
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    // 7. Monthly Revenue (Confirmed PAID only) (Asia/Kolkata IST)
+    const startOfMonth = getKolkataStartOfMonth(0);
+    const startOfPrevMonth = getKolkataStartOfMonth(1);
+    const endOfPrevMonth = getKolkataEndOfMonth(1);
 
     const monthlyPayments = await Payment.find({
       ...branchFilter,
@@ -113,7 +167,7 @@ const getDashboardOverview = async (req, res, next) => {
     });
     const prevMonthlyRevenue = prevMonthlyPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
 
-    // 7. Pending Payments
+    // 8. Pending Payments
     const pendingPaymentsCount = await Payment.countDocuments({
       ...branchFilter,
       status: 'PENDING',
@@ -124,7 +178,7 @@ const getDashboardOverview = async (req, res, next) => {
     });
     const pendingPaymentsTotal = pendingPaymentsList.reduce((acc, p) => acc + (p.amount || 0), 0);
 
-    // 8. New Enquiries
+    // 9. New Enquiries
     const newEnquiries = await Enquiry.countDocuments({
       ...branchFilter,
       status: 'NEW',
@@ -332,10 +386,14 @@ const getDashboardOverview = async (req, res, next) => {
       success: true,
       kpis: {
         totalClients,
+        activeClients,
+        totalTrainers,
+        activeTrainers,
+        totalBranches,
+        todayAttendance,
+        activeMemberships: activeMembers,
         activeMembers,
         expiredMemberships,
-        totalTrainers,
-        todayAttendance,
         monthlyRevenue,
         prevMonthlyRevenue,
         pendingPayments: pendingPaymentsCount,
@@ -714,21 +772,69 @@ const createClient = async (req, res, next) => {
 
     // 3. Optional Initial Membership
     let membership = null;
-    if (membershipPlanName) {
+    if (membershipPlanName || req.body.planId) {
+      let plan = null;
+      if (req.body.planId) {
+        plan = await MembershipPlan.findById(req.body.planId);
+      } else if (membershipPlanName) {
+        plan = await MembershipPlan.findOne({ name: membershipPlanName });
+      }
+
+      let snapshot = {
+        planId: plan ? plan._id : null,
+        planName: plan ? plan.name : (membershipPlanName ? membershipPlanName.trim() : 'Custom Pass'),
+        branchId,
+        durationDays: plan?.durationDays || (parseInt(durationMonths, 10) * 30) || 30,
+        durationMonths: plan?.durationMonths || parseInt(durationMonths, 10) || 1,
+        basePrice: 0,
+        joiningFee: 0,
+        discountType: 'NONE',
+        discountValue: 0,
+        finalAmount: Number(membershipAmount) || 0,
+      };
+
+      if (plan) {
+        const branchConfig = plan.branchPricing?.find(
+          (bp) => bp.branchId.toString() === branchId.toString()
+        );
+        if (branchConfig && branchConfig.isAvailable) {
+          snapshot.basePrice = branchConfig.basePrice;
+          snapshot.joiningFee = branchConfig.joiningFee;
+          snapshot.discountType = branchConfig.discountType;
+          snapshot.discountValue = branchConfig.discountValue;
+          snapshot.finalAmount = Number(membershipAmount) || branchConfig.finalPrice;
+        } else if (plan.price) {
+          snapshot.basePrice = plan.price;
+          snapshot.finalAmount = Number(membershipAmount) || plan.price;
+        }
+      }
+
       const sDate = startDate ? new Date(startDate) : new Date();
-      const expDate = new Date(sDate);
-      expDate.setMonth(expDate.getMonth() + parseInt(durationMonths, 10));
+      const expDate = new Date(sDate.getTime() + snapshot.durationDays * 24 * 60 * 60 * 1000);
 
       membership = await Membership.create({
         userId: user._id,
         branchId,
-        planName: membershipPlanName.trim(),
-        durationMonths: parseInt(durationMonths, 10),
-        amount: Number(membershipAmount) || 0,
+        planId: snapshot.planId,
+        planName: snapshot.planName,
+        durationDays: snapshot.durationDays,
+        durationMonths: snapshot.durationMonths,
+        basePrice: snapshot.basePrice,
+        joiningFee: snapshot.joiningFee,
+        discountType: snapshot.discountType,
+        discountValue: snapshot.discountValue,
+        finalAmount: snapshot.finalAmount,
+        amount: snapshot.finalAmount,
         startDate: sDate,
         expiryDate: expDate,
         status: 'ACTIVE',
       });
+
+      if (clientProfile) {
+        clientProfile.membershipStatus = 'ACTIVE';
+        clientProfile.membershipExpiryDate = expDate;
+        await clientProfile.save();
+      }
     }
 
     res.status(201).json({
@@ -1025,6 +1131,10 @@ const updateTrainer = async (req, res, next) => {
       if (experienceYears !== undefined) prof.experienceYears = Number(experienceYears);
       if (bio !== undefined) prof.bio = bio;
       if (branchId && mongoose.Types.ObjectId.isValid(branchId)) prof.branchId = branchId;
+      if (req.body.isAvailable !== undefined) prof.isAvailable = req.body.isAvailable;
+      if (req.body.acceptingClients !== undefined) prof.acceptingClients = req.body.acceptingClients;
+      if (req.body.pricing) prof.pricing = { ...prof.pricing, ...req.body.pricing };
+      if (req.body.availability) prof.availability = { ...prof.availability, ...req.body.availability };
       await prof.save();
     }
 
@@ -1034,26 +1144,275 @@ const updateTrainer = async (req, res, next) => {
   }
 };
 
+/**
+ * @route   GET /api/admin/trainer-bookings
+ * @desc    Get all client-to-trainer booking records across branches
+ */
+const getTrainerBookings = async (req, res, next) => {
+  try {
+    const { branchId, status, search } = req.query;
+    const query = {};
+
+    if (branchId && branchId !== 'ALL' && mongoose.Types.ObjectId.isValid(branchId)) {
+      query.branchId = branchId;
+    }
+    if (status && status !== 'ALL') {
+      query.bookingStatus = status;
+    }
+
+    const bookings = await TrainerBooking.find(query)
+      .populate('clientId', 'name email phone avatar')
+      .populate('trainerId', 'name email phone avatar')
+      .populate('branchId', 'name city')
+      .populate('paymentId', 'amount paymentMethod status transactionId')
+      .sort({ createdAt: -1 });
+
+    let filtered = bookings;
+    if (search && search.trim()) {
+      const q = search.trim().toLowerCase();
+      filtered = bookings.filter((b) =>
+        b.bookingReference?.toLowerCase().includes(q) ||
+        b.clientId?.name?.toLowerCase().includes(q) ||
+        b.trainerId?.name?.toLowerCase().includes(q) ||
+        b.serviceTitle?.toLowerCase().includes(q)
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      count: filtered.length,
+      bookings: filtered,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * @route   POST /api/admin/trainer-bookings/:id/confirm-payment
+ * @desc    Confirm payment for pending trainer booking and assign coach to client
+ */
+const confirmTrainerBookingPayment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { paymentMethod = 'CASH' } = req.body;
+
+    const booking = await TrainerBooking.findById(id)
+      .populate('clientId', 'name email phone')
+      .populate('trainerId', 'name email phone branchId');
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Trainer booking record not found.' });
+    }
+
+    booking.paymentStatus = 'PAID';
+    booking.bookingStatus = 'CONFIRMED';
+    booking.paymentMethod = paymentMethod;
+
+    // Update or create Payment record
+    let payment = null;
+    if (booking.paymentId) {
+      payment = await Payment.findByIdAndUpdate(
+        booking.paymentId,
+        { status: 'PAID', paymentMethod },
+        { new: true }
+      );
+    } else {
+      payment = await Payment.create({
+        userId: booking.clientId._id,
+        branchId: booking.branchId,
+        transactionId: `TXN-${booking.bookingReference}`,
+        description: `Coach Booking Confirmed: ${booking.trainerId.name} (${booking.serviceTitle})`,
+        amount: booking.amount,
+        paymentMethod,
+        status: 'PAID',
+        date: new Date(),
+      });
+      booking.paymentId = payment._id;
+    }
+
+    // Assign Trainer to Client Profile
+    await ClientProfile.findOneAndUpdate(
+      { userId: booking.clientId._id },
+      { trainerId: booking.trainerId._id }
+    );
+
+    // Create or confirm TrainingAppointment
+    if (!booking.appointmentId) {
+      const [hStr] = (booking.startTime || '06:00').split(' ');
+      let [hour] = hStr.split(':').map(Number);
+      if (booking.startTime?.includes('PM') && hour !== 12) hour += 12;
+      if (booking.startTime?.includes('AM') && hour === 12) hour = 0;
+      const scheduledDateTime = new Date(booking.date);
+      scheduledDateTime.setHours(hour, 0, 0, 0);
+
+      const apt = await TrainingAppointment.create({
+        trainerId: booking.trainerId._id,
+        clientId: booking.clientId._id,
+        branchId: booking.branchId,
+        scheduledAt: scheduledDateTime,
+        durationMinutes: booking.durationMinutes || 60,
+        sessionType: 'Personal Training',
+        status: 'SCHEDULED',
+        notes: `Admin Confirmed Booking (${booking.serviceTitle})`,
+      });
+      booking.appointmentId = apt._id;
+    }
+
+    await booking.save();
+
+    // Send notifications to client and trainer
+    await Notification.create({
+      userId: booking.clientId._id,
+      title: 'Trainer Booking & Payment Confirmed!',
+      message: `Your booking with ${booking.trainerId.name} is confirmed. Coach ${booking.trainerId.name} has been assigned to your profile. "My Workouts" is now unlocked!`,
+      category: 'PAYMENTS',
+    });
+
+    await Notification.create({
+      userId: booking.trainerId._id,
+      title: 'New Client Assigned!',
+      message: `Payment confirmed for ${booking.clientId.name}. They are now assigned to you for ${booking.serviceTitle}.`,
+      category: 'TRAINER',
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Payment confirmed and ${booking.trainerId.name} assigned to ${booking.clientId.name}!`,
+      booking,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ==========================================
 // 5. MEMBERSHIP MANAGEMENT
 // ==========================================
 
+// Helper to calculate branch final price
+const calculateBranchFinalPrice = (basePrice, joiningFee = 0, discountType = 'NONE', discountValue = 0) => {
+  const base = Math.max(0, Number(basePrice) || 0);
+  const fee = Math.max(0, Number(joiningFee) || 0);
+  const discVal = Math.max(0, Number(discountValue) || 0);
+
+  let discountAmount = 0;
+  if (discountType === 'FIXED') {
+    discountAmount = Math.min(discVal, base + fee);
+  } else if (discountType === 'PERCENTAGE') {
+    const pct = Math.min(100, discVal);
+    discountAmount = Math.round((base * pct) / 100);
+  }
+
+  const final = Math.max(0, base + fee - discountAmount);
+  return {
+    basePrice: base,
+    joiningFee: fee,
+    discountType: ['FIXED', 'PERCENTAGE'].includes(discountType) ? discountType : 'NONE',
+    discountValue: discVal,
+    finalPrice: final,
+  };
+};
+
 const getMembershipPlans = async (req, res, next) => {
   try {
-    let plans = await MembershipPlan.find().sort({ displayOrder: 1, durationMonths: 1 });
+    const { search, branchId, planType, status, page = 1, limit = 20 } = req.query;
+    const query = {};
 
-    // Seed default plans if none exist
-    if (plans.length === 0) {
-      const defaultPlans = [
-        { name: '1 Month Kickstart', code: 'MM-1M', durationMonths: 1, price: 2000, description: 'Single month full gym access with cardio and steam bath.', features: ['Full gym access', 'Steam bath included', 'Locker access', 'Trainer guidance'] },
-        { name: '3 Months Quarter Pro', code: 'MM-3M', durationMonths: 3, price: 5000, description: 'Quarterly training program with body assessment.', features: ['Full gym access', 'Steam bath included', 'Free diet consultation', 'Quarterly fitness test'] },
-        { name: '6 Months Half-Year Elite', code: 'MM-6M', durationMonths: 6, price: 9000, description: 'Dedicated transformation period with progress reviews.', features: ['All 3 branch access', 'Dedicated steam bath priority', 'Personalized nutrition chart', 'Strength progression tracking'] },
-        { name: '12 Months Annual Champion', code: 'MM-12M', durationMonths: 12, price: 16000, description: 'Ultimate year-round athletic performance program.', features: ['All branches access', 'Free guest passes (2/month)', 'Personal coach onboarding', 'Full locker privilege', 'Complimentary shaker & tee'] },
+    if (search && search.trim()) {
+      const term = search.trim();
+      query.$or = [
+        { name: { $regex: term, $options: 'i' } },
+        { code: { $regex: term, $options: 'i' } },
+        { description: { $regex: term, $options: 'i' } },
       ];
-      plans = await MembershipPlan.insertMany(defaultPlans);
     }
 
-    res.status(200).json({ success: true, count: plans.length, plans });
+    if (planType && planType !== 'ALL') {
+      query.planType = planType;
+    }
+
+    if (status && status !== 'ALL') {
+      query.isActive = status === 'ACTIVE';
+    }
+
+    if (branchId && branchId !== 'ALL' && mongoose.Types.ObjectId.isValid(branchId)) {
+      query.$or = [
+        { 'branchPricing.branchId': branchId, 'branchPricing.isAvailable': true },
+        { branchId: branchId },
+        { branchId: null },
+      ];
+    }
+
+    const allPlans = await MembershipPlan.find();
+    const totalPlans = allPlans.length;
+    const activePlans = allPlans.filter((p) => p.isActive).length;
+    const inactivePlans = totalPlans - activePlans;
+
+    const activeBranchIds = new Set();
+    allPlans
+      .filter((p) => p.isActive)
+      .forEach((p) => {
+        if (p.branchPricing && p.branchPricing.length > 0) {
+          p.branchPricing.forEach((bp) => {
+            if (bp.isAvailable && bp.branchId) {
+              activeBranchIds.add(bp.branchId.toString());
+            }
+          });
+        }
+      });
+    const branchesCovered = activeBranchIds.size || 3;
+
+    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    const total = await MembershipPlan.countDocuments(query);
+    const plans = await MembershipPlan.find(query)
+      .sort({ displayOrder: 1, createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit, 10))
+      .populate('branchPricing.branchId', 'name city code');
+
+    res.status(200).json({
+      success: true,
+      summary: {
+        totalPlans,
+        activePlans,
+        inactivePlans,
+        branchesCovered,
+      },
+      total,
+      page: parseInt(page, 10),
+      totalPages: Math.ceil(total / parseInt(limit, 10)) || 1,
+      plans,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getMembershipPlanById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const plan = await MembershipPlan.findById(id).populate('branchPricing.branchId', 'name city code address phone');
+    if (!plan) {
+      return res.status(404).json({ success: false, message: 'Membership plan not found.' });
+    }
+
+    const now = new Date();
+    const activeMembershipsCount = await Membership.countDocuments({
+      $or: [{ planId: id }, { planName: plan.name }],
+      status: 'ACTIVE',
+      expiryDate: { $gte: now },
+    });
+    const totalMembershipsCount = await Membership.countDocuments({
+      $or: [{ planId: id }, { planName: plan.name }],
+    });
+
+    res.status(200).json({
+      success: true,
+      plan,
+      activeMembershipsCount,
+      totalMembershipsCount,
+    });
   } catch (err) {
     next(err);
   }
@@ -1061,24 +1420,73 @@ const getMembershipPlans = async (req, res, next) => {
 
 const createMembershipPlan = async (req, res, next) => {
   try {
-    const { name, code, durationMonths, price, description, features, branchId } = req.body;
+    const {
+      name,
+      code,
+      description,
+      planType = 'MONTHLY',
+      durationDays,
+      benefits,
+      features,
+      branchPricing,
+    } = req.body;
 
-    if (!name || !durationMonths || price === undefined) {
-      return res.status(400).json({ success: false, message: 'Plan name, duration, and price are required' });
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Plan name is required.' });
     }
+
+    const days = parseInt(durationDays, 10);
+    if (!days || days < 1) {
+      return res.status(400).json({ success: false, message: 'Duration must be a positive number of days.' });
+    }
+
+    if (!Array.isArray(branchPricing) || branchPricing.length === 0) {
+      return res.status(400).json({ success: false, message: 'At least one branch pricing configuration is required.' });
+    }
+
+    const hasAvailable = branchPricing.some((bp) => bp.isAvailable);
+    if (!hasAvailable) {
+      return res.status(400).json({ success: false, message: 'At least one branch must be enabled for this plan.' });
+    }
+
+    const processedPricing = branchPricing.map((bp) => {
+      const calc = calculateBranchFinalPrice(bp.basePrice, bp.joiningFee, bp.discountType, bp.discountValue);
+      return {
+        branchId: bp.branchId,
+        isAvailable: Boolean(bp.isAvailable),
+        basePrice: calc.basePrice,
+        joiningFee: calc.joiningFee,
+        discountType: calc.discountType,
+        discountValue: calc.discountValue,
+        finalPrice: calc.finalPrice,
+      };
+    });
+
+    const planCode = code ? code.trim().toUpperCase() : `MM-${days}D`;
+    const benefitsList = Array.isArray(benefits) && benefits.length > 0 ? benefits : (Array.isArray(features) ? features : []);
 
     const plan = await MembershipPlan.create({
       name: name.trim(),
-      code: code ? code.trim().toUpperCase() : `MM-${durationMonths}M`,
-      durationMonths: Number(durationMonths),
-      price: Number(price),
+      code: planCode,
       description: description ? description.trim() : '',
-      features: Array.isArray(features) ? features : (features ? [features] : []),
-      branchId: branchId && mongoose.Types.ObjectId.isValid(branchId) ? branchId : null,
+      planType: ['MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY', 'CUSTOM'].includes(planType) ? planType : 'CUSTOM',
+      durationDays: days,
+      durationMonths: Math.max(1, Math.round(days / 30)),
+      benefits: benefitsList,
+      features: benefitsList,
+      branchPricing: processedPricing,
       isActive: true,
+      createdBy: req.user ? req.user._id : null,
+      updatedBy: req.user ? req.user._id : null,
     });
 
-    res.status(201).json({ success: true, message: 'Plan created successfully', plan });
+    const populatedPlan = await MembershipPlan.findById(plan._id).populate('branchPricing.branchId', 'name city code');
+
+    res.status(201).json({
+      success: true,
+      message: 'Membership plan created successfully',
+      plan: populatedPlan,
+    });
   } catch (err) {
     next(err);
   }
@@ -1087,21 +1495,178 @@ const createMembershipPlan = async (req, res, next) => {
 const updateMembershipPlan = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, code, durationMonths, price, description, features, isActive } = req.body;
+    const {
+      name,
+      code,
+      description,
+      planType,
+      durationDays,
+      benefits,
+      features,
+      branchPricing,
+      isActive,
+      displayOrder,
+    } = req.body;
 
     const plan = await MembershipPlan.findById(id);
-    if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
+    if (!plan) return res.status(404).json({ success: false, message: 'Membership plan not found.' });
 
     if (name) plan.name = name.trim();
     if (code) plan.code = code.trim().toUpperCase();
-    if (durationMonths) plan.durationMonths = Number(durationMonths);
-    if (price !== undefined) plan.price = Number(price);
     if (description !== undefined) plan.description = description.trim();
-    if (features !== undefined) plan.features = Array.isArray(features) ? features : [features];
+    if (planType) plan.planType = planType;
+    if (durationDays) {
+      const days = parseInt(durationDays, 10);
+      if (days < 1) return res.status(400).json({ success: false, message: 'Duration must be positive.' });
+      plan.durationDays = days;
+      plan.durationMonths = Math.max(1, Math.round(days / 30));
+    }
+
+    const benefitsList = Array.isArray(benefits) ? benefits : (Array.isArray(features) ? features : null);
+    if (benefitsList) {
+      plan.benefits = benefitsList;
+      plan.features = benefitsList;
+    }
+
+    if (Array.isArray(branchPricing) && branchPricing.length > 0) {
+      const hasAvailable = branchPricing.some((bp) => bp.isAvailable);
+      if (!hasAvailable) {
+        return res.status(400).json({ success: false, message: 'At least one branch must remain available.' });
+      }
+      plan.branchPricing = branchPricing.map((bp) => {
+        const calc = calculateBranchFinalPrice(bp.basePrice, bp.joiningFee, bp.discountType, bp.discountValue);
+        return {
+          branchId: bp.branchId,
+          isAvailable: Boolean(bp.isAvailable),
+          basePrice: calc.basePrice,
+          joiningFee: calc.joiningFee,
+          discountType: calc.discountType,
+          discountValue: calc.discountValue,
+          finalPrice: calc.finalPrice,
+        };
+      });
+    }
+
     if (isActive !== undefined) plan.isActive = Boolean(isActive);
+    if (displayOrder !== undefined) plan.displayOrder = Number(displayOrder);
+    plan.updatedBy = req.user ? req.user._id : null;
 
     await plan.save();
-    res.status(200).json({ success: true, message: 'Plan updated successfully', plan });
+
+    const populatedPlan = await MembershipPlan.findById(plan._id).populate('branchPricing.branchId', 'name city code');
+
+    res.status(200).json({
+      success: true,
+      message: 'Membership plan updated successfully',
+      plan: populatedPlan,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const toggleMembershipPlanStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const plan = await MembershipPlan.findById(id);
+    if (!plan) return res.status(404).json({ success: false, message: 'Plan not found.' });
+
+    if (req.body.isActive !== undefined) {
+      plan.isActive = Boolean(req.body.isActive);
+    } else {
+      plan.isActive = !plan.isActive;
+    }
+    plan.updatedBy = req.user ? req.user._id : null;
+    await plan.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Plan ${plan.isActive ? 'activated' : 'deactivated'} successfully`,
+      isActive: plan.isActive,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const duplicateMembershipPlan = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const original = await MembershipPlan.findById(id);
+    if (!original) return res.status(404).json({ success: false, message: 'Plan not found.' });
+
+    const copyName = `${original.name} (Copy)`;
+    const copyCode = original.code ? `${original.code}-COPY` : 'MM-COPY';
+
+    const clonedPlan = await MembershipPlan.create({
+      name: copyName,
+      code: copyCode,
+      description: original.description,
+      planType: original.planType,
+      durationDays: original.durationDays,
+      durationMonths: original.durationMonths,
+      benefits: [...(original.benefits || [])],
+      features: [...(original.features || [])],
+      branchPricing: original.branchPricing.map((bp) => ({
+        branchId: bp.branchId,
+        isAvailable: bp.isAvailable,
+        basePrice: bp.basePrice,
+        joiningFee: bp.joiningFee,
+        discountType: bp.discountType,
+        discountValue: bp.discountValue,
+        finalPrice: bp.finalPrice,
+      })),
+      isActive: true,
+      createdBy: req.user ? req.user._id : null,
+      updatedBy: req.user ? req.user._id : null,
+    });
+
+    const populated = await MembershipPlan.findById(clonedPlan._id).populate('branchPricing.branchId', 'name city code');
+
+    res.status(201).json({
+      success: true,
+      message: 'Plan duplicated successfully',
+      plan: populated,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const deleteMembershipPlan = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const plan = await MembershipPlan.findById(id);
+    if (!plan) return res.status(404).json({ success: false, message: 'Plan not found.' });
+
+    // Safety check: is plan referenced by any Membership?
+    const hasMemberships = await Membership.exists({
+      $or: [{ planId: id }, { planName: plan.name }],
+    });
+
+    if (hasMemberships) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete plan because it is currently linked to member records. Deactivate the plan instead to prevent new assignments.',
+      });
+    }
+
+    const hasPayments = await Payment.exists({
+      description: new RegExp(plan.name, 'i'),
+    });
+    if (hasPayments) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete plan because payment transactions exist for this plan. Deactivate the plan instead.',
+      });
+    }
+
+    await MembershipPlan.findByIdAndDelete(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Membership plan deleted successfully',
+    });
   } catch (err) {
     next(err);
   }
@@ -1148,31 +1713,111 @@ const getClientMemberships = async (req, res, next) => {
 
 const createClientMembership = async (req, res, next) => {
   try {
-    const { userId, branchId, planName, durationMonths, amount, startDate } = req.body;
+    const {
+      userId,
+      branchId,
+      planId,
+      planName,
+      durationDays,
+      durationMonths,
+      amount,
+      startDate,
+    } = req.body;
 
-    if (!userId || !planName || !durationMonths) {
-      return res.status(400).json({ success: false, message: 'User ID, plan name, and duration are required' });
+    if (!userId || (!planId && !planName)) {
+      return res.status(400).json({ success: false, message: 'User ID and Plan are required.' });
     }
 
     const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ success: false, message: 'Client not found' });
+    if (!user) return res.status(404).json({ success: false, message: 'Client not found.' });
 
+    const targetBranchId = branchId || user.branchId;
+    if (!targetBranchId) {
+      return res.status(400).json({ success: false, message: 'Client must be associated with a valid gym branch.' });
+    }
+
+    let plan = null;
+    if (planId) {
+      plan = await MembershipPlan.findById(planId);
+    } else if (planName) {
+      plan = await MembershipPlan.findOne({ name: planName });
+    }
+
+    let snapshot = {
+      planId: plan ? plan._id : null,
+      planName: plan ? plan.name : planName.trim(),
+      branchId: targetBranchId,
+      durationDays: 30,
+      durationMonths: 1,
+      basePrice: 0,
+      joiningFee: 0,
+      discountType: 'NONE',
+      discountValue: 0,
+      finalAmount: Number(amount) || 0,
+    };
+
+    if (plan) {
+      if (!plan.isActive) {
+        return res.status(400).json({ success: false, message: 'This membership plan is currently deactivated.' });
+      }
+
+      // Check branch-specific pricing
+      const branchConfig = plan.branchPricing?.find(
+        (bp) => bp.branchId.toString() === targetBranchId.toString()
+      );
+
+      if (branchConfig) {
+        if (!branchConfig.isAvailable) {
+          return res.status(400).json({
+            success: false,
+            message: `The plan "${plan.name}" is not available at the selected branch.`,
+          });
+        }
+        snapshot.basePrice = branchConfig.basePrice;
+        snapshot.joiningFee = branchConfig.joiningFee;
+        snapshot.discountType = branchConfig.discountType;
+        snapshot.discountValue = branchConfig.discountValue;
+        snapshot.finalAmount = Number(amount) || branchConfig.finalPrice;
+      } else {
+        snapshot.basePrice = plan.price || 0;
+        snapshot.finalAmount = Number(amount) || plan.price || 0;
+      }
+
+      snapshot.durationDays = plan.durationDays || (plan.durationMonths * 30) || 30;
+      snapshot.durationMonths = plan.durationMonths || Math.max(1, Math.round(snapshot.durationDays / 30));
+    } else {
+      if (durationDays) snapshot.durationDays = Number(durationDays);
+      if (durationMonths) snapshot.durationMonths = Number(durationMonths);
+    }
+
+    // Calculate expiry date using durationDays
     const sDate = startDate ? new Date(startDate) : new Date();
-    const expDate = new Date(sDate);
-    expDate.setMonth(expDate.getMonth() + Number(durationMonths));
+    const expDate = new Date(sDate.getTime() + snapshot.durationDays * 24 * 60 * 60 * 1000);
 
     const membership = await Membership.create({
       userId,
-      branchId: branchId || user.branchId,
-      planName: planName.trim(),
-      durationMonths: Number(durationMonths),
-      amount: Number(amount) || 0,
+      branchId: targetBranchId,
+      planId: snapshot.planId,
+      planName: snapshot.planName,
+      status: 'ACTIVE',
       startDate: sDate,
       expiryDate: expDate,
-      status: 'ACTIVE',
+      durationDays: snapshot.durationDays,
+      durationMonths: snapshot.durationMonths,
+      basePrice: snapshot.basePrice,
+      joiningFee: snapshot.joiningFee,
+      discountType: snapshot.discountType,
+      discountValue: snapshot.discountValue,
+      finalAmount: snapshot.finalAmount,
+      amount: snapshot.finalAmount,
+      assignedBy: req.user ? req.user._id : null,
     });
 
-    res.status(201).json({ success: true, message: 'Membership assigned successfully', membership });
+    res.status(201).json({
+      success: true,
+      message: 'Membership assigned successfully',
+      membership,
+    });
   } catch (err) {
     next(err);
   }
@@ -2055,9 +2700,15 @@ module.exports = {
   getTrainerDetails,
   createTrainer,
   updateTrainer,
+  getTrainerBookings,
+  confirmTrainerBookingPayment,
   getMembershipPlans,
+  getMembershipPlanById,
   createMembershipPlan,
   updateMembershipPlan,
+  toggleMembershipPlanStatus,
+  duplicateMembershipPlan,
+  deleteMembershipPlan,
   getClientMemberships,
   createClientMembership,
   updateClientMembershipStatus,

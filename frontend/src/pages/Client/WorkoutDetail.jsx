@@ -8,12 +8,14 @@ import {
   Save,
   Sparkles,
 } from 'lucide-react';
+import authService from '../../services/auth.js';
 import clientService from '../../services/clientService.js';
 
 export default function WorkoutDetail({ workoutId, onNavigate }) {
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [notAssigned, setNotAssigned] = useState(false);
 
   // Execution state: allows user to record actual completed sets and weights
   const [sessionData, setSessionData] = useState({
@@ -26,6 +28,14 @@ export default function WorkoutDetail({ workoutId, onNavigate }) {
 
   useEffect(() => {
     let isMounted = true;
+
+    const user = authService.getUser();
+    if (user && user.trainerAssigned === false) {
+      setNotAssigned(true);
+      setLoading(false);
+      return;
+    }
+
     const fetchPlan = async () => {
       try {
         setLoading(true);
@@ -45,7 +55,14 @@ export default function WorkoutDetail({ workoutId, onNavigate }) {
           setSessionData((prev) => ({ ...prev, exerciseLogs: initLogs }));
         }
       } catch (err) {
-        if (isMounted) setError(err.message || 'Unable to load workout split.');
+        if (isMounted) {
+          const msg = err.message || '';
+          if (msg.includes('trainer') || msg.includes('403') || msg.includes('Forbidden') || msg.includes('assigned')) {
+            setNotAssigned(true);
+          } else {
+            setError(msg || 'Unable to load workout split.');
+          }
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -135,6 +152,37 @@ export default function WorkoutDetail({ workoutId, onNavigate }) {
         <div className="h-10 bg-[#151515] rounded-xl w-48" />
         <div className="h-40 bg-[#151515] rounded-2xl" />
         <div className="h-96 bg-[#151515] rounded-2xl" />
+      </div>
+    );
+  }
+
+  if (notAssigned) {
+    return (
+      <div className="p-8 sm:p-12 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col items-center justify-center text-center gap-5 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+        <div className="w-16 h-16 rounded-2xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-center text-[#E58A32]">
+          <Dumbbell className="w-8 h-8 text-[#E58A32]" />
+        </div>
+        <div className="flex flex-col gap-2 max-w-lg">
+          <span className="px-3 py-1 rounded-full bg-[#E58A32]/10 border border-[#E58A32]/30 text-[#E58A32] text-[10px] font-bold uppercase tracking-wider w-fit mx-auto">
+            RESTRICTED ACCESS
+          </span>
+          <h2
+            className="text-xl sm:text-2xl font-bold uppercase text-[#F5F5F5]"
+            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+          >
+            My Workouts is available when you have an assigned trainer.
+          </h2>
+          <p className="text-xs sm:text-sm text-[#A3A3A3] leading-relaxed">
+            Clients at Man &amp; Machine are self-trained by default. Once gym administration assigns a personal coach to your profile, your customized workout split and exercise routines will appear here.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => handleNav('/client/dashboard')}
+          className="mt-2 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#E58A32] hover:bg-[#F09A43] text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+        >
+          <span>RETURN TO DASHBOARD</span>
+        </button>
       </div>
     );
   }

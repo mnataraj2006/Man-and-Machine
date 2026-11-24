@@ -118,6 +118,14 @@ export const authService = {
   },
 
   /**
+   * Retrieve stored JWT auth token.
+   * @returns {string|null}
+   */
+  getToken: () => {
+    return localStorage.getItem(TOKEN_KEY);
+  },
+
+  /**
    * Get cached user from localStorage.
    */
   getUser: () => {

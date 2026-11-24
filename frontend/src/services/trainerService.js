@@ -4,7 +4,10 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 class TrainerService {
   getAuthHeaders() {
-    const token = authService.getToken();
+    const token =
+      (authService && typeof authService.getToken === 'function' ? authService.getToken() : null) ||
+      localStorage.getItem('mm_auth_token') ||
+      '';
     return {
       'Content-Type': 'application/json',
       Authorization: token ? `Bearer ${token}` : '',
@@ -191,6 +194,18 @@ class TrainerService {
     return this.request('/sessions/complete', {
       method: 'POST',
       body: JSON.stringify(sessionData),
+    });
+  }
+
+  async getBookings(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return this.request(`/bookings${query ? `?${query}` : ''}`);
+  }
+
+  async updateAvailability(availabilityData) {
+    return this.request('/availability', {
+      method: 'PUT',
+      body: JSON.stringify(availabilityData),
     });
   }
 

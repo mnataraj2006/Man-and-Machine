@@ -84,6 +84,8 @@ export default function DashboardHome({ onNavigate }) {
   }
 
   const { stats, todaysWorkout, weeklyActivity, membership, trainer, recentActivities, client } = data || {};
+  const isTrainerAssigned = Boolean(data?.trainerAssigned);
+  const hasActiveMembership = Boolean(data?.hasActiveMembership);
 
   return (
     <div className="flex flex-col gap-6 sm:gap-8">
@@ -92,7 +94,7 @@ export default function DashboardHome({ onNavigate }) {
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#151515] border border-[#292929] text-[10px] uppercase font-bold tracking-widest text-[#E58A32] w-fit">
           <span>{client?.branch?.name || 'MAN & MACHINE'}</span>
           <span>•</span>
-          <span>DISCIPLINE OVER SHORTCUTS</span>
+          <span>{isTrainerAssigned ? 'COACHED ATHLETE' : 'SELF-TRAINED ATHLETE'}</span>
         </div>
 
         <h1
@@ -106,7 +108,9 @@ export default function DashboardHome({ onNavigate }) {
           WELCOME, <span className="text-[#E58A32]">{client?.name || 'ATHLETE'}.</span>
         </h1>
         <p className="text-xs sm:text-sm text-[#A3A3A3]">
-          Every rep counts. Keep building your strongest self.
+          {isTrainerAssigned
+            ? 'Every rep counts. Follow your coach’s prescribed split and stay consistent.'
+            : 'Discipline over shortcuts. Full access to the facility floor and training stations.'}
         </p>
       </div>
 
@@ -128,36 +132,70 @@ export default function DashboardHome({ onNavigate }) {
           </div>
         </div>
 
-        {/* Stat 2: Completed Workouts */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono text-[#A3A3A3] uppercase tracking-wider">WORKOUTS DONE</span>
-            <div className="w-7 h-7 rounded-lg bg-[#E58A32]/10 flex items-center justify-center text-[#E58A32]">
-              <Dumbbell className="w-4 h-4" />
+        {/* Stat 2: Conditional Workouts Done (Coached) vs Training Track (Self-Trained) */}
+        {isTrainerAssigned ? (
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-mono text-[#A3A3A3] uppercase tracking-wider">WORKOUTS DONE</span>
+              <div className="w-7 h-7 rounded-lg bg-[#E58A32]/10 flex items-center justify-center text-[#E58A32]">
+                <Dumbbell className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                {stats?.completedWorkouts ?? 0}
+              </span>
+              <span className="text-[11px] text-[#A3A3A3]">logged</span>
             </div>
           </div>
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              {stats?.completedWorkouts ?? 0}
-            </span>
-            <span className="text-[11px] text-[#A3A3A3]">logged</span>
+        ) : (
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-mono text-[#A3A3A3] uppercase tracking-wider">TRAINING TRACK</span>
+              <div className="w-7 h-7 rounded-lg bg-[#E58A32]/10 flex items-center justify-center text-[#E58A32]">
+                <Activity className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-base sm:text-lg font-bold text-[#E58A32] uppercase tracking-tight">
+                SELF-TRAINED
+              </span>
+              <span className="text-[10px] text-[#A3A3A3]">
+                Open gym floor access
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Stat 3: Current Membership */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+        <div
+          onClick={() => handleNav('/client/membership')}
+          className="p-4 sm:p-5 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors cursor-pointer group"
+        >
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-mono text-[#A3A3A3] uppercase tracking-wider">MEMBERSHIP</span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+            <div
+              className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                hasActiveMembership
+                  ? 'bg-emerald-500/10 text-emerald-400'
+                  : 'bg-[#E58A32]/10 text-[#E58A32]'
+              }`}
+            >
               <ShieldCheck className="w-4 h-4" />
             </div>
           </div>
           <div className="flex flex-col">
-            <span className="text-base sm:text-lg font-bold text-emerald-400 uppercase tracking-tight truncate">
-              {membership ? membership.status : 'INACTIVE'}
+            <span
+              className={`text-base sm:text-lg font-bold uppercase tracking-tight truncate ${
+                hasActiveMembership ? 'text-emerald-400' : 'text-[#E58A32]'
+              }`}
+            >
+              {hasActiveMembership ? membership?.status || 'ACTIVE' : 'NO MEMBERSHIP'}
             </span>
             <span className="text-[10px] text-[#A3A3A3] truncate">
-              {membership ? `${membership.daysRemaining} days left` : 'Pending activation'}
+              {hasActiveMembership
+                ? `${membership?.daysRemaining} days left`
+                : 'Buy membership →'}
             </span>
           </div>
         </div>
@@ -180,154 +218,261 @@ export default function DashboardHome({ onNavigate }) {
       </div>
 
       {/* ── 3. TODAY'S WORKOUT & WEEKLY ACTIVITY ROW ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left (2 Cols): Today's Workout Card */}
-        <div className="lg:col-span-2 p-6 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between shadow-[0_4px_24px_rgba(0,0,0,0.5)] relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-[#E58A32]/5 rounded-full blur-3xl pointer-events-none" />
+      {isTrainerAssigned ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left (2 Cols): Today's Workout Card */}
+          <div className="lg:col-span-2 p-6 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between shadow-[0_4px_24px_rgba(0,0,0,0.5)] relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-[#E58A32]/5 rounded-full blur-3xl pointer-events-none" />
 
-          {todaysWorkout ? (
-            <div className="flex flex-col gap-5">
-              <div className="flex items-center justify-between border-b border-[#292929] pb-4">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
-                    TODAY'S PRESCRIBED SESSION • {todaysWorkout.day}
+            {todaysWorkout ? (
+              <div className="flex flex-col gap-5">
+                <div className="flex items-center justify-between border-b border-[#292929] pb-4">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
+                      TODAY'S PRESCRIBED SESSION • {todaysWorkout.day}
+                    </span>
+                    <h3
+                      className="text-xl sm:text-2xl font-bold uppercase text-[#F5F5F5]"
+                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                    >
+                      {todaysWorkout.focus}
+                    </h3>
+                  </div>
+                  {todaysWorkout.isRestDay ? (
+                    <span className="px-3 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-bold uppercase">
+                      REST &amp; RECOVER
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 rounded-lg bg-[#E58A32]/10 border border-[#E58A32]/30 text-[#E58A32] text-xs font-bold uppercase">
+                      {todaysWorkout.exerciseCount} EXERCISES
+                    </span>
+                  )}
+                </div>
+
+                {todaysWorkout.isRestDay ? (
+                  <div className="py-8 flex flex-col items-center justify-center text-center gap-2 text-[#A3A3A3]">
+                    <Sparkles className="w-8 h-8 text-[#E58A32]" />
+                    <p className="text-sm">Scheduled active recovery day. Hydrate, stretch, and nourish the machine.</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2.5">
+                    <span className="text-xs font-bold uppercase text-[#A3A3A3]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                      SAMPLE EXERCISES PREVIEW:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      {todaysWorkout.exercises.map((ex, idx) => (
+                        <div key={idx} className="p-3 rounded-xl bg-[#1C1C1C] border border-[#292929] flex flex-col gap-1">
+                          <span className="text-xs font-bold text-[#F5F5F5] truncate">{ex.name}</span>
+                          <span className="text-[11px] font-mono text-[#E58A32]">
+                            {ex.sets} sets × {ex.reps} reps
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-3 border-t border-[#292929] flex items-center justify-between">
+                  <span className="text-xs text-[#A3A3A3]">
+                    Trainer: <strong className="text-[#F5F5F5]">{todaysWorkout.trainerName || 'Assigned Coach'}</strong>
                   </span>
-                  <h3
-                    className="text-xl sm:text-2xl font-bold uppercase text-[#F5F5F5]"
+
+                  <button
+                    type="button"
+                    onClick={() => handleNav(`/client/workouts/${todaysWorkout.planId}`)}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E58A32] hover:bg-[#F09A43] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(229,138,50,0.25)] cursor-pointer"
                     style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                   >
-                    {todaysWorkout.focus}
-                  </h3>
+                    <span>START WORKOUT</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
                 </div>
-                {todaysWorkout.isRestDay ? (
-                  <span className="px-3 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-bold uppercase">
-                    REST &amp; RECOVER
-                  </span>
-                ) : (
-                  <span className="px-3 py-1 rounded-lg bg-[#E58A32]/10 border border-[#E58A32]/30 text-[#E58A32] text-xs font-bold uppercase">
-                    {todaysWorkout.exerciseCount} EXERCISES
-                  </span>
-                )}
               </div>
-
-              {todaysWorkout.isRestDay ? (
-                <div className="py-8 flex flex-col items-center justify-center text-center gap-2 text-[#A3A3A3]">
-                  <Sparkles className="w-8 h-8 text-[#E58A32]" />
-                  <p className="text-sm">Scheduled active recovery day. Hydrate, stretch, and nourish the machine.</p>
+            ) : (
+              /* Empty State */
+              <div className="py-8 sm:py-12 flex flex-col items-center justify-center text-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-center text-[#E58A32]">
+                  <Dumbbell className="w-6 h-6" />
                 </div>
-              ) : (
-                <div className="flex flex-col gap-2.5">
-                  <span className="text-xs font-bold uppercase text-[#A3A3A3]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                    SAMPLE EXERCISES PREVIEW:
+                <div className="flex flex-col gap-1">
+                  <span
+                    className="text-base sm:text-lg font-bold uppercase text-[#F5F5F5]"
+                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  >
+                    YOUR NEXT SESSION STARTS HERE
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    {todaysWorkout.exercises.map((ex, idx) => (
-                      <div key={idx} className="p-3 rounded-xl bg-[#1C1C1C] border border-[#292929] flex flex-col gap-1">
-                        <span className="text-xs font-bold text-[#F5F5F5] truncate">{ex.name}</span>
-                        <span className="text-[11px] font-mono text-[#E58A32]">
-                          {ex.sets} sets × {ex.reps} reps
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  <p className="text-xs sm:text-sm text-[#A3A3A3] max-w-sm">
+                    Your trainer hasn't assigned a structured workout yet. You can still view assigned programs anytime.
+                  </p>
                 </div>
-              )}
-
-              <div className="pt-3 border-t border-[#292929] flex items-center justify-between">
-                <span className="text-xs text-[#A3A3A3]">
-                  Trainer: <strong className="text-[#F5F5F5]">{todaysWorkout.trainerName || 'Assigned Coach'}</strong>
-                </span>
-
                 <button
                   type="button"
-                  onClick={() => handleNav(`/client/workouts/${todaysWorkout.planId}`)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E58A32] hover:bg-[#F09A43] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(229,138,50,0.25)] cursor-pointer"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  onClick={() => handleNav('/client/workouts')}
+                  className="mt-2 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1C1C1C] hover:border-[#E58A32] text-[#F5F5F5] border border-[#292929] text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
                 >
-                  <span>START WORKOUT</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <span>OPEN WORKOUT ROSTER</span>
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
+            )}
+          </div>
+
+          {/* Right (1 Col): Weekly Activity Visualization */}
+          <div className="p-6 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between">
+            <div className="flex flex-col gap-1 border-b border-[#292929] pb-3">
+              <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
+                ATTENDANCE &amp; ACTIVITY
+              </span>
+              <h3
+                className="text-lg font-bold uppercase text-[#F5F5F5]"
+                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              >
+                THIS WEEK'S MATRIX
+              </h3>
             </div>
-          ) : (
-            /* Empty State */
-            <div className="py-8 sm:py-12 flex flex-col items-center justify-center text-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-center text-[#E58A32]">
-                <Dumbbell className="w-6 h-6" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <span
-                  className="text-base sm:text-lg font-bold uppercase text-[#F5F5F5]"
+
+            {/* Visual Weekly Day Bars */}
+            <div className="grid grid-cols-7 gap-1.5 py-6">
+              {weeklyActivity?.map((item) => (
+                <div key={item.day} className="flex flex-col items-center gap-2">
+                  <div
+                    className={`w-full h-24 rounded-xl flex flex-col justify-end p-1 transition-all border ${
+                      item.attended
+                        ? 'bg-[#E58A32]/20 border-[#E58A32]'
+                        : 'bg-[#1C1C1C] border-[#292929]'
+                    }`}
+                  >
+                    {item.attended ? (
+                      <div className="w-full bg-[#E58A32] rounded-lg py-1 flex items-center justify-center">
+                        <CheckCircle2 className="w-3 h-3 text-white" />
+                      </div>
+                    ) : (
+                      <div className="w-full h-1 bg-[#292929] rounded" />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-mono text-[#A3A3A3] font-bold">{item.day}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-3 border-t border-[#292929] flex items-center justify-between text-xs text-[#A3A3A3]">
+              <span>Orange indicates confirmed check-in.</span>
+              <button
+                type="button"
+                onClick={() => handleNav('/client/attendance')}
+                className="text-[#E58A32] hover:underline font-bold uppercase text-[11px]"
+              >
+                FULL CALENDAR →
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Self-Trained Row 3: Weekly Attendance Matrix & Facility Privileges */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left (2 Cols): Expanded Weekly Attendance Matrix */}
+          <div className="lg:col-span-2 p-6 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between shadow-[0_4px_24px_rgba(0,0,0,0.5)]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#292929] pb-4">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
+                  TRAINING CONSISTENCY • ATTENDANCE LOG
+                </span>
+                <h3
+                  className="text-xl sm:text-2xl font-bold uppercase text-[#F5F5F5]"
                   style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                 >
-                  YOUR NEXT SESSION STARTS HERE
-                </span>
-                <p className="text-xs sm:text-sm text-[#A3A3A3] max-w-sm">
-                  Your trainer hasn't assigned a structured workout yet. You can still log personal sessions anytime.
-                </p>
+                  THIS WEEK'S GYM SESSIONS
+                </h3>
+              </div>
+              <span className="px-3 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase w-fit">
+                ACTIVE MEMBER
+              </span>
+            </div>
+
+            {/* Visual Weekly Day Bars */}
+            <div className="grid grid-cols-7 gap-2 sm:gap-3 py-6">
+              {weeklyActivity?.map((item) => (
+                <div key={item.day} className="flex flex-col items-center gap-2">
+                  <div
+                    className={`w-full h-28 rounded-xl flex flex-col justify-end p-1.5 transition-all border ${
+                      item.attended
+                        ? 'bg-[#E58A32]/20 border-[#E58A32] shadow-[0_0_12px_rgba(229,138,50,0.2)]'
+                        : 'bg-[#1C1C1C] border-[#292929]'
+                    }`}
+                  >
+                    {item.attended ? (
+                      <div className="w-full bg-[#E58A32] rounded-lg py-1.5 flex flex-col items-center justify-center">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                      </div>
+                    ) : (
+                      <div className="w-full h-1 bg-[#292929] rounded" />
+                    )}
+                  </div>
+                  <span className="text-[10px] sm:text-xs font-mono text-[#A3A3A3] font-bold">{item.day}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-3 border-t border-[#292929] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-[#A3A3A3]">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-[#E58A32]" />
+                <span>Confirmed facility attendance</span>
               </div>
               <button
                 type="button"
-                onClick={() => handleNav('/client/workouts')}
-                className="mt-2 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1C1C1C] hover:border-[#E58A32] text-[#F5F5F5] border border-[#292929] text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                onClick={() => handleNav('/client/attendance')}
+                className="inline-flex items-center gap-1.5 text-[#E58A32] hover:text-[#F09A43] font-bold uppercase text-xs tracking-wider cursor-pointer"
               >
-                <span>OPEN WORKOUT ROSTER</span>
-                <ChevronRight className="w-4 h-4" />
+                <span>VIEW COMPLETE ATTENDANCE LEDGER</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
-          )}
-        </div>
-
-        {/* Right (1 Col): Weekly Activity Visualization */}
-        <div className="p-6 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between">
-          <div className="flex flex-col gap-1 border-b border-[#292929] pb-3">
-            <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
-              ATTENDANCE &amp; ACTIVITY
-            </span>
-            <h3
-              className="text-lg font-bold uppercase text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              THIS WEEK'S MATRIX
-            </h3>
           </div>
 
-          {/* Visual Weekly Day Bars */}
-          <div className="grid grid-cols-7 gap-1.5 py-6">
-            {weeklyActivity?.map((item) => (
-              <div key={item.day} className="flex flex-col items-center gap-2">
-                <div
-                  className={`w-full h-24 rounded-xl flex flex-col justify-end p-1 transition-all border ${
-                    item.attended
-                      ? 'bg-[#E58A32]/20 border-[#E58A32]'
-                      : 'bg-[#1C1C1C] border-[#292929]'
-                  }`}
-                >
-                  {item.attended ? (
-                    <div className="w-full bg-[#E58A32] rounded-lg py-1 flex items-center justify-center">
-                      <CheckCircle2 className="w-3 h-3 text-white" />
-                    </div>
-                  ) : (
-                    <div className="w-full h-1 bg-[#292929] rounded" />
-                  )}
-                </div>
-                <span className="text-[10px] font-mono text-[#A3A3A3] font-bold">{item.day}</span>
+          {/* Right (1 Col): Facility Operating Schedule & Rules */}
+          <div className="p-6 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between">
+            <div className="flex flex-col gap-1 border-b border-[#292929] pb-3">
+              <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
+                FACILITY PROTOCOLS
+              </span>
+              <h3
+                className="text-lg font-bold uppercase text-[#F5F5F5]"
+                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              >
+                OPERATING SCHEDULE
+              </h3>
+            </div>
+
+            <div className="py-4 flex flex-col gap-3">
+              <div className="p-3 rounded-xl bg-[#1C1C1C] border border-[#292929] flex flex-col gap-1">
+                <span className="text-[10px] font-mono text-[#A3A3A3] uppercase">BRANCH FACILITY</span>
+                <span className="text-xs font-bold text-[#F5F5F5] uppercase">
+                  {client?.branch?.name || 'MAN & MACHINE'}
+                </span>
+                <span className="text-[11px] text-[#A3A3A3]">
+                  {client?.branch?.city || 'Main Branch'}
+                </span>
               </div>
-            ))}
-          </div>
 
-          <div className="pt-3 border-t border-[#292929] flex items-center justify-between text-xs text-[#A3A3A3]">
-            <span>Orange indicates confirmed check-in.</span>
-            <button
-              type="button"
-              onClick={() => handleNav('/client/attendance')}
-              className="text-[#E58A32] hover:underline font-bold uppercase text-[11px]"
-            >
-              FULL CALENDAR →
-            </button>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-2.5 rounded-xl bg-[#1C1C1C] border border-[#292929] flex flex-col gap-0.5">
+                  <span className="text-[9.5px] font-mono text-[#E58A32] uppercase font-bold">MORNING SHIFT</span>
+                  <span className="text-xs font-bold text-[#F5F5F5]">05:30 AM - 11:30 AM</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-[#1C1C1C] border border-[#292929] flex flex-col gap-0.5">
+                  <span className="text-[9.5px] font-mono text-[#E58A32] uppercase font-bold">EVENING SHIFT</span>
+                  <span className="text-xs font-bold text-[#F5F5F5]">04:30 PM - 09:30 PM</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-[#292929] flex items-center justify-between text-xs text-[#A3A3A3]">
+              <span>Sunday: 06:00 AM - 12:00 PM</span>
+              <span className="text-emerald-400 font-bold text-[10px] uppercase">OPEN TODAY</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── 4. MEMBERSHIP SUMMARY & ASSIGNED TRAINER ROW ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -345,12 +490,12 @@ export default function DashboardHome({ onNavigate }) {
             </h3>
           </div>
 
-          {membership ? (
+          {hasActiveMembership && membership ? (
             <div className="py-4 flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-bold text-[#F5F5F5]">{membership.planName}</span>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                  {membership.status}
+                  {membership.status || 'ACTIVE'}
                 </span>
               </div>
 
@@ -366,10 +511,35 @@ export default function DashboardHome({ onNavigate }) {
                   <span className="text-xs font-bold text-[#E58A32]">{membership.daysRemaining} Days</span>
                 </div>
               </div>
+
+              <div className="p-2.5 rounded-xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-between text-xs">
+                <span className="text-[#A3A3A3]">Training Track:</span>
+                <span className="font-bold text-[#F5F5F5] uppercase">
+                  {isTrainerAssigned ? `Personal Trainer (${trainer?.name || 'Assigned Coach'})` : 'Self-Trained'}
+                </span>
+              </div>
             </div>
           ) : (
-            <div className="py-6 text-center text-xs text-[#A3A3A3]">
-              Membership details will appear here once your account is updated by the gym.
+            <div className="py-6 flex flex-col items-center justify-center text-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-[#E58A32]/10 border border-[#E58A32]/20 flex items-center justify-center text-[#E58A32]">
+                <CreditCard className="w-6 h-6" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <h4 className="text-sm font-bold uppercase text-[#F5F5F5]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                  NO ACTIVE MEMBERSHIP
+                </h4>
+                <p className="text-xs text-[#A3A3A3] max-w-sm">
+                  Choose a membership plan to start your journey at Man &amp; Machine Fitness Gym.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleNav('/client/membership')}
+                className="mt-1 px-5 py-2.5 rounded-xl bg-[#E58A32] hover:bg-[#F09A43] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(229,138,50,0.25)]"
+                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              >
+                BUY MEMBERSHIP
+              </button>
             </div>
           )}
 
@@ -379,54 +549,96 @@ export default function DashboardHome({ onNavigate }) {
               onClick={() => handleNav('/client/membership')}
               className="inline-flex items-center gap-1.5 text-xs font-bold text-[#E58A32] hover:text-[#F09A43] uppercase tracking-wider"
             >
-              <span>VIEW MEMBERSHIP DETAILS</span>
+              <span>{hasActiveMembership ? 'VIEW MEMBERSHIP DETAILS' : 'EXPLORE ALL PLANS'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
-        {/* Trainer Card */}
-        <div className="p-6 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between">
-          <div className="flex flex-col gap-1 border-b border-[#292929] pb-3">
-            <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
-              COACHING PARTNER
-            </span>
-            <h3
-              className="text-lg font-bold uppercase text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              ASSIGNED TRAINER
-            </h3>
-          </div>
-
-          {trainer ? (
-            <div className="py-4 flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-center text-[#E58A32] font-bold text-lg shrink-0">
-                {trainer.name ? trainer.name.charAt(0).toUpperCase() : 'T'}
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm font-bold uppercase text-[#F5F5F5] truncate">{trainer.name}</span>
-                <span className="text-xs text-[#E58A32] truncate">{trainer.specialization}</span>
-                <span className="text-[11px] text-[#A3A3A3] truncate">{trainer.experienceYears} Years Experience</span>
-              </div>
+        {/* Coached: Trainer Card | Self-Trained: Floor Privileges & Coaching Inquiry */}
+        {isTrainerAssigned ? (
+          <div className="p-6 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between">
+            <div className="flex flex-col gap-1 border-b border-[#292929] pb-3">
+              <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
+                COACHING PARTNER
+              </span>
+              <h3
+                className="text-lg font-bold uppercase text-[#F5F5F5]"
+                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              >
+                ASSIGNED TRAINER
+              </h3>
             </div>
-          ) : (
-            <div className="py-6 text-center text-xs text-[#A3A3A3]">
-              Your trainer assignment is pending. The branch will assign a coach to your account.
-            </div>
-          )}
 
-          <div className="pt-3 border-t border-[#292929]">
-            <button
-              type="button"
-              onClick={() => handleNav('/client/trainer')}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#E58A32] hover:text-[#F09A43] uppercase tracking-wider"
-            >
-              <span>VIEW TRAINER PROFILE</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            {trainer ? (
+              <div className="py-4 flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-center text-[#E58A32] font-bold text-lg shrink-0">
+                  {trainer.name ? trainer.name.charAt(0).toUpperCase() : 'T'}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-bold uppercase text-[#F5F5F5] truncate">{trainer.name}</span>
+                  <span className="text-xs text-[#E58A32] truncate">{trainer.specialization}</span>
+                  <span className="text-[11px] text-[#A3A3A3] truncate">{trainer.experienceYears} Years Experience</span>
+                </div>
+              </div>
+            ) : (
+              <div className="py-6 text-center text-xs text-[#A3A3A3]">
+                Your trainer assignment is pending. The branch will assign a coach to your account.
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-[#292929]">
+              <button
+                type="button"
+                onClick={() => handleNav('/client/my-trainer')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#E58A32] hover:text-[#F09A43] uppercase tracking-wider"
+              >
+                <span>VIEW TRAINER PROFILE</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="p-6 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between">
+            <div className="flex flex-col gap-1 border-b border-[#292929] pb-3">
+              <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
+                GYM PRIVILEGES
+              </span>
+              <h3
+                className="text-lg font-bold uppercase text-[#F5F5F5]"
+                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              >
+                SELF-TRAINED ATHLETE STATUS
+              </h3>
+            </div>
+
+            <div className="py-4 flex flex-col gap-2.5">
+              <div className="flex items-center gap-2 text-xs text-[#F5F5F5]">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Full access to strength equipment and cardio stations.</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-[#F5F5F5]">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Personal locker facilities and shower access included.</span>
+              </div>
+              <p className="text-[11px] text-[#A3A3A3] leading-relaxed pt-1">
+                Want 1-on-1 personal coaching? Browse certified coaches at your branch and schedule an introductory session based on their availability.
+              </p>
+            </div>
+
+            <div className="pt-3 border-t border-[#292929] flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => handleNav('/client/my-trainer')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#E58A32] hover:text-[#F09A43] uppercase tracking-wider cursor-pointer"
+              >
+                <span>BROWSE AVAILABLE TRAINERS</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[10px] text-emerald-400 font-semibold uppercase">READY TO ASSIGN</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── 5. RECENT GENUINE ACTIVITY LEDGER ── */}

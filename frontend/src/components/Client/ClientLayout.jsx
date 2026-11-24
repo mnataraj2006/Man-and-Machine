@@ -56,21 +56,34 @@ export default function ClientLayout({ children, currentPath, onNavigate, onLogo
     };
   }, [currentPath]);
 
+  const isTrainerAssigned = Boolean(
+    user?.trainerAssigned === true ||
+    user?.clientProfile?.trainerAssigned === true
+  );
+
+  const hasActiveMembership = Boolean(user?.hasActiveMembership);
+
   const navItems = [
     { label: 'Dashboard', path: '/client/dashboard', icon: LayoutDashboard },
-    { label: 'My Workouts', path: '/client/workouts', icon: Dumbbell },
     { label: 'Attendance', path: '/client/attendance', icon: CalendarCheck },
-    { label: 'My Progress', path: '/client/progress', icon: TrendingUp },
-    { label: 'Membership', path: '/client/membership', icon: CreditCard },
+    {
+      label: hasActiveMembership ? 'Membership' : 'Get Membership',
+      path: '/client/membership',
+      icon: CreditCard,
+      highlight: !hasActiveMembership,
+      badge: !hasActiveMembership ? 'BUY' : null,
+    },
     { label: 'Payments', path: '/client/payments', icon: Receipt },
-    { label: 'My Trainer', path: '/client/trainer', icon: UserCheck },
+    { label: 'My Trainer', path: '/client/my-trainer', icon: UserCheck },
+    ...(isTrainerAssigned ? [{ label: 'My Workouts', path: '/client/workouts', icon: Dumbbell }] : []),
+    { label: 'Progress', path: '/client/progress', icon: TrendingUp },
     {
       label: 'Notifications',
       path: '/client/notifications',
       icon: Bell,
       badge: unreadCount > 0 ? unreadCount : null,
     },
-    { label: 'My Profile', path: '/client/profile', icon: User },
+    { label: 'Profile', path: '/client/profile', icon: User },
     { label: 'Settings', path: '/client/settings', icon: Settings },
   ];
 
@@ -155,7 +168,8 @@ export default function ClientLayout({ children, currentPath, onNavigate, onLogo
               const Icon = item.icon;
               const isActive =
                 currentPath === item.path ||
-                (item.path === '/client/workouts' && currentPath.startsWith('/client/workouts/'));
+                (item.path === '/client/workouts' && currentPath.startsWith('/client/workouts/')) ||
+                (item.path === '/client/my-trainer' && (currentPath === '/client/trainer' || currentPath.startsWith('/client/my-trainer')));
 
               return (
                 <button
@@ -165,6 +179,8 @@ export default function ClientLayout({ children, currentPath, onNavigate, onLogo
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                     isActive
                       ? 'bg-[#E58A32] text-white font-bold shadow-[0_0_15px_rgba(229,138,50,0.30)]'
+                      : item.highlight
+                      ? 'border border-[#E58A32]/40 bg-[#E58A32]/10 text-[#E58A32] hover:bg-[#E58A32]/20 font-bold'
                       : 'text-[#A3A3A3] hover:text-[#F5F5F5] hover:bg-[#151515]'
                   }`}
                   style={{ fontFamily: "'Space Grotesk', sans-serif" }}
@@ -296,17 +312,42 @@ export default function ClientLayout({ children, currentPath, onNavigate, onLogo
             <span className="text-[9px] font-bold uppercase tracking-wider">Home</span>
           </button>
 
-          {/* 2. Workouts */}
+          {/* 2. My Trainer */}
           <button
             type="button"
-            onClick={() => handleNav('/client/workouts')}
+            onClick={() => handleNav('/client/my-trainer')}
             className={`flex flex-col items-center justify-center gap-1 w-14 py-1 cursor-pointer transition-colors ${
-              currentPath.startsWith('/client/workouts') ? 'text-[#E58A32]' : 'text-[#A3A3A3]'
+              currentPath === '/client/my-trainer' || currentPath === '/client/trainer' ? 'text-[#E58A32]' : 'text-[#A3A3A3]'
             }`}
           >
-            <Dumbbell className="w-5 h-5" />
-            <span className="text-[9px] font-bold uppercase tracking-wider">Workout</span>
+            <UserCheck className="w-5 h-5" />
+            <span className="text-[9px] font-bold uppercase tracking-wider">Trainer</span>
           </button>
+
+          {/* 3. Workouts (if trainer assigned) OR Visits (if self-trained) */}
+          {isTrainerAssigned ? (
+            <button
+              type="button"
+              onClick={() => handleNav('/client/workouts')}
+              className={`flex flex-col items-center justify-center gap-1 w-14 py-1 cursor-pointer transition-colors ${
+                currentPath.startsWith('/client/workouts') ? 'text-[#E58A32]' : 'text-[#A3A3A3]'
+              }`}
+            >
+              <Dumbbell className="w-5 h-5" />
+              <span className="text-[9px] font-bold uppercase tracking-wider">Workout</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleNav('/client/attendance')}
+              className={`flex flex-col items-center justify-center gap-1 w-14 py-1 cursor-pointer transition-colors ${
+                currentPath === '/client/attendance' ? 'text-[#E58A32]' : 'text-[#A3A3A3]'
+              }`}
+            >
+              <CalendarCheck className="w-5 h-5" />
+              <span className="text-[9px] font-bold uppercase tracking-wider">Visits</span>
+            </button>
+          )}
 
           {/* 3. Progress */}
           <button
@@ -393,12 +434,23 @@ export default function ClientLayout({ children, currentPath, onNavigate, onLogo
 
                 <button
                   type="button"
-                  onClick={() => handleNav('/client/trainer')}
+                  onClick={() => handleNav('/client/my-trainer')}
                   className="p-3.5 rounded-xl bg-[#151515] border border-[#292929] text-left flex items-center gap-3 text-xs font-bold uppercase text-[#F5F5F5]"
                 >
                   <UserCheck className="w-4 h-4 text-[#E58A32]" />
                   <span>My Trainer</span>
                 </button>
+
+                {isTrainerAssigned && (
+                  <button
+                    type="button"
+                    onClick={() => handleNav('/client/workouts')}
+                    className="p-3.5 rounded-xl bg-[#151515] border border-[#292929] text-left flex items-center gap-3 text-xs font-bold uppercase text-[#F5F5F5]"
+                  >
+                    <Dumbbell className="w-4 h-4 text-[#E58A32]" />
+                    <span>My Workouts</span>
+                  </button>
+                )}
 
                 <button
                   type="button"

@@ -125,6 +125,46 @@ export const clientService = {
     return res.json();
   },
 
+  getMembershipPlans: async () => {
+    const res = await fetch(`${BASE_URL}/client/membership/plans`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to load membership plans');
+    return res.json();
+  },
+
+  checkoutMembership: async (payload) => {
+    const res = await fetch(`${BASE_URL}/client/membership/checkout`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Checkout validation failed');
+    }
+    return res.json();
+  },
+
+  purchaseMembership: async (payload) => {
+    const res = await fetch(`${BASE_URL}/client/membership/purchase`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Membership purchase failed');
+    }
+    return res.json();
+  },
+
   requestRenewal: async () => {
     const res = await fetch(`${BASE_URL}/client/membership/renewal-request`, {
       method: 'POST',
@@ -146,12 +186,58 @@ export const clientService = {
     return res.json();
   },
 
-  // ── 8. Trainer ────────────────────────────────────────────
+  // ── 8. Trainer & Coaching Discovery ───────────────────────
   getTrainer: async () => {
     const res = await fetch(`${BASE_URL}/client/trainer`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error('Failed to load trainer details');
+    return res.json();
+  },
+
+  getAvailableTrainers: async (branchId) => {
+    const query = branchId && branchId !== 'ALL' ? `?branchId=${branchId}` : '';
+    const res = await fetch(`${BASE_URL}/client/trainers${query}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to load available trainers');
+    return res.json();
+  },
+
+  getTrainerPublicProfile: async (trainerId) => {
+    const res = await fetch(`${BASE_URL}/client/trainers/${trainerId}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to load coach profile');
+    return res.json();
+  },
+
+  getTrainerAvailability: async (trainerId, date) => {
+    const res = await fetch(`${BASE_URL}/client/trainers/${trainerId}/availability?date=${date}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to load trainer availability');
+    return res.json();
+  },
+
+  bookTrainerSession: async (trainerId, bookingData) => {
+    const res = await fetch(`${BASE_URL}/client/trainers/${trainerId}/book`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(bookingData),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to complete booking');
+    }
+    return data;
+  },
+
+  getClientBookings: async () => {
+    const res = await fetch(`${BASE_URL}/client/my-trainer-bookings`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to load your trainer bookings');
     return res.json();
   },
 

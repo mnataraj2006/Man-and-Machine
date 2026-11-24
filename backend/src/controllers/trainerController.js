@@ -11,6 +11,7 @@ const TrainingAppointment = require('../models/TrainingAppointment');
 const TrainerNote = require('../models/TrainerNote');
 const Exercise = require('../models/Exercise');
 const Branch = require('../models/Branch');
+const TrainerBooking = require('../models/TrainerBooking');
 const bcrypt = require('bcryptjs');
 
 /**
@@ -1677,6 +1678,75 @@ const changePassword = async (req, res, next) => {
   }
 };
 
+/**
+ * @route   GET /api/trainer/bookings
+ * @desc    Get all bookings for this trainer
+ */
+const getTrainerBookings = async (req, res, next) => {
+  try {
+    const trainerId = req.user._id;
+    const { status } = req.query;
+    const query = { trainerId };
+    if (status && status !== 'ALL') {
+      query.bookingStatus = status;
+    }
+
+    const bookings = await TrainerBooking.find(query)
+      .populate('clientId', 'name email phone avatar')
+      .populate('branchId', 'name city')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: bookings.length,
+      bookings,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * @route   PUT /api/trainer/availability
+ * @desc    Update trainer availability schedule & working hours
+ */
+const updateTrainerAvailability = async (req, res, next) => {
+  try {
+    const trainerId = req.user._id;
+    const { workingDays, startTime, endTime, breakPeriods, blockedDates, isAvailable, acceptingClients } = req.body;
+
+    let profile = await TrainerProfile.findOne({ userId: trainerId });
+    if (!profile) {
+      profile = await TrainerProfile.create({
+        userId: trainerId,
+        branchId: req.user.branchId,
+      });
+    }
+
+    if (!profile.availability) {
+      profile.availability = {};
+    }
+
+    if (workingDays) profile.availability.workingDays = workingDays;
+    if (startTime) profile.availability.startTime = startTime;
+    if (endTime) profile.availability.endTime = endTime;
+    if (breakPeriods) profile.availability.breakPeriods = breakPeriods;
+    if (blockedDates) profile.availability.blockedDates = blockedDates;
+    if (isAvailable !== undefined) profile.isAvailable = isAvailable;
+    if (acceptingClients !== undefined) profile.acceptingClients = acceptingClients;
+
+    await profile.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Availability schedule updated successfully.',
+      availability: profile.availability,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getDashboardOverview,
   getMyClients,
@@ -1703,6 +1773,8 @@ module.exports = {
   updateSessionStatus,
   getSessions,
   completeSession,
+  getTrainerBookings,
+  updateTrainerAvailability,
   getAttendance,
   getNotifications,
   markNotificationRead,

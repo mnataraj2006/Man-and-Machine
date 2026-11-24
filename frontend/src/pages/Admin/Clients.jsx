@@ -49,6 +49,7 @@ export default function Clients() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [trainersList, setTrainersList] = useState([]);
+  const [plans, setPlans] = useState([]);
 
   // Form states
   const [addForm, setAddForm] = useState({
@@ -60,9 +61,10 @@ export default function Clients() {
     fitnessGoal: 'Muscle Building',
     experienceLevel: 'Intermediate',
     trainerId: '',
+    planId: '',
     membershipPlanName: '',
     durationMonths: 1,
-    membershipAmount: 2000,
+    membershipAmount: 0,
   });
 
   const [editForm, setEditForm] = useState({
@@ -108,8 +110,10 @@ export default function Clients() {
     try {
       const res = await adminService.getTrainers();
       if (res.trainers) setTrainersList(res.trainers);
+      const plansRes = await adminService.getMembershipPlans().catch(() => ({ plans: [] }));
+      if (plansRes.plans) setPlans(plansRes.plans);
     } catch (err) {
-      console.error('Failed to load trainers:', err);
+      console.error('Failed to load trainers or plans:', err);
     }
   };
 
@@ -347,6 +351,26 @@ export default function Clients() {
         </div>
       </div>
 
+      {/* ── ERROR NOTICE & RETRY ── */}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-center justify-between gap-3 text-red-400">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider">Client Database Sync Error</p>
+              <p className="text-xs text-red-300/80">{error}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={fetchClients}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-xs font-bold uppercase text-red-300 transition-colors cursor-pointer"
+          >
+            <span>Retry</span>
+          </button>
+        </div>
+      )}
+
       {/* ── CLIENTS TABLE ── */}
       <div className="bg-[#181818] border border-[#292929] rounded-2xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
@@ -377,7 +401,7 @@ export default function Clients() {
                 </tr>
               ) : (
                 clients.map((c) => (
-                  <tr key={c.id} className="hover:bg-[#1E1E1E] transition-colors">
+                  <tr key={c.id || c._id} className="hover:bg-[#1E1E1E] transition-colors">
                     {/* Athlete info */}
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
@@ -387,7 +411,7 @@ export default function Clients() {
                         <div className="flex flex-col">
                           <span className="font-bold text-[#F5F5F5]">{c.name}</span>
                           <span className="text-[10px] text-[#A3A3A3] font-mono">
-                            ID: {c.id.slice(-6)} • {c.fitnessGoal}
+                            ID: {(c.id || c._id || '').toString().slice(-6)} • {c.fitnessGoal}
                           </span>
                         </div>
                       </div>
@@ -456,7 +480,7 @@ export default function Clients() {
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
-                          onClick={() => handleOpenClientDetails(c.id)}
+                          onClick={() => handleOpenClientDetails(c.id || c._id)}
                           className="px-2.5 py-1 rounded-lg bg-[#252525] hover:bg-[#E58A32] hover:text-black text-[#F5F5F5] font-semibold text-[11px] transition-colors cursor-pointer"
                         >
                           Dossier
@@ -837,25 +861,48 @@ export default function Clients() {
                 </span>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] text-[#A3A3A3] mb-1">Plan Duration</label>
+                    <label className="block text-[10px] text-[#A3A3A3] mb-1">Select Membership Plan</label>
                     <select
-                      value={addForm.durationMonths}
+                      value={addForm.planId || ''}
                       onChange={(e) => {
-                        const dur = Number(e.target.value);
-                        const cost = dur === 1 ? 2000 : dur === 3 ? 5000 : dur === 6 ? 9000 : 16000;
+                        const pId = e.target.value;
+                        if (!pId) {
+                          setAddForm({
+                            ...addForm,
+                            planId: '',
+                            membershipPlanName: '',
+                            durationMonths: 1,
+                            membershipAmount: 0,
+                          });
+                          return;
+                        }
+                        const p = plans.find((pl) => pl._id === pId);
+                        const bp = p?.branchPricing?.find(
+                          (b) => (b.branchId?._id || b.branchId || '').toString() === (addForm.branchId || '').toString()
+                        );
+                        const cost = bp?.finalPrice !== undefined ? bp.finalPrice : (p?.price || 0);
                         setAddForm({
                           ...addForm,
-                          durationMonths: dur,
-                          membershipPlanName: `${dur} Month${dur > 1 ? 's' : ''} Pass`,
+                          planId: pId,
+                          membershipPlanName: p?.name || '',
+                          durationMonths: p?.durationMonths || 1,
                           membershipAmount: cost,
                         });
                       }}
                       className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
                     >
-                      <option value={1}>1 Month (₹2,000)</option>
-                      <option value={3}>3 Months (₹5,000)</option>
-                      <option value={6}>6 Months (₹9,000)</option>
-                      <option value={12}>12 Months (₹16,000)</option>
+                      <option value="">None (No initial pass)</option>
+                      {plans.map((p) => {
+                        const bp = p.branchPricing?.find(
+                          (b) => (b.branchId?._id || b.branchId || '').toString() === (addForm.branchId || '').toString()
+                        );
+                        const cost = bp?.finalPrice !== undefined ? bp.finalPrice : (p.price || 0);
+                        return (
+                          <option key={p._id} value={p._id}>
+                            {p.name} (₹{cost.toLocaleString()})
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                   <div>

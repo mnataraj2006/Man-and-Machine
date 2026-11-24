@@ -54,6 +54,11 @@ const clientProfileSchema = new mongoose.Schema(
       ref: 'User',
       default: null,
     },
+    trainingPreference: {
+      type: String,
+      enum: ['SELF_TRAINED', 'PERSONAL_TRAINER'],
+      default: 'SELF_TRAINED',
+    },
     membershipId: {
       type: String,
       trim: true,

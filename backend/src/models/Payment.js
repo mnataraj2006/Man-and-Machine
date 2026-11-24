@@ -32,7 +32,7 @@ const paymentSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['CASH', 'UPI', 'CARD', 'NET_BANKING', 'CHEQUE'],
+      enum: ['CASH', 'UPI', 'CARD', 'NET_BANKING', 'CHEQUE', 'COUNTER'],
       default: 'UPI',
     },
     status: {

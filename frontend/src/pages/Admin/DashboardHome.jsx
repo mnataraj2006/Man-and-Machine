@@ -7,7 +7,7 @@ import {
   CalendarCheck,
   TrendingUp,
   Clock,
-  PhoneCall,
+  ClipboardList,
   Plus,
   RefreshCw,
   Building,
@@ -57,9 +57,12 @@ export default function DashboardHome({ onNavigate }) {
   const [membershipForm, setMembershipForm] = useState({
     userId: '',
     branchId: '',
+    planId: '',
     planName: '1 Month Kickstart',
+    durationDays: 30,
     durationMonths: 1,
     amount: 2000,
+    isAvailable: true,
   });
 
   const [paymentForm, setPaymentForm] = useState({
@@ -71,6 +74,7 @@ export default function DashboardHome({ onNavigate }) {
   });
 
   const [allClientsList, setAllClientsList] = useState([]);
+  const [plans, setPlans] = useState([]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -82,6 +86,21 @@ export default function DashboardHome({ onNavigate }) {
       // Also fetch a quick client list for dropdowns in quick action modals
       const clientsRes = await adminService.getClients({ limit: 50 });
       if (clientsRes.clients) setAllClientsList(clientsRes.clients);
+
+      const plansRes = await adminService.getMembershipPlans().catch(() => ({ plans: [] }));
+      if (plansRes.plans) {
+        setPlans(plansRes.plans);
+        if (plansRes.plans.length > 0 && !membershipForm.planId) {
+          const firstP = plansRes.plans[0];
+          setMembershipForm((prev) => ({
+            ...prev,
+            planId: firstP._id,
+            planName: firstP.name,
+            durationDays: firstP.durationDays || 30,
+            durationMonths: firstP.durationMonths || 1,
+          }));
+        }
+      }
     } catch (err) {
       setError(err.message || 'Failed to load dashboard metrics');
     } finally {
@@ -268,6 +287,27 @@ export default function DashboardHome({ onNavigate }) {
         </div>
       </div>
 
+      {/* ── ERROR NOTICE & RETRY ── */}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-center justify-between gap-3 text-red-400">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider">Dashboard Data Sync Error</p>
+              <p className="text-xs text-red-300/80">{error}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={fetchData}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-xs font-bold uppercase text-red-300 transition-colors cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Retry</span>
+          </button>
+        </div>
+      )}
+
       {/* ── TIME RANGE FILTER ── */}
       <div className="flex items-center justify-between gap-4 overflow-x-auto pb-1">
         <span className="text-xs uppercase font-mono text-[#A3A3A3] shrink-0">Filter Analytics Period:</span>
@@ -312,7 +352,9 @@ export default function DashboardHome({ onNavigate }) {
             >
               {data?.kpis?.totalClients ?? 0}
             </span>
-            <span className="text-[11px] text-[#A3A3A3] mt-0.5">Registered Athletes</span>
+            <span className="text-[11px] text-[#A3A3A3] mt-0.5">
+              {data?.kpis?.activeClients !== undefined ? `${data.kpis.activeClients} Active Athletes` : 'Registered Athletes'}
+            </span>
           </div>
         </div>
 
@@ -369,7 +411,9 @@ export default function DashboardHome({ onNavigate }) {
             >
               {data?.kpis?.totalTrainers ?? 0}
             </span>
-            <span className="text-[11px] text-[#A3A3A3] mt-0.5">Certified Strength Coaches</span>
+            <span className="text-[11px] text-[#A3A3A3] mt-0.5">
+              {data?.kpis?.activeTrainers !== undefined ? `${data.kpis.activeTrainers} Active Coaches` : 'Certified Strength Coaches'}
+            </span>
           </div>
         </div>
 
@@ -434,12 +478,15 @@ export default function DashboardHome({ onNavigate }) {
           </div>
         </div>
 
-        {/* 8. New Enquiries */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+        {/* 8. Active Membership Plans */}
+        <div
+          onClick={() => onNavigate && onNavigate('/admin/membership-plans')}
+          className="bg-[#181818] border border-[#292929] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#E58A32]/60 transition-all cursor-pointer"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#A3A3A3]">NEW ENQUIRIES</span>
-            <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
-              <PhoneCall className="w-4 h-4" />
+            <span className="text-xs font-mono uppercase text-[#A3A3A3]">ACTIVE PLANS</span>
+            <div className="w-8 h-8 rounded-lg bg-[#E58A32]/10 border border-[#E58A32]/20 flex items-center justify-center text-[#E58A32]">
+              <ClipboardList className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex flex-col">
@@ -447,9 +494,9 @@ export default function DashboardHome({ onNavigate }) {
               className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
               style={{ fontFamily: "'Space Grotesk', sans-serif" }}
             >
-              {data?.kpis?.newEnquiries ?? 0}
+              {plans?.filter((p) => p.isActive).length || plans?.length || 4}
             </span>
-            <span className="text-[11px] text-cyan-400/90 mt-0.5">Awaiting follow-up</span>
+            <span className="text-[11px] text-[#E58A32]/90 mt-0.5">Configured in catalog &rarr;</span>
           </div>
         </div>
       </div>
@@ -689,37 +736,9 @@ export default function DashboardHome({ onNavigate }) {
               </div>
             )}
 
-            {/* 3. New Enquiries */}
-            {data?.alerts?.newEnquiries?.length > 0 && (
-              <div className="p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <PhoneCall className="w-3.5 h-3.5" />
-                    {data.alerts.newEnquiries.length} New Leads Ready for Follow-up
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate && onNavigate('/admin/enquiries')}
-                    className="text-[11px] font-bold text-cyan-300 hover:underline cursor-pointer"
-                  >
-                    Manage Leads &rarr;
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
-                  {data.alerts.newEnquiries.slice(0, 4).map((enq, i) => (
-                    <div key={i} className="text-xs bg-[#121212] p-2 rounded-lg border border-cyan-500/20 flex justify-between">
-                      <span className="font-semibold text-[#F5F5F5] truncate">{enq.name} ({enq.branchId?.city})</span>
-                      <span className="text-cyan-400 font-mono text-[11px]">{enq.phone}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Zero Alerts Clean State */}
             {(!data?.alerts?.expiringIn7Days?.length &&
-              !data?.alerts?.pendingPayments?.length &&
-              !data?.alerts?.newEnquiries?.length) && (
+              !data?.alerts?.pendingPayments?.length) && (
               <div className="py-8 text-center flex flex-col items-center justify-center gap-2">
                 <CheckCircle2 className="w-8 h-8 text-green-400/80" />
                 <span className="text-xs font-bold uppercase tracking-wider text-[#F5F5F5]">
@@ -1008,17 +1027,32 @@ export default function DashboardHome({ onNavigate }) {
 
             <form onSubmit={handleQuickMembershipSubmit} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Select Athlete</label>
+                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Select Athlete *</label>
                 <select
                   required
                   value={membershipForm.userId}
-                  onChange={(e) => setMembershipForm({ ...membershipForm, userId: e.target.value })}
+                  onChange={(e) => {
+                    const uid = e.target.value;
+                    const cl = allClientsList.find((c) => (c.id || c._id) === uid);
+                    const bId = cl?.branch?._id || cl?.branchId || membershipForm.branchId;
+                    const curPlan = plans.find((p) => p._id === membershipForm.planId) || plans[0];
+                    const bp = curPlan?.branchPricing?.find(
+                      (b) => (b.branchId?._id || b.branchId || '').toString() === (bId || '').toString()
+                    );
+                    setMembershipForm((prev) => ({
+                      ...prev,
+                      userId: uid,
+                      branchId: bId,
+                      amount: bp?.finalPrice !== undefined ? bp.finalPrice : (curPlan?.price || 2000),
+                      isAvailable: bp ? bp.isAvailable : true,
+                    }));
+                  }}
                   className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
                 >
                   <option value="">-- Choose Client --</option>
                   {allClientsList.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.phone || c.email})
+                    <option key={c.id || c._id} value={c.id || c._id}>
+                      {c.name} ({c.phone || c.email}) • {c.branch?.city || 'No branch'}
                     </option>
                   ))}
                 </select>
@@ -1026,52 +1060,78 @@ export default function DashboardHome({ onNavigate }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Plan Duration</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Branch *</label>
                   <select
-                    value={membershipForm.durationMonths}
+                    value={membershipForm.branchId}
                     onChange={(e) => {
-                      const dur = Number(e.target.value);
-                      const basePrice = dur === 1 ? 2000 : dur === 3 ? 5000 : dur === 6 ? 9000 : 16000;
-                      setMembershipForm({
-                        ...membershipForm,
-                        durationMonths: dur,
-                        planName: `${dur} Month${dur > 1 ? 's' : ''} Pass`,
-                        amount: basePrice,
-                      });
+                      const bId = e.target.value;
+                      const curPlan = plans.find((p) => p._id === membershipForm.planId) || plans[0];
+                      const bp = curPlan?.branchPricing?.find(
+                        (b) => (b.branchId?._id || b.branchId || '').toString() === (bId || '').toString()
+                      );
+                      setMembershipForm((prev) => ({
+                        ...prev,
+                        branchId: bId,
+                        amount: bp?.finalPrice !== undefined ? bp.finalPrice : (curPlan?.price || 2000),
+                        isAvailable: bp ? bp.isAvailable : true,
+                      }));
                     }}
                     className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
                   >
-                    <option value={1}>1 Month (₹2,000)</option>
-                    <option value={3}>3 Months (₹5,000)</option>
-                    <option value={6}>6 Months (₹9,000)</option>
-                    <option value={12}>12 Months (₹16,000)</option>
+                    {branches.map((b) => (
+                      <option key={b._id} value={b._id}>
+                        {b.city}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Fee Amount (₹)</label>
-                  <input
-                    type="number"
-                    value={membershipForm.amount}
-                    onChange={(e) => setMembershipForm({ ...membershipForm, amount: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
-                  />
+                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Plan *</label>
+                  <select
+                    value={membershipForm.planId}
+                    onChange={(e) => {
+                      const pId = e.target.value;
+                      const curPlan = plans.find((p) => p._id === pId);
+                      const bp = curPlan?.branchPricing?.find(
+                        (b) => (b.branchId?._id || b.branchId || '').toString() === (membershipForm.branchId || '').toString()
+                      );
+                      setMembershipForm((prev) => ({
+                        ...prev,
+                        planId: pId,
+                        planName: curPlan?.name || '',
+                        durationDays: curPlan?.durationDays || 30,
+                        durationMonths: curPlan?.durationMonths || 1,
+                        amount: bp?.finalPrice !== undefined ? bp.finalPrice : (curPlan?.price || 2000),
+                        isAvailable: bp ? bp.isAvailable : true,
+                      }));
+                    }}
+                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                  >
+                    {plans.map((p) => (
+                      <option key={p._id} value={p._id}>
+                        {p.name} ({p.durationDays ? `${p.durationDays}d` : `${p.durationMonths}m`})
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
+              {!membershipForm.isAvailable && (
+                <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+                  ⚠️ This plan is marked as disabled for this branch in Membership Plans.
+                </div>
+              )}
+
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Branch</label>
-                <select
-                  value={membershipForm.branchId}
-                  onChange={(e) => setMembershipForm({ ...membershipForm, branchId: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
-                >
-                  {branches.map((b) => (
-                    <option key={b._id} value={b._id}>
-                      {b.city}
-                    </option>
-                  ))}
-                </select>
+                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Confirmed Amount (₹) *</label>
+                <input
+                  type="number"
+                  required
+                  value={membershipForm.amount}
+                  onChange={(e) => setMembershipForm({ ...membershipForm, amount: e.target.value })}
+                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                />
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3">
@@ -1084,7 +1144,7 @@ export default function DashboardHome({ onNavigate }) {
                 </button>
                 <button
                   type="submit"
-                  disabled={modalLoading}
+                  disabled={modalLoading || !membershipForm.isAvailable}
                   className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black cursor-pointer disabled:opacity-50"
                 >
                   {modalLoading ? 'Assigning...' : 'Assign Membership'}

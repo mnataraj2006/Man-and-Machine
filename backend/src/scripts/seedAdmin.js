@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const mongoose = require('mongoose');
 const connectDB = require('../config/db');
 const User = require('../models/User');
@@ -13,7 +14,9 @@ const Branch = require('../models/Branch');
  */
 const seedAdmin = async () => {
   try {
-    await connectDB();
+    if (mongoose.connection.readyState !== 1) {
+      await connectDB();
+    }
 
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@manandmachine.com';
     const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@ManAndMachine2026';
@@ -22,8 +25,7 @@ const seedAdmin = async () => {
 
     const existingAdmin = await User.findOne({ email: adminEmail.toLowerCase() });
     if (existingAdmin) {
-      console.log(`Admin account already exists for ${adminEmail} (Role: ${existingAdmin.role})`);
-      process.exit(0);
+      return existingAdmin;
     }
 
     // Get Kovilpatti HQ branch
@@ -43,12 +45,20 @@ const seedAdmin = async () => {
     });
 
     await admin.save();
-    console.log(`Successfully created ADMIN account: ${adminEmail} (Role: ADMIN)`);
-    process.exit(0);
+    console.log(`Successfully seeded ADMIN account: ${adminEmail} (Role: ADMIN)`);
+    return admin;
   } catch (err) {
-    console.error('Failed to seed admin:', err.message);
-    process.exit(1);
+    console.error('Admin seeding notice:', err.message);
   }
 };
 
-seedAdmin();
+if (require.main === module) {
+  seedAdmin()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+}
+
+module.exports = seedAdmin;

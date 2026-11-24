@@ -10,11 +10,15 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
+  CreditCard,
+  UserCheck,
 } from 'lucide-react';
 import trainerService from '../../services/trainerService.js';
 
 export default function Schedule({ onNavigate }) {
+  const [activeTab, setActiveTab] = useState('appointments'); // 'appointments' | 'bookings'
   const [appointments, setAppointments] = useState([]);
+  const [bookings, setBookings] = useState([]);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -32,12 +36,14 @@ export default function Schedule({ onNavigate }) {
   const fetchSchedule = async () => {
     try {
       setLoading(true);
-      const [sRes, cRes] = await Promise.all([
+      const [sRes, cRes, bRes] = await Promise.all([
         trainerService.getSchedule(),
         trainerService.getMyClients(),
+        trainerService.getBookings().catch(() => ({ bookings: [] })),
       ]);
       setAppointments(sRes.appointments || []);
       setClients(cRes.clients || []);
+      setBookings(bRes.bookings || []);
     } catch (err) {
       console.error('Failed to load schedule:', err);
     } finally {
@@ -95,105 +101,225 @@ export default function Schedule({ onNavigate }) {
             TRAINING SCHEDULE.
           </h1>
           <p className="text-xs text-[#A3A3A3]">
-            Plan, organize, and confirm floor coaching sessions with your assigned athletes.
+            Plan, organize, and monitor floor coaching sessions and client bookings.
           </p>
         </div>
 
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#E58A32] hover:bg-[#F09A43] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(229,138,50,0.25)] shrink-0"
+            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+          >
+            <Plus className="w-4 h-4" />
+            <span>Book Floor Session</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── TABS ── */}
+      <div className="flex items-center gap-2 border-b border-[#292929] pb-3">
         <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#E58A32] hover:bg-[#F09A43] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(229,138,50,0.25)] shrink-0"
-          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+          onClick={() => setActiveTab('appointments')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
+            activeTab === 'appointments'
+              ? 'bg-[#E58A32] text-white shadow-[0_0_15px_rgba(229,138,50,0.25)]'
+              : 'bg-[#181818] text-[#A3A3A3] hover:text-white border border-[#292929]'
+          }`}
         >
-          <Plus className="w-4 h-4" />
-          <span>Book Floor Session</span>
+          <CalendarIcon className="w-3.5 h-3.5" />
+          <span>Floor Sessions</span>
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/30">
+            {appointments.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('bookings')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
+            activeTab === 'bookings'
+              ? 'bg-[#E58A32] text-white shadow-[0_0_15px_rgba(229,138,50,0.25)]'
+              : 'bg-[#181818] text-[#A3A3A3] hover:text-white border border-[#292929]'
+          }`}
+        >
+          <CreditCard className="w-3.5 h-3.5" />
+          <span>Client Bookings</span>
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/30">
+            {bookings.length}
+          </span>
         </button>
       </div>
 
-      {/* ── APPOINTMENTS LIST ── */}
-      {loading ? (
-        <div className="flex flex-col gap-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-24 bg-[#141414] rounded-2xl animate-pulse" />
-          ))}
-        </div>
-      ) : appointments.length === 0 ? (
-        <div className="p-12 rounded-2xl bg-[#141414] border border-[#292929] text-center flex flex-col items-center justify-center gap-3">
-          <CalendarIcon className="w-10 h-10 text-[#292929]" />
-          <h3 className="text-sm font-bold uppercase text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-            NO SCHEDULED SESSIONS
-          </h3>
-          <p className="text-xs text-[#A3A3A3] max-w-sm">
-            Book 1-on-1 floor sessions or assessment reviews with your assigned athletes.
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {appointments.map((app) => (
-            <div
-              key={app._id}
-              className="p-5 rounded-2xl bg-[#141414] border border-[#292929] hover:border-[#E58A32]/30 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-center text-[#E58A32] font-black text-sm shrink-0">
-                  {app.clientId?.name ? app.clientId.name.charAt(0).toUpperCase() : 'C'}
-                </div>
-                <div className="flex flex-col">
+      {/* ── TAB CONTENT: APPOINTMENTS ── */}
+      {activeTab === 'appointments' && (
+        <>
+          {loading ? (
+            <div className="flex flex-col gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-24 bg-[#141414] rounded-2xl animate-pulse" />
+              ))}
+            </div>
+          ) : appointments.length === 0 ? (
+            <div className="p-12 rounded-2xl bg-[#141414] border border-[#292929] text-center flex flex-col items-center justify-center gap-3">
+              <CalendarIcon className="w-10 h-10 text-[#292929]" />
+              <h3 className="text-sm font-bold uppercase text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                NO SCHEDULED SESSIONS
+              </h3>
+              <p className="text-xs text-[#A3A3A3] max-w-sm">
+                Book 1-on-1 floor sessions or assessment reviews with your assigned athletes.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {appointments.map((app) => (
+                <div
+                  key={app._id}
+                  className="p-5 rounded-2xl bg-[#141414] border border-[#292929] hover:border-[#E58A32]/30 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-center text-[#E58A32] font-black text-sm shrink-0">
+                      {app.clientId?.name ? app.clientId.name.charAt(0).toUpperCase() : 'C'}
+                    </div>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold uppercase text-white">{app.clientId?.name || 'Athlete'}</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-[#E58A32]/10 text-[#E58A32] border border-[#E58A32]/30">
+                          {app.sessionType}
+                        </span>
+                      </div>
+                      <span className="text-xs text-[#A3A3A3]">
+                        {new Date(app.scheduledAt).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          month: 'short',
+                          day: 'numeric',
+                        })}{' '}
+                        at{' '}
+                        <span className="text-white font-bold">
+                          {new Date(app.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>{' '}
+                        ({app.durationMinutes} mins)
+                      </span>
+                      {app.notes && <span className="text-[11px] text-[#737373] mt-1">{app.notes}</span>}
+                    </div>
+                  </div>
+
+                  {/* Status and Action Buttons */}
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold uppercase text-white">{app.clientId?.name || 'Athlete'}</span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-[#E58A32]/10 text-[#E58A32] border border-[#E58A32]/30">
-                      {app.sessionType}
+                    <span
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold uppercase border ${
+                        app.status === 'COMPLETED'
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          : app.status === 'CANCELLED'
+                          ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                          : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      }`}
+                    >
+                      {app.status}
+                    </span>
+
+                    {app.status === 'SCHEDULED' && (
+                      <>
+                        <button
+                          onClick={() => handleUpdateStatus(app._id, 'COMPLETED')}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold uppercase transition-colors"
+                        >
+                          Mark Done
+                        </button>
+                        <button
+                          onClick={() => handleUpdateStatus(app._id, 'CANCELLED')}
+                          className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold uppercase transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── TAB CONTENT: CLIENT BOOKINGS ── */}
+      {activeTab === 'bookings' && (
+        <>
+          {loading ? (
+            <div className="flex flex-col gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-24 bg-[#141414] rounded-2xl animate-pulse" />
+              ))}
+            </div>
+          ) : bookings.length === 0 ? (
+            <div className="p-12 rounded-2xl bg-[#141414] border border-[#292929] text-center flex flex-col items-center justify-center gap-3">
+              <UserCheck className="w-10 h-10 text-[#292929]" />
+              <h3 className="text-sm font-bold uppercase text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                NO DIRECT CLIENT BOOKINGS
+              </h3>
+              <p className="text-xs text-[#A3A3A3] max-w-sm">
+                When athletes book training sessions through the "My Trainer" portal, they will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {bookings.map((b) => (
+                <div
+                  key={b._id}
+                  className="p-5 rounded-2xl bg-[#141414] border border-[#292929] hover:border-[#E58A32]/30 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-center text-[#E58A32] font-black text-sm shrink-0">
+                      {b.clientId?.name ? b.clientId.name.charAt(0).toUpperCase() : 'B'}
+                    </div>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold uppercase text-white">{b.clientId?.name || 'Athlete'}</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-[#E58A32]/10 text-[#E58A32] border border-[#E58A32]/30">
+                          {b.serviceType}
+                        </span>
+                        <span className="text-[10px] font-mono text-[#737373]">
+                          Ref: {b.bookingReference}
+                        </span>
+                      </div>
+                      <span className="text-xs text-[#A3A3A3]">
+                        {b.date} at <span className="text-white font-bold">{b.startTime} - {b.endTime}</span>
+                        {b.branchId?.name && ` • ${b.branchId.name}`}
+                      </span>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[11px] font-mono font-bold text-white">₹{b.amount}</span>
+                        <span className="text-[10px] text-[#737373]">via {b.paymentMethod}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold uppercase border ${
+                        b.paymentStatus === 'PAID'
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      }`}
+                    >
+                      {b.paymentStatus}
+                    </span>
+
+                    <span
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold uppercase border ${
+                        b.bookingStatus === 'CONFIRMED'
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          : b.bookingStatus === 'CANCELLED'
+                          ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                          : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                      }`}
+                    >
+                      {b.bookingStatus}
                     </span>
                   </div>
-                  <span className="text-xs text-[#A3A3A3]">
-                    {new Date(app.scheduledAt).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      month: 'short',
-                      day: 'numeric',
-                    })}{' '}
-                    at{' '}
-                    <span className="text-white font-bold">
-                      {new Date(app.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>{' '}
-                    ({app.durationMinutes} mins)
-                  </span>
-                  {app.notes && <span className="text-[11px] text-[#737373] mt-1">{app.notes}</span>}
                 </div>
-              </div>
-
-              {/* Status and Action Buttons */}
-              <div className="flex items-center gap-2">
-                <span
-                  className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold uppercase border ${
-                    app.status === 'COMPLETED'
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                      : app.status === 'CANCELLED'
-                      ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                      : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                  }`}
-                >
-                  {app.status}
-                </span>
-
-                {app.status === 'SCHEDULED' && (
-                  <>
-                    <button
-                      onClick={() => handleUpdateStatus(app._id, 'COMPLETED')}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold uppercase transition-colors"
-                    >
-                      Mark Done
-                    </button>
-                    <button
-                      onClick={() => handleUpdateStatus(app._id, 'CANCELLED')}
-                      className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold uppercase transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {/* ── MODAL: SCHEDULE SESSION ── */}

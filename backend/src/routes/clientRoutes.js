@@ -29,13 +29,21 @@ router.post('/progress', clientController.addProgressRecord);
 
 // 6. Membership
 router.get('/membership', clientController.getMembership);
+router.get('/membership/plans', clientController.getAvailableMembershipPlans);
+router.post('/membership/checkout', clientController.checkoutMembership);
+router.post('/membership/purchase', clientController.purchaseMembership);
 router.post('/membership/renewal-request', clientController.requestMembershipRenewal);
 
 // 7. Payments
 router.get('/payments', clientController.getPayments);
 
-// 8. Trainer
+// 8. Trainer & Coaching Discovery
 router.get('/trainer', clientController.getTrainer);
+router.get('/trainers', clientController.getAvailableTrainers);
+router.get('/trainers/:trainerId', clientController.getTrainerPublicProfile);
+router.get('/trainers/:trainerId/availability', clientController.getTrainerAvailability);
+router.post('/trainers/:trainerId/book', clientController.bookTrainerSession);
+router.get('/my-trainer-bookings', clientController.getClientBookings);
 
 // 9. Notifications
 router.get('/notifications', clientController.getNotifications);

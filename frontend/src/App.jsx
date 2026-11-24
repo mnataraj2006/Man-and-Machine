@@ -34,13 +34,11 @@ import AdminDashboardHome from './pages/Admin/DashboardHome.jsx';
 import AdminBranches from './pages/Admin/Branches.jsx';
 import AdminClients from './pages/Admin/Clients.jsx';
 import AdminTrainers from './pages/Admin/Trainers.jsx';
+import AdminMembershipPlans from './pages/Admin/MembershipPlans.jsx';
 import AdminMemberships from './pages/Admin/Memberships.jsx';
 import AdminAttendance from './pages/Admin/Attendance.jsx';
-import AdminWorkouts from './pages/Admin/Workouts.jsx';
 import AdminPayments from './pages/Admin/Payments.jsx';
-import AdminReports from './pages/Admin/Reports.jsx';
 import AdminNotifications from './pages/Admin/Notifications.jsx';
-import AdminEnquiries from './pages/Admin/Enquiries.jsx';
 import AdminSettings from './pages/Admin/Settings.jsx';
 
 // Trainer Application Suite
@@ -147,12 +145,15 @@ export default function App() {
       clientContent = <Attendance onNavigate={navigate} />;
     } else if (currentPath === '/client/progress') {
       clientContent = <Progress onNavigate={navigate} />;
-    } else if (currentPath === '/client/membership') {
+    } else if (currentPath === '/client/membership' || currentPath === '/client/membership/plans') {
       clientContent = <Membership onNavigate={navigate} />;
     } else if (currentPath === '/client/payments') {
       clientContent = <Payments onNavigate={navigate} />;
-    } else if (currentPath === '/client/trainer') {
+    } else if (currentPath === '/client/my-trainer' || currentPath === '/client/trainer') {
       clientContent = <Trainer onNavigate={navigate} />;
+    } else if (currentPath.startsWith('/client/my-trainer/')) {
+      const selectedTrainerId = currentPath.replace('/client/my-trainer/', '');
+      clientContent = <Trainer selectedTrainerId={selectedTrainerId} onNavigate={navigate} />;
     } else if (currentPath === '/client/notifications') {
       clientContent = <Notifications onNavigate={navigate} />;
     } else if (currentPath === '/client/profile') {
@@ -189,20 +190,16 @@ export default function App() {
       adminContent = <AdminClients onNavigate={navigate} />;
     } else if (currentPath === '/admin/trainers' || currentPath.startsWith('/admin/trainers/')) {
       adminContent = <AdminTrainers onNavigate={navigate} />;
+    } else if (currentPath === '/admin/membership-plans' || currentPath.startsWith('/admin/membership-plans/')) {
+      adminContent = <AdminMembershipPlans onNavigate={navigate} />;
     } else if (currentPath === '/admin/memberships') {
       adminContent = <AdminMemberships onNavigate={navigate} />;
     } else if (currentPath === '/admin/attendance') {
       adminContent = <AdminAttendance onNavigate={navigate} />;
-    } else if (currentPath === '/admin/workouts') {
-      adminContent = <AdminWorkouts onNavigate={navigate} />;
     } else if (currentPath === '/admin/payments') {
       adminContent = <AdminPayments onNavigate={navigate} />;
-    } else if (currentPath === '/admin/reports') {
-      adminContent = <AdminReports onNavigate={navigate} />;
     } else if (currentPath === '/admin/notifications') {
       adminContent = <AdminNotifications onNavigate={navigate} />;
-    } else if (currentPath === '/admin/enquiries') {
-      adminContent = <AdminEnquiries onNavigate={navigate} />;
     } else if (currentPath === '/admin/settings') {
       adminContent = <AdminSettings onNavigate={navigate} onLogout={() => navigate('/login')} />;
     } else {

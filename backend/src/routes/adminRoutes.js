@@ -32,11 +32,17 @@ router.get('/trainers', adminController.getTrainers);
 router.post('/trainers', adminController.createTrainer);
 router.get('/trainers/:id', adminController.getTrainerDetails);
 router.put('/trainers/:id', adminController.updateTrainer);
+router.get('/trainer-bookings', adminController.getTrainerBookings);
+router.post('/trainer-bookings/:id/confirm-payment', adminController.confirmTrainerBookingPayment);
 
 // 5. Membership Management
 router.get('/membership-plans', adminController.getMembershipPlans);
 router.post('/membership-plans', adminController.createMembershipPlan);
+router.get('/membership-plans/:id', adminController.getMembershipPlanById);
 router.put('/membership-plans/:id', adminController.updateMembershipPlan);
+router.patch('/membership-plans/:id/status', adminController.toggleMembershipPlanStatus);
+router.post('/membership-plans/:id/duplicate', adminController.duplicateMembershipPlan);
+router.delete('/membership-plans/:id', adminController.deleteMembershipPlan);
 router.get('/memberships', adminController.getClientMemberships);
 router.post('/memberships', adminController.createClientMembership);
 router.put('/memberships/:id/status', adminController.updateClientMembershipStatus);

@@ -10,6 +10,7 @@ import {
   Flame,
   AlertCircle,
 } from 'lucide-react';
+import authService from '../../services/auth.js';
 import clientService from '../../services/clientService.js';
 
 export default function Workouts({ onNavigate }) {
@@ -17,9 +18,19 @@ export default function Workouts({ onNavigate }) {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [notAssigned, setNotAssigned] = useState(false);
 
   useEffect(() => {
-    let isMounted = true;
+    let isMounted = false;
+    isMounted = true;
+
+    const user = authService.getUser();
+    if (user && user.trainerAssigned === false) {
+      setNotAssigned(true);
+      setLoading(false);
+      return;
+    }
+
     const fetchWorkoutData = async () => {
       try {
         setLoading(true);
@@ -32,7 +43,14 @@ export default function Workouts({ onNavigate }) {
           setSessions(sessionsRes.sessions || []);
         }
       } catch (err) {
-        if (isMounted) setError(err.message || 'Failed to load workouts');
+        if (isMounted) {
+          const msg = err.message || '';
+          if (msg.includes('trainer') || msg.includes('403') || msg.includes('Forbidden') || msg.includes('assigned')) {
+            setNotAssigned(true);
+          } else {
+            setError(msg || 'Failed to load workouts');
+          }
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -58,6 +76,63 @@ export default function Workouts({ onNavigate }) {
         <div className="h-10 bg-[#151515] rounded-xl w-64" />
         <div className="h-64 bg-[#151515] rounded-2xl" />
         <div className="h-48 bg-[#151515] rounded-2xl" />
+      </div>
+    );
+  }
+
+  // Self-Trained / No Trainer Assigned Empty & Protected State
+  if (notAssigned) {
+    return (
+      <div className="flex flex-col gap-6 sm:gap-8">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
+            TRAINING MATRIX
+          </span>
+          <h1
+            className="uppercase font-bold tracking-tight text-[#F5F5F5]"
+            style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 'clamp(1.75rem, 3.2vw, 2.5rem)',
+            }}
+          >
+            MY WORKOUTS.
+          </h1>
+        </div>
+
+        <div className="p-8 sm:p-12 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col items-center justify-center text-center gap-5 shadow-[0_4px_30px_rgba(0,0,0,0.5)] relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#E58A32]/5 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="w-16 h-16 rounded-2xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-center text-[#E58A32]">
+            <Dumbbell className="w-8 h-8 text-[#E58A32]" />
+          </div>
+
+          <div className="flex flex-col gap-2 max-w-lg">
+            <span className="px-3 py-1 rounded-full bg-[#E58A32]/10 border border-[#E58A32]/30 text-[#E58A32] text-[10px] font-bold uppercase tracking-wider w-fit mx-auto">
+              SELF-TRAINED ATHLETE
+            </span>
+            <h2
+              className="text-xl sm:text-2xl font-bold uppercase text-[#F5F5F5]"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              My Workouts is available when you have an assigned trainer.
+            </h2>
+            <p className="text-xs sm:text-sm text-[#A3A3A3] leading-relaxed">
+              Clients at Man &amp; Machine are self-trained by default. Once gym administration assigns a personal coach to your profile, your customized workout split and exercise routines will appear here.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => handleNav('/client/dashboard')}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-[#E58A32] hover:bg-[#F09A43] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(229,138,50,0.30)] cursor-pointer"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              <span>RETURN TO DASHBOARD</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

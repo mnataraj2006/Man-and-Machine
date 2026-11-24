@@ -1,7 +1,9 @@
 const User = require('../models/User');
 const Branch = require('../models/Branch');
 const ClientProfile = require('../models/ClientProfile');
+const Membership = require('../models/Membership');
 const generateToken = require('../utils/generateToken');
+const { resolveClientTrainer } = require('../utils/trainerAssignment');
 
 /**
  * Standardize Indian mobile numbers to +91XXXXXXXXXX
@@ -105,10 +107,14 @@ const registerClient = async ({
         name: verifiedBranch.name,
         city: verifiedBranch.city,
       },
+      trainerAssigned: false,
       clientProfile: {
         fitnessGoal: profile.fitnessGoal,
         experienceLevel: profile.experienceLevel,
         joiningDate: profile.joiningDate,
+        trainerId: null,
+        trainerAssigned: false,
+        trainer: null,
       },
     },
   };
@@ -145,10 +151,48 @@ const loginUser = async ({ email, password }) => {
 
   const token = generateToken(user._id);
 
-  // If client, fetch profile
-  let clientProfile = null;
+  // If client, fetch profile and trainer assignment
+  let clientProfileData = null;
+  let trainerAssigned = false;
+  let activeMembership = null;
+  let hasActiveMembership = false;
   if (user.role === 'CLIENT') {
-    clientProfile = await ClientProfile.findOne({ userId: user._id });
+    const clientProfile = await ClientProfile.findOne({ userId: user._id });
+    if (clientProfile) {
+      const trainerCheck = await resolveClientTrainer(clientProfile);
+      trainerAssigned = trainerCheck.trainerAssigned;
+      clientProfileData = {
+        fitnessGoal: clientProfile.fitnessGoal,
+        experienceLevel: clientProfile.experienceLevel,
+        joiningDate: clientProfile.joiningDate,
+        trainerId: trainerCheck.trainer ? trainerCheck.trainer.id : null,
+        trainingPreference: clientProfile.trainingPreference || 'SELF_TRAINED',
+        trainerAssigned,
+        trainer: trainerCheck.trainer,
+        trainerName: trainerCheck.trainer ? trainerCheck.trainer.name : null,
+      };
+    }
+
+    const now = new Date();
+    const mem = await Membership.findOne({
+      userId: user._id,
+      status: 'ACTIVE',
+      expiryDate: { $gte: now },
+    }).populate('branchId', 'name city');
+
+    if (mem) {
+      hasActiveMembership = true;
+      activeMembership = {
+        id: mem._id,
+        planName: mem.planName,
+        status: mem.status,
+        startDate: mem.startDate,
+        expiryDate: mem.expiryDate,
+        daysRemaining: Math.max(0, Math.ceil((new Date(mem.expiryDate) - now) / (1000 * 60 * 60 * 24))),
+        branch: mem.branchId,
+        trainingPreference: mem.trainingPreference || 'SELF_TRAINED',
+      };
+    }
   }
 
   return {
@@ -160,11 +204,10 @@ const loginUser = async ({ email, password }) => {
         name: user.branchId.name,
         city: user.branchId.city,
       } : null,
-      clientProfile: clientProfile ? {
-        fitnessGoal: clientProfile.fitnessGoal,
-        experienceLevel: clientProfile.experienceLevel,
-        joiningDate: clientProfile.joiningDate,
-      } : null,
+      trainerAssigned,
+      hasActiveMembership,
+      activeMembership,
+      clientProfile: clientProfileData,
     },
   };
 };
@@ -179,21 +222,57 @@ const getMemberDetails = async (userId) => {
 
   if (!user) return null;
 
-  let clientProfile = null;
+  let clientProfileData = null;
+  let trainerAssigned = false;
+  let activeMembership = null;
+  let hasActiveMembership = false;
   if (user.role === 'CLIENT') {
-    clientProfile = await ClientProfile.findOne({ userId: user._id });
+    const clientProfile = await ClientProfile.findOne({ userId: user._id });
+    if (clientProfile) {
+      const trainerCheck = await resolveClientTrainer(clientProfile);
+      trainerAssigned = trainerCheck.trainerAssigned;
+      clientProfileData = {
+        fitnessGoal: clientProfile.fitnessGoal,
+        experienceLevel: clientProfile.experienceLevel,
+        joiningDate: clientProfile.joiningDate,
+        trainerId: trainerCheck.trainer ? trainerCheck.trainer.id : null,
+        trainingPreference: clientProfile.trainingPreference || 'SELF_TRAINED',
+        trainerAssigned,
+        trainer: trainerCheck.trainer,
+        trainerName: trainerCheck.trainer ? trainerCheck.trainer.name : null,
+        membershipId: clientProfile.membershipId,
+      };
+    }
+
+    const now = new Date();
+    const mem = await Membership.findOne({
+      userId: user._id,
+      status: 'ACTIVE',
+      expiryDate: { $gte: now },
+    }).populate('branchId', 'name city');
+
+    if (mem) {
+      hasActiveMembership = true;
+      activeMembership = {
+        id: mem._id,
+        planName: mem.planName,
+        status: mem.status,
+        startDate: mem.startDate,
+        expiryDate: mem.expiryDate,
+        daysRemaining: Math.max(0, Math.ceil((new Date(mem.expiryDate) - now) / (1000 * 60 * 60 * 24))),
+        branch: mem.branchId,
+        trainingPreference: mem.trainingPreference || 'SELF_TRAINED',
+      };
+    }
   }
 
   return {
     ...user.toSafeObject(),
     branch: user.branchId,
-    clientProfile: clientProfile ? {
-      fitnessGoal: clientProfile.fitnessGoal,
-      experienceLevel: clientProfile.experienceLevel,
-      joiningDate: clientProfile.joiningDate,
-      trainerId: clientProfile.trainerId,
-      membershipId: clientProfile.membershipId,
-    } : null,
+    trainerAssigned,
+    hasActiveMembership,
+    activeMembership,
+    clientProfile: clientProfileData,
   };
 };
 

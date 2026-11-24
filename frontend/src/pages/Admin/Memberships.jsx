@@ -15,11 +15,13 @@ import {
   Building,
   Edit,
   DollarSign,
+  ArrowRight,
+  ClipboardList,
 } from 'lucide-react';
 import adminService from '../../services/adminService.js';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
 
-export default function Memberships() {
+export default function Memberships({ onNavigate }) {
   const { branches, selectedBranch } = useAdmin();
   const [activeTab, setActiveTab] = useState('CLIENT_MEMBERSHIPS'); // 'CLIENT_MEMBERSHIPS' | 'PLANS'
   const [loading, setLoading] = useState(true);
@@ -35,8 +37,6 @@ export default function Memberships() {
   const [plans, setPlans] = useState([]);
 
   // Modals
-  const [isCreatePlanOpen, setIsCreatePlanOpen] = useState(false);
-  const [editingPlan, setEditingPlan] = useState(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [actionModal, setActionModal] = useState(null); // { membership, action: 'RENEW' | 'EXTEND' | 'PAUSE' | 'CANCEL' }
   const [actionExtensionMonths, setActionExtensionMonths] = useState(1);
@@ -46,19 +46,19 @@ export default function Memberships() {
   const [assignForm, setAssignForm] = useState({
     userId: '',
     branchId: '',
-    planName: '1 Month Kickstart',
+    planId: '',
+    planName: '',
+    durationDays: 30,
     durationMonths: 1,
-    amount: 2000,
+    basePrice: 0,
+    joiningFee: 0,
+    discountType: 'NONE',
+    discountValue: 0,
+    discountAmount: 0,
+    calculatedPrice: 0,
+    amount: 0,
     startDate: new Date().toISOString().slice(0, 10),
-  });
-
-  const [planForm, setPlanForm] = useState({
-    name: '',
-    code: '',
-    durationMonths: 1,
-    price: 2000,
-    description: '',
-    features: '',
+    isAvailable: true,
   });
 
   useEffect(() => {
@@ -69,6 +69,10 @@ export default function Memberships() {
     setLoading(true);
     setError(null);
     try {
+      const plansRes = await adminService.getMembershipPlans();
+      const loadedPlans = plansRes.plans || [];
+      setPlans(loadedPlans);
+
       if (activeTab === 'CLIENT_MEMBERSHIPS') {
         const res = await adminService.getClientMemberships({
           branchId: branchFilter,
@@ -79,9 +83,6 @@ export default function Memberships() {
 
         const clientsRes = await adminService.getClients({ limit: 100 });
         if (clientsRes.clients) setAllClientsList(clientsRes.clients);
-      } else {
-        const res = await adminService.getMembershipPlans();
-        setPlans(res.plans || []);
       }
     } catch (err) {
       setError(err.message || 'Failed to load membership records');
@@ -94,23 +95,101 @@ export default function Memberships() {
     fetchData();
   }, [activeTab, branchFilter, statusFilter, expiryFilter]);
 
-  const handleCreatePlan = async (e) => {
-    e.preventDefault();
-    try {
-      const feats = planForm.features ? planForm.features.split(',').map((f) => f.trim()) : [];
-      await adminService.createMembershipPlan({ ...planForm, features: feats });
-      setIsCreatePlanOpen(false);
-      fetchData();
-      alert('Plan added to catalog');
-    } catch (err) {
-      alert(err.message || 'Failed to save plan');
+  // Helper to re-calculate pricing for assignment
+  const recalculateAssignPricing = (userId, branchId, planId, currentPlans = plans) => {
+    const selectedClient = allClientsList.find((c) => (c.id || c._id) === userId);
+    const activeBranchId = branchId || (selectedClient?.branch?._id || selectedClient?.branchId || branches[0]?._id);
+    const selectedPlan = currentPlans.find((p) => p._id === planId) || currentPlans[0];
+
+    if (!selectedPlan) {
+      return {
+        userId,
+        branchId: activeBranchId,
+        planId: '',
+        planName: '',
+        durationDays: 30,
+        durationMonths: 1,
+        basePrice: 0,
+        joiningFee: 0,
+        discountType: 'NONE',
+        discountValue: 0,
+        discountAmount: 0,
+        calculatedPrice: 0,
+        amount: 0,
+        isAvailable: true,
+      };
     }
+
+    const branchPricing = selectedPlan.branchPricing?.find(
+      (bp) => (bp.branchId?._id || bp.branchId || '').toString() === (activeBranchId || '').toString()
+    );
+
+    const isAvailable = branchPricing ? branchPricing.isAvailable : true;
+    const basePrice = branchPricing ? branchPricing.basePrice : (selectedPlan.price || 0);
+    const joiningFee = branchPricing ? (branchPricing.joiningFee || 0) : 0;
+    const discountType = branchPricing ? branchPricing.discountType : 'NONE';
+    const discountValue = branchPricing ? (branchPricing.discountValue || 0) : 0;
+
+    let discountAmount = 0;
+    if (discountType === 'PERCENTAGE') {
+      discountAmount = Math.round((basePrice * Math.min(100, discountValue)) / 100);
+    } else if (discountType === 'FIXED') {
+      discountAmount = Math.min(discountValue, basePrice + joiningFee);
+    }
+
+    const calculatedPrice = branchPricing?.finalPrice !== undefined
+      ? branchPricing.finalPrice
+      : Math.max(0, basePrice + joiningFee - discountAmount);
+
+    return {
+      userId,
+      branchId: activeBranchId,
+      planId: selectedPlan._id,
+      planName: selectedPlan.name,
+      durationDays: selectedPlan.durationDays || (selectedPlan.durationMonths * 30) || 30,
+      durationMonths: selectedPlan.durationMonths || 1,
+      basePrice,
+      joiningFee,
+      discountType,
+      discountValue,
+      discountAmount,
+      calculatedPrice,
+      amount: calculatedPrice,
+      isAvailable,
+    };
+  };
+
+  const openAssignModal = () => {
+    const firstClient = allClientsList[0];
+    const initialUserId = firstClient ? (firstClient.id || firstClient._id) : '';
+    const initialBranchId = firstClient?.branch?._id || firstClient?.branchId || branches[0]?._id || '';
+    const initialPlanId = plans[0]?._id || '';
+
+    const calculated = recalculateAssignPricing(initialUserId, initialBranchId, initialPlanId, plans);
+    setAssignForm({
+      ...calculated,
+      startDate: new Date().toISOString().slice(0, 10),
+    });
+    setIsAssignModalOpen(true);
   };
 
   const handleAssignMembership = async (e) => {
     e.preventDefault();
+    if (!assignForm.isAvailable) {
+      alert('This plan is not available at the selected branch.');
+      return;
+    }
     try {
-      await adminService.createClientMembership(assignForm);
+      await adminService.createClientMembership({
+        userId: assignForm.userId,
+        branchId: assignForm.branchId,
+        planId: assignForm.planId,
+        planName: assignForm.planName,
+        durationDays: assignForm.durationDays,
+        durationMonths: assignForm.durationMonths,
+        amount: Number(assignForm.amount),
+        startDate: assignForm.startDate,
+      });
       setIsAssignModalOpen(false);
       fetchData();
       alert('Membership pass successfully assigned to athlete!');
@@ -156,17 +235,7 @@ export default function Memberships() {
           {activeTab === 'CLIENT_MEMBERSHIPS' ? (
             <button
               type="button"
-              onClick={() => {
-                setAssignForm({
-                  userId: allClientsList[0]?.id || '',
-                  branchId: branches[0]?._id || '',
-                  planName: '1 Month Kickstart',
-                  durationMonths: 1,
-                  amount: 2000,
-                  startDate: new Date().toISOString().slice(0, 10),
-                });
-                setIsAssignModalOpen(true);
-              }}
+              onClick={openAssignModal}
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black transition-all cursor-pointer shadow-lg shadow-[#E58A32]/10"
               style={{ fontFamily: "'Space Grotesk', sans-serif" }}
             >
@@ -176,22 +245,12 @@ export default function Memberships() {
           ) : (
             <button
               type="button"
-              onClick={() => {
-                setPlanForm({
-                  name: '',
-                  code: '',
-                  durationMonths: 1,
-                  price: 2000,
-                  description: '',
-                  features: '',
-                });
-                setIsCreatePlanOpen(true);
-              }}
+              onClick={() => onNavigate ? onNavigate('/admin/membership-plans') : (window.location.href = '/admin/membership-plans')}
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black transition-all cursor-pointer shadow-lg shadow-[#E58A32]/10"
               style={{ fontFamily: "'Space Grotesk', sans-serif" }}
             >
-              <Plus className="w-4 h-4" />
-              <span>Create Plan</span>
+              <ClipboardList className="w-4 h-4" />
+              <span>Manage Plans in Catalog</span>
             </button>
           )}
         </div>
@@ -446,27 +505,34 @@ export default function Memberships() {
       {/* ── ASSIGN MEMBERSHIP MODAL ── */}
       {isAssignModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-md p-6 relative">
+          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
             <h3
-              className="text-lg font-bold uppercase tracking-tight text-[#F5F5F5] mb-4"
+              className="text-lg font-bold uppercase tracking-tight text-[#F5F5F5] mb-1"
               style={{ fontFamily: "'Space Grotesk', sans-serif" }}
             >
               Assign Client Membership
             </h3>
+            <p className="text-xs text-[#A3A3A3] mb-4">
+              Select client, target branch, and a valid membership plan. Multi-branch pricing and fee breakdown calculate live.
+            </p>
 
-            <form onSubmit={handleAssignMembership} className="space-y-3">
+            <form onSubmit={handleAssignMembership} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Select Athlete</label>
+                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Select Athlete *</label>
                 <select
                   required
                   value={assignForm.userId}
-                  onChange={(e) => setAssignForm({ ...assignForm, userId: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none"
+                  onChange={(e) => {
+                    const newUserId = e.target.value;
+                    const calculated = recalculateAssignPricing(newUserId, assignForm.branchId, assignForm.planId, plans);
+                    setAssignForm((prev) => ({ ...prev, ...calculated }));
+                  }}
+                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#E58A32]"
                 >
                   <option value="">-- Choose Athlete --</option>
                   {allClientsList.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.phone || c.email})
+                    <option key={c.id || c._id} value={c.id || c._id}>
+                      {c.name} ({c.phone || c.email}) • {c.branch?.city || 'No branch'}
                     </option>
                   ))}
                 </select>
@@ -474,54 +540,15 @@ export default function Memberships() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Duration</label>
-                  <select
-                    value={assignForm.durationMonths}
-                    onChange={(e) => {
-                      const dur = Number(e.target.value);
-                      const basePrice = dur === 1 ? 2000 : dur === 3 ? 5000 : dur === 6 ? 9000 : 16000;
-                      setAssignForm({
-                        ...assignForm,
-                        durationMonths: dur,
-                        planName: `${dur} Month${dur > 1 ? 's' : ''} Pass`,
-                        amount: basePrice,
-                      });
-                    }}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
-                  >
-                    <option value={1}>1 Month (₹2,000)</option>
-                    <option value={3}>3 Months (₹5,000)</option>
-                    <option value={6}>6 Months (₹9,000)</option>
-                    <option value={12}>12 Months (₹16,000)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Fee (₹)</label>
-                  <input
-                    type="number"
-                    value={assignForm.amount}
-                    onChange={(e) => setAssignForm({ ...assignForm, amount: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5]"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={assignForm.startDate}
-                    onChange={(e) => setAssignForm({ ...assignForm, startDate: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Branch</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Target Branch *</label>
                   <select
                     value={assignForm.branchId}
-                    onChange={(e) => setAssignForm({ ...assignForm, branchId: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
+                    onChange={(e) => {
+                      const newBranchId = e.target.value;
+                      const calculated = recalculateAssignPricing(assignForm.userId, newBranchId, assignForm.planId, plans);
+                      setAssignForm((prev) => ({ ...prev, ...calculated }));
+                    }}
+                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#E58A32]"
                   >
                     {branches.map((b) => (
                       <option key={b._id} value={b._id}>
@@ -530,127 +557,120 @@ export default function Memberships() {
                     ))}
                   </select>
                 </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Membership Plan *</label>
+                  <select
+                    value={assignForm.planId}
+                    onChange={(e) => {
+                      const newPlanId = e.target.value;
+                      const calculated = recalculateAssignPricing(assignForm.userId, assignForm.branchId, newPlanId, plans);
+                      setAssignForm((prev) => ({ ...prev, ...calculated }));
+                    }}
+                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#E58A32]"
+                  >
+                    {plans.map((p) => (
+                      <option key={p._id} value={p._id}>
+                        {p.name} ({p.durationDays ? `${p.durationDays}d` : `${p.durationMonths}m`}) {!p.isActive ? '[INACTIVE]' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <p className="text-[10px] text-[#A3A3A3] italic pt-1">
-                Notice: Assigning a membership creates an active pass record. To register the confirmed fee, record an
-                offline payment under Payments.
-              </p>
+              {/* Branch Pricing Breakdown Card */}
+              <div className="p-3.5 rounded-xl bg-[#121212] border border-[#292929] space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[10px] font-mono text-[#A3A3A3] uppercase">Branch Price Breakdown</span>
+                  {!assignForm.isAvailable ? (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-red-500/10 border border-red-500/30 text-red-400">
+                      NOT AVAILABLE AT THIS BRANCH
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                      AVAILABLE
+                    </span>
+                  )}
+                </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsAssignModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] text-[#A3A3A3]"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] text-black"
-                >
-                  Confirm Pass
-                </button>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                  <div className="p-2 rounded-lg bg-[#181818] border border-[#262626]">
+                    <span className="text-[9px] font-mono text-[#A3A3A3] block uppercase">Base Price</span>
+                    <span className="text-xs font-bold text-[#F5F5F5]">₹{assignForm.basePrice.toLocaleString()}</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-[#181818] border border-[#262626]">
+                    <span className="text-[9px] font-mono text-[#A3A3A3] block uppercase">Joining Fee</span>
+                    <span className="text-xs font-bold text-[#F5F5F5]">₹{assignForm.joiningFee.toLocaleString()}</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-[#181818] border border-[#262626]">
+                    <span className="text-[9px] font-mono text-[#A3A3A3] block uppercase">Discount</span>
+                    <span className="text-xs font-bold text-amber-400">
+                      -₹{assignForm.discountAmount.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-[#1E1E1E] border border-[#E58A32]/30">
+                    <span className="text-[9px] font-mono text-[#E58A32] block uppercase">Branch Total</span>
+                    <span className="text-xs font-bold text-[#E58A32]">₹{assignForm.calculatedPrice.toLocaleString()}</span>
+                  </div>
+                </div>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {/* ── CREATE PLAN MODAL ── */}
-      {isCreatePlanOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-md p-6 relative">
-            <h3
-              className="text-lg font-bold uppercase tracking-tight text-[#F5F5F5] mb-4"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              Add Membership Plan to Catalog
-            </h3>
-
-            <form onSubmit={handleCreatePlan} className="space-y-3">
-              <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Plan Name</label>
-                <input
-                  type="text"
-                  required
-                  value={planForm.name}
-                  onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5]"
-                  placeholder="e.g. 6 Months Half-Year Elite"
-                />
-              </div>
+              {!assignForm.isAvailable && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>
+                    The plan <strong>{assignForm.planName}</strong> is disabled for this branch in the plan catalog. Choose another plan or branch.
+                  </span>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Duration (Months)</label>
-                  <select
-                    value={planForm.durationMonths}
-                    onChange={(e) => setPlanForm({ ...planForm, durationMonths: Number(e.target.value) })}
+                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Pass Start Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={assignForm.startDate}
+                    onChange={(e) => setAssignForm({ ...assignForm, startDate: e.target.value })}
                     className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
-                  >
-                    <option value={1}>1 Month</option>
-                    <option value={3}>3 Months</option>
-                    <option value={6}>6 Months</option>
-                    <option value={12}>12 Months</option>
-                  </select>
+                  />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Standard Price (₹)</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Confirmed Fee (₹) *</label>
                   <input
                     type="number"
                     required
-                    value={planForm.price}
-                    onChange={(e) => setPlanForm({ ...planForm, price: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5]"
+                    value={assignForm.amount}
+                    onChange={(e) => setAssignForm({ ...assignForm, amount: e.target.value })}
+                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#E58A32]"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Plan Description</label>
-                <textarea
-                  rows={2}
-                  value={planForm.description}
-                  onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5]"
-                  placeholder="Summary of this training subscription..."
-                />
-              </div>
+              <p className="text-[10px] text-[#A3A3A3] italic pt-1">
+                Notice: Assigning creates an active membership snapshot in the client's file. To log the paid receipt, record an offline transaction under Payments.
+              </p>
 
-              <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">
-                  Features (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  value={planForm.features}
-                  onChange={(e) => setPlanForm({ ...planForm, features: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5]"
-                  placeholder="Full gym access, Steam bath, Locker access"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3">
+              <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsCreatePlanOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] text-[#A3A3A3]"
+                  onClick={() => setIsAssignModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] text-[#A3A3A3] hover:text-[#F5F5F5]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] text-black"
+                  disabled={!assignForm.isAvailable}
+                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Save Plan
+                  Confirm &amp; Assign Pass
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
       {/* ── ACTION MODAL (RENEW / EXTEND / PAUSE) ── */}
       {actionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">

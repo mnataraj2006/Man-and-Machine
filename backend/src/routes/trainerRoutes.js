@@ -42,9 +42,11 @@ router.post('/schedule', trainerController.scheduleSession);
 router.put('/schedule/:appointmentId', trainerController.updateScheduleSession);
 router.patch('/schedule/:appointmentId/status', trainerController.updateSessionStatus);
 
-// Sessions
+// Sessions & Bookings
 router.get('/sessions', trainerController.getSessions);
 router.post('/sessions/complete', trainerController.completeSession);
+router.get('/bookings', trainerController.getTrainerBookings);
+router.put('/availability', trainerController.updateTrainerAvailability);
 
 // Attendance
 router.get('/attendance', trainerController.getAttendance);

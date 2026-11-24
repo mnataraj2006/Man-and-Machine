@@ -4,7 +4,10 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 class AdminService {
   getAuthHeaders() {
-    const token = authService.getToken();
+    const token =
+      (authService && typeof authService.getToken === 'function' ? authService.getToken() : null) ||
+      localStorage.getItem('mm_auth_token') ||
+      '';
     return {
       'Content-Type': 'application/json',
       Authorization: token ? `Bearer ${token}` : '',
@@ -144,9 +147,26 @@ class AdminService {
     });
   }
 
-  // 5. Membership Management
-  async getMembershipPlans() {
-    return this.request('/membership-plans');
+  async getTrainerBookings(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return this.request(`/trainer-bookings${query ? `?${query}` : ''}`);
+  }
+
+  async confirmTrainerBookingPayment(id, data = {}) {
+    return this.request(`/trainer-bookings/${id}/confirm-payment`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // 5. Membership Plans Management
+  async getMembershipPlans(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return this.request(`/membership-plans${query ? `?${query}` : ''}`);
+  }
+
+  async getMembershipPlanById(id) {
+    return this.request(`/membership-plans/${id}`);
   }
 
   async createMembershipPlan(planData) {
@@ -160,6 +180,25 @@ class AdminService {
     return this.request(`/membership-plans/${id}`, {
       method: 'PUT',
       body: JSON.stringify(planData),
+    });
+  }
+
+  async toggleMembershipPlanStatus(id, isActive) {
+    return this.request(`/membership-plans/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isActive }),
+    });
+  }
+
+  async duplicateMembershipPlan(id) {
+    return this.request(`/membership-plans/${id}/duplicate`, {
+      method: 'POST',
+    });
+  }
+
+  async deleteMembershipPlan(id) {
+    return this.request(`/membership-plans/${id}`, {
+      method: 'DELETE',
     });
   }
 
