@@ -27,6 +27,21 @@ import Trainer from './pages/Client/Trainer.jsx';
 import Notifications from './pages/Client/Notifications.jsx';
 import Profile from './pages/Client/Profile.jsx';
 import Settings from './pages/Client/Settings.jsx';
+
+// Admin Application Suite
+import AdminLayout from './components/Admin/AdminLayout.jsx';
+import AdminDashboardHome from './pages/Admin/DashboardHome.jsx';
+import AdminBranches from './pages/Admin/Branches.jsx';
+import AdminClients from './pages/Admin/Clients.jsx';
+import AdminTrainers from './pages/Admin/Trainers.jsx';
+import AdminMemberships from './pages/Admin/Memberships.jsx';
+import AdminAttendance from './pages/Admin/Attendance.jsx';
+import AdminWorkouts from './pages/Admin/Workouts.jsx';
+import AdminPayments from './pages/Admin/Payments.jsx';
+import AdminReports from './pages/Admin/Reports.jsx';
+import AdminNotifications from './pages/Admin/Notifications.jsx';
+import AdminEnquiries from './pages/Admin/Enquiries.jsx';
+import AdminSettings from './pages/Admin/Settings.jsx';
 import authService from './services/auth.js';
 
 export default function App() {
@@ -39,19 +54,19 @@ export default function App() {
     const role = authService.getRole();
 
     // Protected routes requiring authentication
-    if (path.startsWith('/client/') || path.startsWith('/admin/') || path.startsWith('/trainer/') || path === '/account') {
+    if (path.startsWith('/client') || path.startsWith('/admin') || path.startsWith('/trainer') || path === '/account') {
       if (!isAuthed) {
         return '/login';
       }
 
       // Role authorization enforcement
-      if (path.startsWith('/admin/')) {
+      if (path.startsWith('/admin')) {
         if (role !== 'ADMIN') {
           return authService.getDashboardRoute(role);
         }
       }
 
-      if (path.startsWith('/trainer/')) {
+      if (path.startsWith('/trainer')) {
         if (role !== 'TRAINER' && role !== 'ADMIN') {
           return authService.getDashboardRoute(role);
         }
@@ -147,13 +162,49 @@ export default function App() {
     );
   }
 
-  // Admin Dashboard
-  if (currentPath === '/admin/dashboard') {
+  // Admin Application Area: Unified Multi-Branch Admin Suite
+  if (currentPath.startsWith('/admin')) {
+    let adminContent = null;
+
+    if (currentPath === '/admin/dashboard' || currentPath === '/admin') {
+      adminContent = <AdminDashboardHome onNavigate={navigate} />;
+    } else if (currentPath === '/admin/branches') {
+      adminContent = <AdminBranches onNavigate={navigate} />;
+    } else if (currentPath === '/admin/clients' || currentPath.startsWith('/admin/clients/')) {
+      adminContent = <AdminClients onNavigate={navigate} />;
+    } else if (currentPath === '/admin/trainers' || currentPath.startsWith('/admin/trainers/')) {
+      adminContent = <AdminTrainers onNavigate={navigate} />;
+    } else if (currentPath === '/admin/memberships') {
+      adminContent = <AdminMemberships onNavigate={navigate} />;
+    } else if (currentPath === '/admin/attendance') {
+      adminContent = <AdminAttendance onNavigate={navigate} />;
+    } else if (currentPath === '/admin/workouts') {
+      adminContent = <AdminWorkouts onNavigate={navigate} />;
+    } else if (currentPath === '/admin/payments') {
+      adminContent = <AdminPayments onNavigate={navigate} />;
+    } else if (currentPath === '/admin/reports') {
+      adminContent = <AdminReports onNavigate={navigate} />;
+    } else if (currentPath === '/admin/notifications') {
+      adminContent = <AdminNotifications onNavigate={navigate} />;
+    } else if (currentPath === '/admin/enquiries') {
+      adminContent = <AdminEnquiries onNavigate={navigate} />;
+    } else if (currentPath === '/admin/settings') {
+      adminContent = <AdminSettings onNavigate={navigate} onLogout={() => navigate('/login')} />;
+    } else {
+      adminContent = <AdminDashboardHome onNavigate={navigate} />;
+    }
+
     return (
-      <AdminDashboard 
-        onNavigate={navigate} 
-        onLogout={() => navigate('/login')} 
-      />
+      <AdminLayout
+        currentPath={currentPath}
+        onNavigate={navigate}
+        onLogout={() => {
+          authService.logout();
+          navigate('/login');
+        }}
+      >
+        {adminContent}
+      </AdminLayout>
     );
   }
 

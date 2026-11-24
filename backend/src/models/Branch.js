@@ -7,6 +7,11 @@ const branchSchema = new mongoose.Schema(
       required: [true, 'Branch name is required'],
       trim: true,
     },
+    code: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     city: {
       type: String,
       required: [true, 'Branch city is required'],
@@ -23,10 +28,19 @@ const branchSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
-    openingHours: {
+    email: {
       type: String,
       trim: true,
       default: '',
+    },
+    openingHours: {
+      type: String,
+      trim: true,
+      default: 'Mon - Sat: 5:30 AM - 10:00 PM | Sun: 6:00 AM - 1:00 PM',
+    },
+    facilities: {
+      type: [String],
+      default: ['Fully Air-Conditioned Gym', 'Steam Bath', 'Clean Atmosphere', 'Bike Parking'],
     },
     isActive: {
       type: Boolean,

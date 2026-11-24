@@ -16,6 +16,16 @@ const workoutPlanSchema = new mongoose.Schema(
       type: String,
       default: 'Muscle Building',
     },
+    isTemplate: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    mode: {
+      type: String,
+      enum: ['TRAINER_MANAGED', 'SELF_MANAGED'],
+      default: 'TRAINER_MANAGED',
+    },
     trainerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -29,7 +39,7 @@ const workoutPlanSchema = new mongoose.Schema(
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      default: null,
       index: true,
     },
     schedule: [
