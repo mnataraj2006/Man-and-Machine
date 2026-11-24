@@ -125,6 +125,22 @@ export const clientService = {
     return res.json();
   },
 
+  /**
+   * Public available membership plans endpoint for website visitors & clients.
+   * Does not require authentication token.
+   */
+  getPublicAvailablePlans: async (branchId) => {
+    const url = branchId
+      ? `${BASE_URL}/membership-plans/available?branchId=${encodeURIComponent(branchId)}`
+      : `${BASE_URL}/membership-plans/available`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Unable to load membership plans right now.');
+    }
+    return res.json();
+  },
+
   getMembershipPlans: async () => {
     const res = await fetch(`${BASE_URL}/client/membership/plans`, {
       headers: getAuthHeaders(),

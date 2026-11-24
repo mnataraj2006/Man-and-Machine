@@ -83,7 +83,7 @@ app.get('/api/membership-plans/available', async (req, res, next) => {
     }
 
     const plans = await MembershipPlan.find({ isActive: true })
-      .sort({ displayOrder: 1, createdAt: -1 })
+      .sort({ displayOrder: 1, durationDays: 1, createdAt: 1 })
       .populate('branchPricing.branchId', 'name city code');
 
     const availablePlans = [];
@@ -104,6 +104,7 @@ app.get('/api/membership-plans/available', async (req, res, next) => {
           planType: plan.planType,
           durationDays: plan.durationDays || 30,
           durationMonths: plan.durationMonths || 1,
+          isFeatured: Boolean(plan.isFeatured || plan.isPopular),
           benefits: plan.benefits && plan.benefits.length > 0 ? plan.benefits : plan.features || [],
           basePrice: branchConfig.basePrice,
           joiningFee: branchConfig.joiningFee || 0,

@@ -45,7 +45,11 @@ export default function Login({ onNavigate, onOpenRegister }) {
 
     try {
       const result = await authService.login({ email: email.trim(), password });
-      const targetRoute = authService.getDashboardRoute(result.user?.role);
+      let targetRoute = authService.getDashboardRoute(result.user?.role);
+      const pendingPlanId = sessionStorage.getItem('mm_selected_plan_id');
+      if (result.user?.role === 'CLIENT' && pendingPlanId) {
+        targetRoute = `/client/membership?planId=${pendingPlanId}`;
+      }
       if (onNavigate) {
         onNavigate(targetRoute);
       } else {

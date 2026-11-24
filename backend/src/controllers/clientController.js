@@ -50,14 +50,16 @@ const getDashboardSummary = async (req, res, next) => {
     const activeMembership = await Membership.findOne({
       userId,
       status: 'ACTIVE',
+      startDate: { $lte: now },
       expiryDate: { $gte: now },
     }).populate('branchId', 'name city');
 
-    const latestMembership = await Membership.findOne({ userId })
-      .sort({ createdAt: -1 })
-      .populate('branchId', 'name city');
+    const latestMembership = !activeMembership
+      ? await Membership.findOne({ userId })
+          .sort({ createdAt: -1 })
+          .populate('branchId', 'name city')
+      : null;
 
-    const membership = activeMembership || latestMembership;
     const hasActiveMembership = Boolean(activeMembership);
 
     // 3. Attendance Metrics
@@ -242,19 +244,23 @@ const getDashboardSummary = async (req, res, next) => {
       stats: {
         attendanceThisMonth: monthlyAttendanceCount,
         completedWorkouts: totalCompletedWorkouts,
-        membershipStatus: hasActiveMembership ? 'ACTIVE' : (latestMembership ? latestMembership.status : 'NO_MEMBERSHIP'),
+        membershipStatus: hasActiveMembership
+          ? 'ACTIVE'
+          : latestMembership
+          ? (new Date(latestMembership.expiryDate) < now || latestMembership.status === 'EXPIRED' ? 'EXPIRED' : latestMembership.status)
+          : 'NOT_ENROLLED',
         trainingStreak: streakDays,
       },
-      membership: membership
+      membership: activeMembership
         ? {
-            id: membership._id,
-            planName: membership.planName,
-            status: hasActiveMembership ? 'ACTIVE' : (membership.status === 'ACTIVE' ? 'EXPIRED' : membership.status),
-            startDate: membership.startDate,
-            expiryDate: membership.expiryDate,
-            daysRemaining: getDaysRemaining(membership.expiryDate),
-            renewalRequested: membership.renewalRequested,
-            trainingPreference: membership.trainingPreference || 'SELF_TRAINED',
+            id: activeMembership._id,
+            planName: activeMembership.planName,
+            status: 'ACTIVE',
+            startDate: activeMembership.startDate,
+            expiryDate: activeMembership.expiryDate,
+            daysRemaining: getDaysRemaining(activeMembership.expiryDate),
+            renewalRequested: activeMembership.renewalRequested,
+            trainingPreference: activeMembership.trainingPreference || 'SELF_TRAINED',
           }
         : null,
       todaysWorkout,
@@ -627,44 +633,45 @@ const getMembership = async (req, res, next) => {
     const activeMembership = await Membership.findOne({
       userId,
       status: 'ACTIVE',
+      startDate: { $lte: now },
       expiryDate: { $gte: now },
     }).populate('branchId', 'name city address phone');
-
-    const latestMembership = await Membership.findOne({ userId })
-      .sort({ createdAt: -1 })
-      .populate('branchId', 'name city address phone');
 
     const history = await Membership.find({ userId })
       .sort({ createdAt: -1 })
       .populate('branchId', 'name city');
 
-    const currentDoc = activeMembership || latestMembership;
     const hasActiveMembership = Boolean(activeMembership);
+    const hasMembership = history.length > 0;
+
+    const membershipPayload = activeMembership
+      ? {
+          id: activeMembership._id,
+          planName: activeMembership.planName,
+          status: 'ACTIVE',
+          startDate: activeMembership.startDate,
+          expiryDate: activeMembership.expiryDate,
+          durationDays: activeMembership.durationDays || 30,
+          durationMonths: activeMembership.durationMonths || 1,
+          amount: activeMembership.finalAmount || activeMembership.amount || 0,
+          finalAmount: activeMembership.finalAmount || activeMembership.amount || 0,
+          basePrice: activeMembership.basePrice || 0,
+          joiningFee: activeMembership.joiningFee || 0,
+          discountValue: activeMembership.discountValue || 0,
+          daysRemaining: getDaysRemaining(activeMembership.expiryDate),
+          trainingPreference: activeMembership.trainingPreference || 'SELF_TRAINED',
+          renewalRequested: activeMembership.renewalRequested,
+          renewalRequestedAt: activeMembership.renewalRequestedAt,
+          branch: activeMembership.branchId,
+        }
+      : null;
 
     res.status(200).json({
       success: true,
+      hasMembership,
       hasActiveMembership,
-      current: currentDoc
-        ? {
-            id: currentDoc._id,
-            planName: currentDoc.planName,
-            status: hasActiveMembership ? 'ACTIVE' : (currentDoc.status === 'ACTIVE' ? 'EXPIRED' : currentDoc.status),
-            startDate: currentDoc.startDate,
-            expiryDate: currentDoc.expiryDate,
-            durationDays: currentDoc.durationDays || 30,
-            durationMonths: currentDoc.durationMonths || 1,
-            amount: currentDoc.finalAmount || currentDoc.amount || 0,
-            finalAmount: currentDoc.finalAmount || currentDoc.amount || 0,
-            basePrice: currentDoc.basePrice || 0,
-            joiningFee: currentDoc.joiningFee || 0,
-            discountValue: currentDoc.discountValue || 0,
-            daysRemaining: getDaysRemaining(currentDoc.expiryDate),
-            trainingPreference: currentDoc.trainingPreference || 'SELF_TRAINED',
-            renewalRequested: currentDoc.renewalRequested,
-            renewalRequestedAt: currentDoc.renewalRequestedAt,
-            branch: currentDoc.branchId,
-          }
-        : null,
+      membership: membershipPayload,
+      current: membershipPayload,
       history,
     });
   } catch (err) {
@@ -1145,22 +1152,15 @@ const requestMembershipRenewal = async (req, res, next) => {
     let membership = await Membership.findOne({ userId }).sort({ createdAt: -1 });
 
     if (!membership) {
-      // Create pending membership request
-      membership = await Membership.create({
-        userId,
-        branchId: req.user.branchId || (await Branch.findOne({ city: 'Kovilpatti' }))._id,
-        planName: 'Annual Athlete Elite Renewal',
-        status: 'PENDING',
-        startDate: new Date(),
-        expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-        renewalRequested: true,
-        renewalRequestedAt: new Date(),
+      return res.status(400).json({
+        success: false,
+        message: 'No existing membership record found to renew. Please purchase a membership plan.',
       });
-    } else {
-      membership.renewalRequested = true;
-      membership.renewalRequestedAt = new Date();
-      await membership.save();
     }
+
+    membership.renewalRequested = true;
+    membership.renewalRequestedAt = new Date();
+    await membership.save();
 
     // Create confirmation in-app notification
     await Notification.create({

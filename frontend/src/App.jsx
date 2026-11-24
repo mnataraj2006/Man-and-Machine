@@ -4,6 +4,7 @@ import Hero from './components/Hero/Hero.jsx';
 import SocialProof from './components/Stats/SocialProof.jsx';
 import Facilities from './components/Facilities/Facilities.jsx';
 import Manifesto from './components/CTA/Manifesto.jsx';
+import MembershipPlansPreview from './components/Membership/MembershipPlansPreview.jsx';
 import Testimonials from './components/Reviews/Testimonials.jsx';
 import Branches from './components/Branches/Branches.jsx';
 import MembershipCTA from './components/CTA/MembershipCTA.jsx';
@@ -88,6 +89,13 @@ export default function App() {
       if (path === '/account') {
         return authService.getDashboardRoute(role);
       }
+    }
+
+    if (path === '/membership') {
+      if (isAuthed && role === 'CLIENT') {
+        return '/client/membership';
+      }
+      return '/';
     }
     return path;
   };
@@ -297,7 +305,7 @@ export default function App() {
       />
 
       {/* Main Content Sections */}
-      <main className="w-full pt-16 sm:pt-20 bg-[#09090B] min-h-screen">
+      <main className="w-full bg-[#09090B] min-h-screen">
         <div className="flex flex-col w-full text-[#F5F5F5]">
           {/* 1. Hero Section */}
           <Hero 
@@ -314,7 +322,10 @@ export default function App() {
           {/* 4. Cinematic Statement / Manifesto Break */}
           <Manifesto />
 
-          {/* 5. Verified Reviews Section */}
+          {/* 5. Dynamic Membership Plans Preview Section */}
+          <MembershipPlansPreview onNavigate={navigate} onOpenJoinModal={handleOpenJoin} />
+
+          {/* 6. Verified Reviews Section */}
           <Testimonials />
 
           {/* 6. Our Branches Section (One Brand. Three Locations.) */}

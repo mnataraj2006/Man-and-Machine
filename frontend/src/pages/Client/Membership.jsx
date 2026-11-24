@@ -76,9 +76,20 @@ export default function Membership({ onNavigate }) {
       setPlans(plansRes.plans || []);
       setBranchInfo(plansRes.branch || null);
 
-      // Default active tab: If user has an active, unexpired membership, show 'status' tab first.
-      // If user has NO active membership, open directly to 'catalog'.
-      if (memRes?.hasActiveMembership) {
+      // Check if user arrived with a preselected plan (e.g. from homepage or URL query)
+      const params = new URLSearchParams(window.location.search);
+      const preselectedPlanId = params.get('planId') || sessionStorage.getItem('mm_selected_plan_id');
+      const foundPlan = preselectedPlanId && plansRes.plans?.find(
+        (p) => p._id === preselectedPlanId || p.id === preselectedPlanId
+      );
+
+      if (foundPlan) {
+        setSelectedPlan(foundPlan);
+        setActiveTab('catalog');
+        setStep('PREFERENCE'); // Bring directly into training preference & checkout step
+        sessionStorage.removeItem('mm_selected_plan_id');
+        sessionStorage.removeItem('mm_selected_branch_id');
+      } else if (memRes?.hasActiveMembership) {
         setActiveTab('status');
       } else {
         setActiveTab('catalog');

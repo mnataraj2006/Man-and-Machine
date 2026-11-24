@@ -8,6 +8,7 @@ export default function Header({ onOpenJoinModal, onNavigate }) {
   const navLinks = [
     { name: 'HOME', href: '#home' },
     { name: 'FACILITIES', href: '#facilities' },
+    { name: 'MEMBERSHIP', href: '#membership-plans' },
     { name: 'REVIEWS', href: '#reviews' },
     { name: 'OUR BRANCHES', href: '#branches' },
     { name: 'CONTACT', href: '#contact' },
@@ -75,9 +76,9 @@ export default function Header({ onOpenJoinModal, onNavigate }) {
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         isVisible ? 'translate-y-0' : '-translate-y-full'
       } ${
-        isScrolled 
-          ? 'bg-[#09090B]/95 backdrop-blur-md border-b border-[#292929] shadow-xl' 
-          : 'bg-[#09090B]/85 backdrop-blur-sm border-b border-[#292929]/50'
+        isScrolled || mobileMenuOpen
+          ? 'bg-[#09090B]/95 backdrop-blur-md border-b border-[#292929] shadow-2xl' 
+          : 'bg-transparent border-b border-transparent shadow-none'
       }`}
     >
       <div className="h-14 sm:h-16 lg:h-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-2 sm:gap-4">

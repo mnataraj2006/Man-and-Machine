@@ -48,6 +48,13 @@ export default function Clients() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [assignForm, setAssignForm] = useState({
+    planId: '',
+    startDate: new Date().toISOString().slice(0, 10),
+    amount: '',
+  });
+  const [assignLoading, setAssignLoading] = useState(false);
   const [trainersList, setTrainersList] = useState([]);
   const [plans, setPlans] = useState([]);
 
@@ -140,8 +147,8 @@ export default function Clients() {
       Branch: c.branch?.city || '',
       Status: c.status,
       MembershipPlan: c.membership?.planName || 'None',
-      MembershipStatus: c.membership?.status || 'INACTIVE',
-      ExpiryDate: c.membership?.expiryDate ? new Date(c.membership.expiryDate).toLocaleDateString() : 'N/A',
+      MembershipStatus: c.membership?.status || 'NOT_ENROLLED',
+      ExpiryDate: c.membership?.expiryDate ? new Date(c.membership.expiryDate).toLocaleDateString() : '—',
       RegisteredOn: new Date(c.createdAt).toLocaleDateString(),
     }));
     adminService.exportToCSV(exportData, `clients_${Date.now()}.csv`);
@@ -231,6 +238,42 @@ export default function Clients() {
       alert('Client registered successfully!');
     } catch (err) {
       alert(err.message || 'Failed to create client');
+    }
+  };
+
+  const handleAssignMembership = async (e) => {
+    e.preventDefault();
+    if (!assignForm.planId) {
+      alert('Please select a membership plan.');
+      return;
+    }
+    const clientId = clientDetailData?.client?.id || clientDetailData?.client?._id || selectedClientId;
+    if (!clientId) {
+      alert('No client selected.');
+      return;
+    }
+    try {
+      setAssignLoading(true);
+      const selectedPlan = plans.find((p) => p._id === assignForm.planId);
+      const branchId = clientDetailData?.client?.branch?._id || clientDetailData?.client?.branch || (branches[0]?._id);
+
+      await adminService.createClientMembership({
+        userId: clientId,
+        branchId,
+        planId: assignForm.planId,
+        planName: selectedPlan?.name,
+        amount: assignForm.amount !== '' ? Number(assignForm.amount) : undefined,
+        startDate: assignForm.startDate,
+      });
+
+      alert('Membership assigned successfully!');
+      setIsAssignModalOpen(false);
+      handleOpenClientDetails(clientId);
+      fetchClients();
+    } catch (err) {
+      alert(err.message || 'Failed to assign membership');
+    } finally {
+      setAssignLoading(false);
     }
   };
 
@@ -441,15 +484,22 @@ export default function Clients() {
                           </span>
                           <span
                             className={`text-[10px] font-mono ${
-                              c.membership.isExpired ? 'text-red-400 font-bold' : 'text-green-400'
+                              c.membership.status === 'ACTIVE' && !c.membership.isExpired
+                                ? 'text-green-400 font-semibold'
+                                : c.membership.status === 'PENDING'
+                                ? 'text-amber-400 font-semibold'
+                                : 'text-red-400 font-bold'
                             }`}
                           >
-                            {c.membership.isExpired ? 'EXPIRED' : 'ACTIVE'} •{' '}
-                            {new Date(c.membership.expiryDate).toLocaleDateString()}
+                            {c.membership.status === 'ACTIVE' && !c.membership.isExpired
+                              ? `ACTIVE • ${new Date(c.membership.expiryDate).toLocaleDateString()}`
+                              : c.membership.status === 'PENDING'
+                              ? 'PENDING APPROVAL'
+                              : `EXPIRED • ${new Date(c.membership.expiryDate).toLocaleDateString()}`}
                           </span>
                         </div>
                       ) : (
-                        <span className="text-[11px] text-[#A3A3A3] italic">No active pass</span>
+                        <span className="text-[11px] text-[#A3A3A3] italic">No Membership</span>
                       )}
                     </td>
 
@@ -651,38 +701,86 @@ export default function Clients() {
             </div>
 
             {/* Active Membership Details */}
-            <div className="bg-[#181818] border border-[#292929] rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-mono uppercase text-[#E58A32] font-bold">MEMBERSHIP SPECIFICATIONS</span>
-                <span className="text-[10px] text-[#A3A3A3]">
-                  {clientDetailData.activeMembership?.status || 'No Membership'}
+            <div className="bg-[#181818] border border-[#292929] rounded-xl p-4 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono uppercase text-[#E58A32] font-bold">MEMBERSHIP</span>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    clientDetailData.activeMembership
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'bg-[#252525] text-[#A3A3A3]'
+                  }`}
+                >
+                  {clientDetailData.activeMembership ? 'ACTIVE' : 'NOT ENROLLED'}
                 </span>
               </div>
+
               {clientDetailData.activeMembership ? (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div>
-                    <span className="text-[10px] text-[#A3A3A3]">Plan</span>
+                    <span className="text-[10px] text-[#A3A3A3] block uppercase">Plan</span>
                     <p className="font-bold text-[#F5F5F5]">{clientDetailData.activeMembership.planName}</p>
                   </div>
                   <div>
-                    <span className="text-[10px] text-[#A3A3A3]">Start Date</span>
+                    <span className="text-[10px] text-[#A3A3A3] block uppercase">Start Date</span>
                     <p className="font-mono text-[#F5F5F5]">
                       {new Date(clientDetailData.activeMembership.startDate).toLocaleDateString()}
                     </p>
                   </div>
                   <div>
-                    <span className="text-[10px] text-[#A3A3A3]">Expiry Date</span>
+                    <span className="text-[10px] text-[#A3A3A3] block uppercase">Expiry Date</span>
                     <p className="font-mono text-green-400 font-bold">
                       {new Date(clientDetailData.activeMembership.expiryDate).toLocaleDateString()}
                     </p>
                   </div>
                   <div>
-                    <span className="text-[10px] text-[#A3A3A3]">Amount Paid</span>
-                    <p className="font-bold text-[#E58A32]">₹{clientDetailData.activeMembership.amount}</p>
+                    <span className="text-[10px] text-[#A3A3A3] block uppercase">Price</span>
+                    <p className="font-bold text-[#E58A32]">
+                      ₹{clientDetailData.activeMembership.finalAmount || clientDetailData.activeMembership.amount || 0}
+                    </p>
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-[#A3A3A3] italic">No active membership assigned to this athlete.</p>
+                <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs opacity-75">
+                    <div>
+                      <span className="text-[10px] text-[#A3A3A3] block uppercase">Plan</span>
+                      <p className="font-bold text-[#737373]">—</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#A3A3A3] block uppercase">Start Date</span>
+                      <p className="font-mono text-[#737373]">—</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#A3A3A3] block uppercase">Expiry Date</span>
+                      <p className="font-mono text-[#737373]">—</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#A3A3A3] block uppercase">Status</span>
+                      <p className="font-bold text-[#A3A3A3]">NOT ENROLLED</p>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-[#252525] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <p className="text-xs text-[#A3A3A3] italic">
+                      No membership has been purchased or assigned.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const defaultPlan = plans[0];
+                        setAssignForm({
+                          planId: defaultPlan?._id || '',
+                          startDate: new Date().toISOString().slice(0, 10),
+                          amount: defaultPlan?.price || '',
+                        });
+                        setIsAssignModalOpen(true);
+                      }}
+                      className="px-3.5 py-1.5 rounded-lg bg-[#E58A32] hover:bg-[#F09A43] text-white text-xs font-bold uppercase transition-all shadow-[0_0_10px_rgba(229,138,50,0.2)] shrink-0 self-start sm:self-auto cursor-pointer"
+                    >
+                      Assign Membership
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -979,6 +1077,98 @@ export default function Clients() {
                   className="px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#E58A32] text-black"
                 >
                   Update Password
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── ASSIGN MEMBERSHIP MODAL ── */}
+      {isAssignModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-md p-6 relative">
+            <h3
+              className="text-base font-bold uppercase tracking-tight text-[#F5F5F5] mb-2"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              Assign Membership Pass
+            </h3>
+            <p className="text-xs text-[#A3A3A3] mb-4">
+              Select an active membership plan to assign to{' '}
+              <strong className="text-[#F5F5F5]">{clientDetailData?.client?.name || 'this client'}</strong>.
+            </p>
+
+            <form onSubmit={handleAssignMembership} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-mono text-[#A3A3A3] uppercase mb-1">
+                  Membership Plan
+                </label>
+                <select
+                  required
+                  value={assignForm.planId}
+                  onChange={(e) => {
+                    const chosen = plans.find((p) => p._id === e.target.value);
+                    setAssignForm({
+                      ...assignForm,
+                      planId: e.target.value,
+                      amount: chosen?.price || '',
+                    });
+                  }}
+                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                >
+                  <option value="">Select a plan</option>
+                  {plans.map((p) => (
+                    <option key={p._id} value={p._id}>
+                      {p.name} ({p.durationMonths ? `${p.durationMonths} Mo` : `${p.durationDays} Days`} — ₹{p.price})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-mono text-[#A3A3A3] uppercase mb-1">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={assignForm.startDate}
+                    onChange={(e) => setAssignForm({ ...assignForm, startDate: e.target.value })}
+                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-mono text-[#A3A3A3] uppercase mb-1">
+                    Amount Paid (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Auto from plan"
+                    value={assignForm.amount}
+                    onChange={(e) => setAssignForm({ ...assignForm, amount: e.target.value })}
+                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={assignLoading}
+                  onClick={() => setIsAssignModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] hover:bg-[#2c2c2c] text-[#A3A3A3] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={assignLoading}
+                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black font-semibold transition-all shadow-[0_0_15px_rgba(229,138,50,0.25)]"
+                >
+                  {assignLoading ? 'Assigning...' : 'Confirm Assignment'}
                 </button>
               </div>
             </form>

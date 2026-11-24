@@ -110,6 +110,14 @@ const membershipPlanSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
+    isFeatured: {
+      type: Boolean,
+      default: false,
+    },
+    isPopular: {
+      type: Boolean,
+      default: false,
+    },
     displayOrder: {
       type: Number,
       default: 1,

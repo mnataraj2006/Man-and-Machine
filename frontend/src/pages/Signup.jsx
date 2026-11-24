@@ -51,8 +51,10 @@ export default function Signup({ onNavigate }) {
         const list = await branchService.getBranches();
         if (isMounted && list.length > 0) {
           setBranches(list);
-          // Set default selected branch (prefer Kovilpatti or first)
-          const defaultBranch = list.find((b) => b.city?.toLowerCase() === 'kovilpatti') || list[0];
+          // Set default selected branch (prefer saved branch, Kovilpatti or first)
+          const savedBranchId = sessionStorage.getItem('mm_selected_branch_id');
+          const matchedSaved = savedBranchId ? list.find((b) => (b.id || b._id) === savedBranchId) : null;
+          const defaultBranch = matchedSaved || list.find((b) => b.city?.toLowerCase() === 'kovilpatti') || list[0];
           setFormData((prev) => ({
             ...prev,
             branchId: defaultBranch.id || defaultBranch._id,
@@ -186,7 +188,11 @@ export default function Signup({ onNavigate }) {
       setSuccessMessage('Account created successfully! Preparing your member dashboard...');
 
       setTimeout(() => {
-        const dest = authService.getDashboardRoute(result.user?.role || 'CLIENT');
+        let dest = authService.getDashboardRoute(result.user?.role || 'CLIENT');
+        const pendingPlanId = sessionStorage.getItem('mm_selected_plan_id');
+        if (result.user?.role === 'CLIENT' && pendingPlanId) {
+          dest = `/client/membership?planId=${pendingPlanId}`;
+        }
         if (onNavigate) {
           onNavigate(dest);
         } else {

@@ -24,7 +24,6 @@ const membershipSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Plan name is required'],
       trim: true,
-      default: 'Annual Athlete Elite',
     },
     status: {
       type: String,

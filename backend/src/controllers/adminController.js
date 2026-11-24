@@ -120,18 +120,22 @@ const getDashboardOverview = async (req, res, next) => {
     const totalClients = await User.countDocuments(clientQuery);
     const activeClients = await User.countDocuments({ ...clientQuery, status: 'ACTIVE' });
 
-    // 2. Active Memberships
-    const activeMembers = await Membership.countDocuments({
+    // 2. Active Memberships (Distinct active client members)
+    const activeMemberUserIds = await Membership.distinct('userId', {
       ...branchFilter,
       status: 'ACTIVE',
+      startDate: { $lte: now },
       expiryDate: { $gte: now },
     });
+    const activeMembers = activeMemberUserIds.length;
 
-    // 3. Expired Memberships
-    const expiredMemberships = await Membership.countDocuments({
+    // 3. Expired Memberships (Distinct clients whose memberships expired without an active pass)
+    const activeUserSet = new Set(activeMemberUserIds.map((id) => id.toString()));
+    const expiredUserIds = await Membership.distinct('userId', {
       ...branchFilter,
       $or: [{ status: 'EXPIRED' }, { expiryDate: { $lt: now } }],
     });
+    const expiredMemberships = expiredUserIds.filter((id) => !activeUserSet.has(id.toString())).length;
 
     // 4. Total Trainers & Active Trainers (role TRAINER only)
     const trainerQuery = { role: 'TRAINER', ...branchFilter };
@@ -630,7 +634,41 @@ const getClients = async (req, res, next) => {
     const clientList = await Promise.all(
       clients.map(async (c) => {
         const profile = await ClientProfile.findOne({ userId: c._id }).populate('trainerId', 'name email phone');
-        const membership = await Membership.findOne({ userId: c._id }).sort({ createdAt: -1 });
+
+        // Genuinely ACTIVE membership check
+        const activeMembership = await Membership.findOne({
+          userId: c._id,
+          status: 'ACTIVE',
+          startDate: { $lte: now },
+          expiryDate: { $gte: now },
+        }).sort({ expiryDate: -1 });
+
+        // Latest historical membership if no active membership exists
+        const latestMembership = !activeMembership
+          ? await Membership.findOne({ userId: c._id }).sort({ createdAt: -1 })
+          : null;
+
+        let membershipPayload = null;
+        if (activeMembership) {
+          membershipPayload = {
+            id: activeMembership._id,
+            planName: activeMembership.planName,
+            status: 'ACTIVE',
+            startDate: activeMembership.startDate,
+            expiryDate: activeMembership.expiryDate,
+            isExpired: false,
+          };
+        } else if (latestMembership) {
+          const isExpired = latestMembership.status === 'EXPIRED' || new Date(latestMembership.expiryDate) < now;
+          membershipPayload = {
+            id: latestMembership._id,
+            planName: latestMembership.planName,
+            status: isExpired ? 'EXPIRED' : latestMembership.status,
+            startDate: latestMembership.startDate,
+            expiryDate: latestMembership.expiryDate,
+            isExpired,
+          };
+        }
 
         return {
           id: c._id,
@@ -643,14 +681,8 @@ const getClients = async (req, res, next) => {
           fitnessGoal: profile?.fitnessGoal || 'General Fitness',
           experienceLevel: profile?.experienceLevel || 'Beginner',
           trainer: profile?.trainerId || null,
-          membership: membership
-            ? {
-                planName: membership.planName,
-                status: membership.status,
-                expiryDate: membership.expiryDate,
-                isExpired: new Date(membership.expiryDate) < now,
-              }
-            : null,
+          hasActiveMembership: Boolean(activeMembership),
+          membership: membershipPayload,
         };
       })
     );
@@ -693,7 +725,11 @@ const getClientDetails = async (req, res, next) => {
     const progressRecords = await ProgressRecord.find({ userId: id }).sort({ date: -1 }).limit(20);
 
     const now = new Date();
-    const activeMembership = memberships.find((m) => m.status === 'ACTIVE' && new Date(m.expiryDate) >= now) || memberships[0] || null;
+    // Strictly ACTIVE membership only - never fall back to expired or pending memberships
+    const activeMembership = memberships.find(
+      (m) => m.status === 'ACTIVE' && new Date(m.startDate) <= now && new Date(m.expiryDate) >= now
+    ) || null;
+    const latestMembership = !activeMembership ? memberships[0] || null : null;
 
     res.status(200).json({
       success: true,
@@ -708,6 +744,7 @@ const getClientDetails = async (req, res, next) => {
       },
       profile: profile || null,
       activeMembership,
+      latestMembership,
       memberships,
       payments,
       attendances,
