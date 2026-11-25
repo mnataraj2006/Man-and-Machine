@@ -23,7 +23,6 @@ import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
 
 export default function Memberships({ onNavigate }) {
   const { branches, selectedBranch } = useAdmin();
-  const [activeTab, setActiveTab] = useState('CLIENT_MEMBERSHIPS'); // 'CLIENT_MEMBERSHIPS' | 'PLANS'
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -33,7 +32,7 @@ export default function Memberships({ onNavigate }) {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [expiryFilter, setExpiryFilter] = useState('ALL'); // 'ALL' | '7' | '30'
 
-  // Plans Catalog State
+  // Plans Catalog (used for Assign Membership pricing lookup)
   const [plans, setPlans] = useState([]);
 
   // Modals
@@ -69,21 +68,18 @@ export default function Memberships({ onNavigate }) {
     setLoading(true);
     setError(null);
     try {
-      const plansRes = await adminService.getMembershipPlans();
-      const loadedPlans = plansRes.plans || [];
-      setPlans(loadedPlans);
-
-      if (activeTab === 'CLIENT_MEMBERSHIPS') {
-        const res = await adminService.getClientMemberships({
+      const [plansRes, res, clientsRes] = await Promise.all([
+        adminService.getMembershipPlans(),
+        adminService.getClientMemberships({
           branchId: branchFilter,
           status: statusFilter,
           expiringSoon: expiryFilter !== 'ALL' ? expiryFilter : undefined,
-        });
-        setMemberships(res.memberships || []);
-
-        const clientsRes = await adminService.getClients({ limit: 100 });
-        if (clientsRes.clients) setAllClientsList(clientsRes.clients);
-      }
+        }),
+        adminService.getClients({ limit: 100 }),
+      ]);
+      setPlans(plansRes.plans || []);
+      setMemberships(res.memberships || []);
+      if (clientsRes.clients) setAllClientsList(clientsRes.clients);
     } catch (err) {
       setError(err.message || 'Failed to load membership records');
     } finally {
@@ -93,7 +89,7 @@ export default function Memberships({ onNavigate }) {
 
   useEffect(() => {
     fetchData();
-  }, [activeTab, branchFilter, statusFilter, expiryFilter]);
+  }, [branchFilter, statusFilter, expiryFilter]);
 
   // Helper to re-calculate pricing for assignment
   const recalculateAssignPricing = (userId, branchId, planId, currentPlans = plans) => {
@@ -217,73 +213,45 @@ export default function Memberships({ onNavigate }) {
 
   return (
     <div className="space-y-6">
-      {/* ── HEADER & TAB SWITCHER ── */}
+      {/* ── HEADER & ACTIONS ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2
             className="text-xl sm:text-2xl font-bold uppercase tracking-tight text-[#F5F5F5]"
             style={{ fontFamily: "'Oswald', sans-serif" }}
           >
-            MEMBERSHIP PLANS &amp; SUBSCRIBERS
+            CLIENT MEMBERSHIPS &amp; SUBSCRIPTIONS
           </h2>
           <p className="text-xs text-[#B8B8B8]">
-            Manage subscription plans, athlete memberships, validity periods, and renewals.
+            Manage active athlete subscriptions, validity periods, expirations, and renewals.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {activeTab === 'CLIENT_MEMBERSHIPS' ? (
-            <button
-              type="button"
-              onClick={openAssignModal}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white transition-all cursor-pointer shadow-lg shadow-[#EB3E2E]/10"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Assign Membership</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onNavigate ? onNavigate('/admin/membership-plans') : (window.location.href = '/admin/membership-plans')}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white transition-all cursor-pointer shadow-lg shadow-[#EB3E2E]/10"
-            >
-              <ClipboardList className="w-4 h-4" />
-              <span>Manage Plans in Catalog</span>
-            </button>
-          )}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              onNavigate ? onNavigate('/admin/membership-plans') : (window.location.href = '/admin/membership-plans')
+            }
+            className="min-h-[44px] flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#F5F5F5] border border-[#303030] transition-colors cursor-pointer"
+          >
+            <ClipboardList className="w-4 h-4 text-[#EB3E2E]" />
+            <span>Plans Catalog</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={openAssignModal}
+            className="min-h-[44px] flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white transition-all cursor-pointer shadow-lg shadow-[#EB3E2E]/10"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Assign Membership</span>
+          </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-3 border-b border-[#303030] pb-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab('CLIENT_MEMBERSHIPS')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-            activeTab === 'CLIENT_MEMBERSHIPS'
-              ? 'bg-[#EB3E2E] text-white font-bold'
-              : 'bg-[#181818] text-[#B8B8B8] hover:text-[#F5F5F5] border border-[#303030]'
-          }`}
-        >
-          Active Subscriptions &amp; Expirations
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('PLANS')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-            activeTab === 'PLANS'
-              ? 'bg-[#EB3E2E] text-white font-bold'
-              : 'bg-[#181818] text-[#B8B8B8] hover:text-[#F5F5F5] border border-[#303030]'
-          }`}
-        >
-          Membership Plans Catalog
-        </button>
-      </div>
-
-      {/* ── TAB 1: CLIENT MEMBERSHIPS ── */}
-      {activeTab === 'CLIENT_MEMBERSHIPS' && (
-        <div className="space-y-4">
+      {/* ── CLIENT MEMBERSHIPS LIST ── */}
+      <div className="space-y-4">
           {/* Filters Bar */}
           <div className="bg-[#111111] border border-[#303030] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -446,57 +414,6 @@ export default function Memberships({ onNavigate }) {
             </div>
           </div>
         </div>
-      )}
-
-      {/* ── TAB 2: MEMBERSHIP PLANS CATALOG ── */}
-      {activeTab === 'PLANS' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {plans.map((p) => (
-            <div
-              key={p._id}
-              className="bg-[#181818] border border-[#303030] hover:border-[#EB3E2E]/40 rounded-2xl p-5 flex flex-col justify-between transition-all"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#252525] text-[#EB3E2E] font-bold">
-                    {p.code || 'PASS'}
-                  </span>
-                  <span className="text-[10px] font-mono font-bold text-green-400">
-                    {p.durationMonths} MONTH{p.durationMonths > 1 ? 'S' : ''}
-                  </span>
-                </div>
-
-                <h3
-                  className="text-base font-bold uppercase text-[#F5F5F5] mb-1"
-                  style={{ fontFamily: "'Oswald', sans-serif" }}
-                >
-                  {p.name}
-                </h3>
-                <p className="text-xs text-[#B8B8B8] mb-3">{p.description}</p>
-
-                <div className="text-2xl font-bold text-[#EB3E2E] mb-4">
-                  ₹{p.price.toLocaleString()}
-                </div>
-
-                {/* Benefits */}
-                <div className="space-y-1.5 border-t border-[#303030] pt-3 text-xs text-[#F5F5F5]">
-                  <span className="text-[10px] font-mono text-[#B8B8B8] uppercase block">INCLUDED BENEFITS:</span>
-                  {p.features?.map((f, i) => (
-                    <div key={i} className="flex items-center gap-1.5 text-[11px] text-[#B8B8B8]">
-                      <CheckCircle2 className="w-3 h-3 text-[#EB3E2E] shrink-0" />
-                      <span>{f}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-[#202020] flex justify-between items-center text-[11px] text-[#B8B8B8]">
-                <span>Status: {p.isActive ? 'Active Plan' : 'Inactive'}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* ── ASSIGN MEMBERSHIP MODAL ── */}
       {isAssignModalOpen && (
