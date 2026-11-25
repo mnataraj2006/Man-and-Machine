@@ -1150,16 +1150,25 @@ const createTrainer = async (req, res, next) => {
       });
     }
 
-    const phoneDigits = String(phone || '').replace(/\D/g, '');
-    const validPhone =
-      (phoneDigits.length === 10 && /^[6-9]\d{9}$/.test(phoneDigits)) ||
-      (phoneDigits.length === 12 && phoneDigits.startsWith('91') && /^91[6-9]\d{9}$/.test(phoneDigits));
-    if (!phone || !validPhone) {
+    const rawDigits = String(phone || '').replace(/\D/g, '');
+    let normalizedTenDigits = null;
+    if (rawDigits.length === 10 && /^[6-9]\d{9}$/.test(rawDigits)) {
+      normalizedTenDigits = rawDigits;
+    } else if (rawDigits.length === 11 && rawDigits.startsWith('0') && /^0[6-9]\d{9}$/.test(rawDigits)) {
+      normalizedTenDigits = rawDigits.slice(1);
+    } else if (rawDigits.length === 12 && rawDigits.startsWith('91') && /^91[6-9]\d{9}$/.test(rawDigits)) {
+      normalizedTenDigits = rawDigits.slice(2);
+    } else if (rawDigits.length === 14 && rawDigits.startsWith('0091') && /^0091[6-9]\d{9}$/.test(rawDigits)) {
+      normalizedTenDigits = rawDigits.slice(4);
+    }
+
+    if (!phone || !normalizedTenDigits) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide a valid 10-digit Indian mobile number.',
+        message: 'Please provide a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9 (e.g. 9876543210 or +91 9876543210).',
       });
     }
+    const formattedPhone = `+91 ${normalizedTenDigits.slice(0, 5)} ${normalizedTenDigits.slice(5)}`;
 
     if (!branchId || !mongoose.Types.ObjectId.isValid(branchId)) {
       return res.status(400).json({
@@ -1193,7 +1202,7 @@ const createTrainer = async (req, res, next) => {
     const user = await User.create({
       name: name.trim(),
       email: normalizedEmail,
-      phone: phone.trim(),
+      phone: formattedPhone,
       branchId: branch._id,
       role: 'TRAINER',
       status: 'PENDING_ACTIVATION',
@@ -1217,7 +1226,7 @@ const createTrainer = async (req, res, next) => {
           profileImage: profileImage?.trim() || '',
           employmentStatus: normalizedEmpStatus,
           bio: bio?.trim() || '',
-          contactPhone: phone.trim(),
+          contactPhone: formattedPhone,
           contactEmail: normalizedEmail,
           activeClientsCount: 0,
         });

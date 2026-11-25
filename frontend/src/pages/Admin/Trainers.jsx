@@ -134,9 +134,23 @@ export default function Trainers() {
     setIsAddModalOpen(true);
   };
 
+  const isValidIndianMobile = (raw) => {
+    const d = String(raw || '').replace(/\D/g, '');
+    return (
+      (d.length === 10 && /^[6-9]\d{9}$/.test(d)) ||
+      (d.length === 11 && /^0[6-9]\d{9}$/.test(d)) ||
+      (d.length === 12 && /^91[6-9]\d{9}$/.test(d)) ||
+      (d.length === 14 && /^0091[6-9]\d{9}$/.test(d))
+    );
+  };
+
   const handleAddSubmit = async (e) => {
     e.preventDefault();
     setAddError(null);
+    if (!isValidIndianMobile(addForm.phone)) {
+      setAddError('Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9 (e.g. 9876543210 or +91 9876543210).');
+      return;
+    }
     try {
       setSubmittingAdd(true);
       const res = await adminService.createTrainer(addForm);
@@ -935,13 +949,17 @@ export default function Trainers() {
                     Phone Number *
                   </label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="tel"
                     required
                     value={addForm.phone}
                     onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
                     className="mm-input text-xs"
-                    placeholder="9842100000"
+                    placeholder="9842100000 or +91 98421 00000"
                   />
+                  <span className="text-[10px] text-[#858585] mt-1 block">
+                    10 digits starting with 6–9 (optional +91 or 0)
+                  </span>
                 </div>
               </div>
 

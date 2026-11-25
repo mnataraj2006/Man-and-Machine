@@ -144,6 +144,16 @@ export default function DashboardHome({ onNavigate }) {
 
   const handleQuickTrainerSubmit = async (e) => {
     e.preventDefault();
+    const digits = String(trainerForm.phone || '').replace(/\D/g, '');
+    const validPhone =
+      (digits.length === 10 && /^[6-9]\d{9}$/.test(digits)) ||
+      (digits.length === 11 && /^0[6-9]\d{9}$/.test(digits)) ||
+      (digits.length === 12 && /^91[6-9]\d{9}$/.test(digits)) ||
+      (digits.length === 14 && /^0091[6-9]\d{9}$/.test(digits));
+    if (!validPhone) {
+      setModalError('Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9 (e.g. 9876543210 or +91 9876543210).');
+      return;
+    }
     setModalLoading(true);
     setModalError(null);
     try {
@@ -938,12 +948,13 @@ export default function DashboardHome({ onNavigate }) {
                 <div>
                   <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="tel"
                     required
                     value={trainerForm.phone}
                     onChange={(e) => setTrainerForm({ ...trainerForm, phone: e.target.value })}
                     className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                    placeholder="9842100000"
+                    placeholder="9842100000 or +91 98421 00000"
                   />
                 </div>
               </div>
