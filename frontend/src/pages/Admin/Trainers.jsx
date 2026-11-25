@@ -887,7 +887,11 @@ export default function Trainers() {
               ) : (
                 <div className="space-y-3">
                   <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/35 text-amber-200 leading-relaxed">
-                    <strong>Email invitations are not configured on this server.</strong>{' '}
+                    <strong>
+                      {invitationModal.emailConfigured
+                        ? 'Automated email could not be delivered from this server.'
+                        : 'Email invitations are not configured on this server.'}
+                    </strong>{' '}
                     {invitationModal.emailNotice || 'Share the secure single-use link below directly with the coach.'}
                   </div>
 
