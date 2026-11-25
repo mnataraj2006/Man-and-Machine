@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTheme } from '../../context/ThemeContext.jsx';
 import {
   LayoutDashboard,
   Users,
@@ -20,6 +21,7 @@ import trainerService from '../../services/trainerService.js';
 import DashboardMobileDrawer from '../UI/DashboardMobileDrawer.jsx';
 
 export default function TrainerLayout({ children, currentPath, onNavigate, onLogout }) {
+  const { resolvedTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState(authService.getUser());
   const [unreadNotifs, setUnreadNotifs] = useState(0);
@@ -87,7 +89,7 @@ export default function TrainerLayout({ children, currentPath, onNavigate, onLog
   };
 
   return (
-    <div className="min-h-screen bg-[#090909] text-[#F5F5F5] flex flex-col lg:flex-row antialiased selection:bg-[#EB3E2E] selection:text-white">
+    <div data-theme={resolvedTheme} className="mm-dashboard-theme min-h-screen bg-[#090909] text-[#F5F5F5] flex flex-col lg:flex-row antialiased selection:bg-[#EB3E2E] selection:text-white">
       {/* ── DESKTOP SIDEBAR (>= 1024px) ── */}
       <aside className="hidden lg:flex flex-col w-64 lg:w-72 bg-[#111111] border-r border-[#303030] shrink-0 sticky top-0 h-screen z-30 select-none">
         {/* Brand Header */}

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import AppearanceSettings from '../../components/Settings/AppearanceSettings.jsx';
 import {
   Lock,
   KeyRound,
@@ -113,6 +114,9 @@ export default function Settings({ onNavigate, onLogout }) {
           <span>{notice.message}</span>
         </div>
       )}
+
+      {/* ── 0. APPEARANCE & THEME CARD ── */}
+      <AppearanceSettings />
 
       {/* ── 1. CHANGE PASSWORD CARD ── */}
       <div className="p-6 sm:p-8 rounded-2xl bg-[#181818] border border-[#303030] flex flex-col gap-5">

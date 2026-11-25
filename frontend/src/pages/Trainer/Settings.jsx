@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import AppearanceSettings from '../../components/Settings/AppearanceSettings.jsx';
 import {
   Settings as SettingsIcon,
   Lock,
@@ -88,6 +89,9 @@ export default function Settings({ onLogout }) {
           <span>{message.text}</span>
         </div>
       )}
+
+      {/* ── APPEARANCE & THEME CARD ── */}
+      <AppearanceSettings />
 
       {/* ── PASSWORD CHANGE CARD ── */}
       <div className="p-6 sm:p-8 rounded-2xl bg-[#111111] border border-[#303030] flex flex-col gap-6">

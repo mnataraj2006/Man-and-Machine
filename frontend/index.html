@@ -20,6 +20,41 @@
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
       rel="stylesheet"
     />
+    <script>
+      (function () {
+        try {
+          var isDash = /^\/(admin|trainer|client|account)(\/|$)/.test(window.location.pathname);
+          var resolved = 'dark';
+          if (isDash) {
+            var rawUser = localStorage.getItem('mm_auth_user');
+            var user = rawUser ? JSON.parse(rawUser) : null;
+            var pref = user && user.preferences && user.preferences.theme;
+            if (!pref && user) {
+              var uid = user.id || user._id;
+              var mapRaw = localStorage.getItem('mm_user_themes');
+              var map = mapRaw ? JSON.parse(mapRaw) : {};
+              pref = uid ? map[uid] : null;
+            }
+            if (pref === 'light') {
+              resolved = 'light';
+            } else if (pref === 'system') {
+              resolved =
+                window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+                  ? 'dark'
+                  : 'light';
+            }
+          }
+          document.documentElement.dataset.theme = resolved;
+          if (resolved === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      })();
+    </script>
   </head>
   <body class="bg-[#090909] text-[#F5F5F5] antialiased selection:bg-[#EB3E2E] selection:text-white">
     <div id="root"></div>

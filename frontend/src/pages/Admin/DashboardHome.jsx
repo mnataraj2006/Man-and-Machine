@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useTheme } from '../../context/ThemeContext.jsx';
+import { getChartTheme } from '../../utils/chartTheme.js';
 import {
   Users,
   CreditCard,
@@ -22,6 +24,8 @@ import adminService from '../../services/adminService.js';
 
 export default function DashboardHome({ onNavigate }) {
   const { selectedBranch, branches } = useAdmin();
+  const { resolvedTheme } = useTheme();
+  const chartTheme = getChartTheme(resolvedTheme);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState('thisMonth');
   const [data, setData] = useState(null);
@@ -525,7 +529,7 @@ export default function DashboardHome({ onNavigate }) {
           </div>
 
           {/* SVG Visual Bar Chart */}
-          <div className="h-48 flex items-end justify-between gap-3 pt-6 border-b border-[#303030] pb-3">
+          <div className="h-48 flex items-end justify-between gap-3 pt-6 border-b pb-3" style={{ borderColor: chartTheme.grid }}>
             {data?.charts?.revenueChart?.map((item, idx) => {
               const maxRev = Math.max(...data.charts.revenueChart.map((c) => c.revenue), 10000);
               const heightPercent = Math.max((item.revenue / maxRev) * 100, 6);
@@ -533,17 +537,29 @@ export default function DashboardHome({ onNavigate }) {
               return (
                 <div key={idx} className="flex-1 flex flex-col items-center gap-2 group relative">
                   {/* Tooltip */}
-                  <div className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-opacity bg-black text-[#EB3E2E] text-[10px] font-bold py-1 px-2 rounded border border-[#303030] pointer-events-none whitespace-nowrap z-10">
+                  <div
+                    className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold py-1 px-2 rounded border pointer-events-none whitespace-nowrap z-10"
+                    style={{
+                      backgroundColor: chartTheme.tooltipBg,
+                      color: chartTheme.tooltipText,
+                      borderColor: chartTheme.tooltipBorder,
+                    }}
+                  >
                     ₹{item.revenue.toLocaleString()}
                   </div>
 
-                  <div className="w-full max-w-[40px] bg-[#202020] rounded-t-md relative flex items-end h-36 overflow-hidden">
+                  <div
+                    className="w-full max-w-[40px] rounded-t-md relative flex items-end h-36 overflow-hidden"
+                    style={{ backgroundColor: chartTheme.track }}
+                  >
                     <div
-                      className="w-full bg-gradient-to-t from-[#EB3E2E]/60 to-[#EB3E2E] rounded-t-md transition-all duration-500 group-hover:brightness-110"
-                      style={{ height: `${heightPercent}%` }}
+                      className="w-full rounded-t-md transition-all duration-500 group-hover:brightness-110"
+                      style={{ height: `${heightPercent}%`, background: chartTheme.barGradient }}
                     />
                   </div>
-                  <span className="text-[10px] font-mono text-[#B8B8B8] uppercase">{item.month}</span>
+                  <span className="text-[10px] font-mono uppercase" style={{ color: chartTheme.mutedText }}>
+                    {item.month}
+                  </span>
                 </div>
               );
             })}
@@ -624,13 +640,16 @@ export default function DashboardHome({ onNavigate }) {
 
               return (
                 <div key={idx} className="flex-1 flex flex-col items-center gap-2">
-                  <div className="w-full max-w-[32px] bg-[#202020] rounded-t relative flex items-end h-24 overflow-hidden">
+                  <div
+                    className="w-full max-w-[32px] rounded-t relative flex items-end h-24 overflow-hidden"
+                    style={{ backgroundColor: chartTheme.track }}
+                  >
                     <div
-                      className="w-full bg-[#EB3E2E] rounded-t transition-all duration-500"
-                      style={{ height: `${height}%` }}
+                      className="w-full rounded-t transition-all duration-500"
+                      style={{ height: `${height}%`, backgroundColor: chartTheme.accent }}
                     />
                   </div>
-                  <span className="text-[9px] font-mono text-[#B8B8B8]">{day.day}</span>
+                  <span className="text-[9px] font-mono" style={{ color: chartTheme.mutedText }}>{day.day}</span>
                 </div>
               );
             })}

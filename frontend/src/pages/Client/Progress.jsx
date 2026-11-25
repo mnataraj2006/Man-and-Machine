@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useTheme } from '../../context/ThemeContext.jsx';
+import { getChartTheme } from '../../utils/chartTheme.js';
 import {
   TrendingUp,
   Dumbbell,
@@ -12,6 +14,8 @@ import {
 import clientService from '../../services/clientService.js';
 
 export default function Progress() {
+  const { resolvedTheme } = useTheme();
+  const chartTheme = getChartTheme(resolvedTheme);
   const [data, setData] = useState({ weightRecords: [], strengthRecords: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -179,8 +183,11 @@ export default function Progress() {
                 <div key={r._id || i} className="flex-1 flex flex-col items-center gap-1.5 min-w-[36px]">
                   <span className="text-[10px] font-mono text-[#F5F5F5] font-bold">{r.weightKg}k</span>
                   <div
-                    className="w-full bg-[#EB3E2E] rounded-t-lg transition-all"
-                    style={{ height: `${Math.min(80, Math.max(15, (r.weightKg - 40) * 1.5))}px` }}
+                    className="w-full rounded-t-lg transition-all"
+                    style={{
+                      height: `${Math.min(80, Math.max(15, (r.weightKg - 40) * 1.5))}px`,
+                      background: chartTheme.barGradient,
+                    }}
                   />
                   <span className="text-[8px] font-mono text-[#B8B8B8] truncate">
                     {new Date(r.date).getDate()}/{new Date(r.date).getMonth() + 1}

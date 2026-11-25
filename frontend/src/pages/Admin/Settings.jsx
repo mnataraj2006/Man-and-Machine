@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AppearanceSettings from '../../components/Settings/AppearanceSettings.jsx';
 import {
   Settings as SettingsIcon,
   ShieldAlert,
@@ -86,6 +87,9 @@ export default function Settings() {
 
       {error && <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs">{error}</div>}
       {success && <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 text-xs">{success}</div>}
+
+      {/* ── APPEARANCE & THEME SECTION ── */}
+      <AppearanceSettings />
 
       {/* ── PROFILE & SECURITY SECTION ── */}
       <div className="bg-[#181818] border border-[#303030] rounded-2xl p-6 space-y-6">

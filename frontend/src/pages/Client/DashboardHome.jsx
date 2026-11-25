@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useTheme } from '../../context/ThemeContext.jsx';
+import { getChartTheme } from '../../utils/chartTheme.js';
 import {
   CalendarCheck,
   Dumbbell,
@@ -17,6 +19,8 @@ import {
 import clientService from '../../services/clientService.js';
 
 export default function DashboardHome({ onNavigate }) {
+  const { resolvedTheme } = useTheme();
+  const chartTheme = getChartTheme(resolvedTheme);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -343,7 +347,10 @@ export default function DashboardHome({ onNavigate }) {
                     }`}
                   >
                     {item.attended ? (
-                      <div className="w-full bg-[#EB3E2E] rounded-lg py-1 flex items-center justify-center">
+                      <div
+                        className="w-full rounded-lg py-1 flex items-center justify-center"
+                        style={{ backgroundColor: chartTheme.accent }}
+                      >
                         <CheckCircle2 className="w-3 h-3 text-white" />
                       </div>
                     ) : (
@@ -401,7 +408,10 @@ export default function DashboardHome({ onNavigate }) {
                     }`}
                   >
                     {item.attended ? (
-                      <div className="w-full bg-[#EB3E2E] rounded-lg py-1.5 flex flex-col items-center justify-center">
+                      <div
+                        className="w-full rounded-lg py-1.5 flex flex-col items-center justify-center"
+                        style={{ backgroundColor: chartTheme.accent }}
+                      >
                         <CheckCircle2 className="w-3.5 h-3.5 text-white" />
                       </div>
                     ) : (

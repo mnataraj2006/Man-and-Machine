@@ -1,0 +1,344 @@
+/* ==========================================================================
+   MAN & MACHINE — CENTRALIZED THEME DESIGN TOKENS (DARK / LIGHT)
+   Public routes stay dark; authenticated dashboards honor user theme.
+   ========================================================================== */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-primary: #090909;
+  --bg-secondary: #111111;
+  --bg-card: #181818;
+  --bg-elevated: #202020;
+  --bg-muted: #252525;
+  --bg-hover: #252525;
+  --bg-header: rgba(9, 9, 9, 0.95);
+  --bg-sidebar: #111111;
+  --bg-tooltip: #000000;
+
+  --text-primary: #F5F5F5;
+  --text-secondary: #B8B8B8;
+  --text-muted: #858585;
+
+  --border-primary: #303030;
+  --border-secondary: #252525;
+
+  --accent-primary: #F03B2E;
+  --accent-hover: #FF493B;
+  --accent-soft: rgba(235, 62, 46, 0.12);
+
+  --success: #34D399;
+  --warning: #FBBF24;
+  --danger: #F87171;
+  --info: #60A5FA;
+
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.35);
+  --shadow-elevated: 0 12px 32px rgba(0, 0, 0, 0.55);
+
+  --chart-grid: #303030;
+  --chart-track: #202020;
+  --chart-bar-start: rgba(235, 62, 46, 0.6);
+  --chart-bar-end: #EB3E2E;
+  --chart-text: #B8B8B8;
+
+  /* Bridge legacy --mm-* variables to semantic theme tokens */
+  --mm-bg-primary: var(--bg-primary);
+  --mm-bg-secondary: var(--bg-secondary);
+  --mm-bg-card: var(--bg-card);
+  --mm-bg-elevated: var(--bg-elevated);
+  --mm-text-primary: var(--text-primary);
+  --mm-text-secondary: var(--text-secondary);
+  --mm-text-muted: var(--text-muted);
+  --mm-border: var(--border-primary);
+  --mm-divider: var(--border-secondary);
+  --mm-red: #EB3E2E;
+  --mm-red-alt: var(--accent-primary);
+  --mm-red-hover: var(--accent-hover);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-primary: #F4F5F7;
+  --bg-secondary: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #F7F8FA;
+  --bg-muted: #ECEEF2;
+  --bg-hover: #F1F3F6;
+  --bg-header: rgba(255, 255, 255, 0.94);
+  --bg-sidebar: #FFFFFF;
+  --bg-tooltip: #111827;
+
+  --text-primary: #111827;
+  --text-secondary: #4B5563;
+  --text-muted: #6B7280;
+
+  --border-primary: #E2E6EC;
+  --border-secondary: #EDF0F4;
+
+  --accent-primary: #D92F25;
+  --accent-hover: #B9241C;
+  --accent-soft: rgba(217, 47, 37, 0.1);
+
+  --success: #047857;
+  --warning: #B45309;
+  --danger: #B91C1C;
+  --info: #1D4ED8;
+
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-elevated: 0 12px 32px rgba(15, 23, 42, 0.14);
+
+  --chart-grid: #E2E6EC;
+  --chart-track: #E5E7EB;
+  --chart-bar-start: rgba(217, 47, 37, 0.72);
+  --chart-bar-end: #D92F25;
+  --chart-text: #4B5563;
+
+  /* Bridge legacy --mm-* variables to semantic light tokens */
+  --mm-bg-primary: var(--bg-primary);
+  --mm-bg-secondary: var(--bg-secondary);
+  --mm-bg-card: var(--bg-card);
+  --mm-bg-elevated: var(--bg-elevated);
+  --mm-text-primary: var(--text-primary);
+  --mm-text-secondary: var(--text-secondary);
+  --mm-text-muted: var(--text-muted);
+  --mm-border: var(--border-primary);
+  --mm-divider: var(--border-secondary);
+  --mm-red: #D92F25;
+  --mm-red-alt: var(--accent-primary);
+  --mm-red-hover: var(--accent-hover);
+}
+
+/* Smooth theme transition on dashboard roots */
+.mm-dashboard-theme,
+.mm-dashboard-theme aside,
+.mm-dashboard-theme header,
+.mm-dashboard-theme main,
+.mm-dashboard-theme .mm-card {
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mm-dashboard-theme,
+  .mm-dashboard-theme aside,
+  .mm-dashboard-theme header,
+  .mm-dashboard-theme main,
+  .mm-dashboard-theme .mm-card {
+    transition: none;
+  }
+}
+
+/* Light-mode root body & scrollbars */
+html[data-theme="light"] body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+html[data-theme="light"] ::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+html[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+}
+
+html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* ==========================================================================
+   SCOPED DASHBOARD LIGHT-MODE TOKEN MAPPING
+   Applies cleanly inside authenticated dashboards (.mm-dashboard-theme)
+   while keeping public pages (/) strictly in dark brand presentation.
+   ========================================================================== */
+
+[data-theme="light"] .mm-dashboard-theme {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Background Surface Tokens */
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#090909\] {
+  background-color: var(--bg-primary);
+}
+
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#090909\]\/95 {
+  background-color: var(--bg-header);
+}
+
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#111111\] {
+  background-color: var(--bg-secondary);
+}
+
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#111111\]\/95 {
+  background-color: rgba(255, 255, 255, 0.97);
+}
+
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#181818\],
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#181818\]\/60 {
+  background-color: var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#202020\],
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#202020\]\/40,
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#202020\]\/50,
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#202020\]\/60 {
+  background-color: var(--bg-elevated);
+}
+
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#252525\],
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#2c2c2c\],
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#2F2F2F\],
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#303030\] {
+  background-color: var(--bg-muted);
+}
+
+[data-theme="light"] .mm-dashboard-theme .from-\[\#181818\] {
+  --tw-gradient-from: var(--bg-card) var(--tw-gradient-from-position);
+}
+
+[data-theme="light"] .mm-dashboard-theme .to-\[\#181818\] {
+  --tw-gradient-to: var(--bg-card) var(--tw-gradient-to-position);
+}
+
+/* Hover Backgrounds */
+[data-theme="light"] .mm-dashboard-theme .hover\:bg-\[\#181818\]:hover,
+[data-theme="light"] .mm-dashboard-theme .hover\:bg-\[\#202020\]:hover,
+[data-theme="light"] .mm-dashboard-theme .hover\:bg-\[\#252525\]:hover,
+[data-theme="light"] .mm-dashboard-theme .hover\:bg-\[\#303030\]:hover {
+  background-color: var(--bg-hover);
+}
+
+/* Brand Accent Overrides for WCAG AA Contrast on Light Surfaces */
+[data-theme="light"] .mm-dashboard-theme .text-\[\#EB3E2E\],
+[data-theme="light"] .mm-dashboard-theme .text-\[\#F03B2E\],
+[data-theme="light"] .mm-dashboard-theme .text-\[\#FF493B\],
+[data-theme="light"] .mm-dashboard-theme .text-\[\#FF6A5E\],
+[data-theme="light"] .mm-dashboard-theme .text-\[\#EB3E2E\]\/90 {
+  color: var(--accent-primary);
+}
+
+[data-theme="light"] .mm-dashboard-theme .hover\:text-\[\#FF493B\]:hover {
+  color: var(--accent-hover);
+}
+
+/* Borders & Dividers */
+[data-theme="light"] .mm-dashboard-theme .border-\[\#202020\],
+[data-theme="light"] .mm-dashboard-theme .border-\[\#252525\],
+[data-theme="light"] .mm-dashboard-theme .border-\[\#262626\],
+[data-theme="light"] .mm-dashboard-theme .border-\[\#303030\],
+[data-theme="light"] .mm-dashboard-theme .border-\[\#303030\]\/50,
+[data-theme="light"] .mm-dashboard-theme .border-\[\#303030\]\/60,
+[data-theme="light"] .mm-dashboard-theme .border-\[\#383838\],
+[data-theme="light"] .mm-dashboard-theme .border-\[\#444\] {
+  border-color: var(--border-primary);
+}
+
+[data-theme="light"] .mm-dashboard-theme .divide-\[\#202020\] > :not([hidden]) ~ :not([hidden]),
+[data-theme="light"] .mm-dashboard-theme .divide-\[\#252525\] > :not([hidden]) ~ :not([hidden]),
+[data-theme="light"] .mm-dashboard-theme .divide-\[\#303030\] > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border-secondary);
+}
+
+/* Typography Hierarchy */
+[data-theme="light"] .mm-dashboard-theme .text-\[\#F5F5F5\],
+[data-theme="light"] .mm-dashboard-theme .text-\[\#CCCCCC\] {
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .mm-dashboard-theme .hover\:text-\[\#F5F5F5\]:hover {
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .mm-dashboard-theme .text-\[\#B8B8B8\],
+[data-theme="light"] .mm-dashboard-theme .text-\[\#B8B8B8\]\/70,
+[data-theme="light"] .mm-dashboard-theme .text-\[\#B8B8B8\]\/80 {
+  color: var(--text-secondary);
+}
+
+[data-theme="light"] .mm-dashboard-theme .text-\[\#858585\],
+[data-theme="light"] .mm-dashboard-theme .text-\[\#555\],
+[data-theme="light"] .mm-dashboard-theme .text-\[\#525252\],
+[data-theme="light"] .mm-dashboard-theme .text-\[\#303030\] {
+  color: var(--text-muted);
+}
+
+/* Text-white on dark panels switches to dark charcoal, except on solid colored pills/buttons */
+[data-theme="light"] .mm-dashboard-theme .text-white:not(.bg-\[\#EB3E2E\]):not(.bg-\[\#F03B2E\]):not(.bg-\[\#FF493B\]):not(.bg-emerald-500):not(.bg-emerald-600):not(.bg-green-500):not(.bg-green-600):not(.bg-red-500):not(.bg-red-600):not(.bg-amber-500):not(.bg-amber-600):not(.bg-blue-500):not(.bg-blue-600):not(.bg-black) {
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#EB3E2E\] .text-white,
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#F03B2E\] .text-white,
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#FF493B\] .text-white,
+[data-theme="light"] .mm-dashboard-theme .bg-emerald-600 .text-white,
+[data-theme="light"] .mm-dashboard-theme .bg-red-600 .text-white,
+[data-theme="light"] .mm-dashboard-theme .bg-amber-600 .text-white,
+[data-theme="light"] .mm-dashboard-theme .bg-blue-600 .text-white,
+[data-theme="light"] .mm-dashboard-theme .bg-black .text-white,
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#EB3E2E\].text-white,
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#F03B2E\].text-white,
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#FF493B\].text-white {
+  color: #FFFFFF;
+}
+
+/* Status & Semantic Badge Text Contrast on Light Surfaces */
+[data-theme="light"] .mm-dashboard-theme .text-emerald-400,
+[data-theme="light"] .mm-dashboard-theme .text-green-400 {
+  color: var(--success);
+}
+
+[data-theme="light"] .mm-dashboard-theme .text-amber-400,
+[data-theme="light"] .mm-dashboard-theme .text-yellow-400 {
+  color: var(--warning);
+}
+
+[data-theme="light"] .mm-dashboard-theme .text-red-400,
+[data-theme="light"] .mm-dashboard-theme .text-rose-400 {
+  color: var(--danger);
+}
+
+[data-theme="light"] .mm-dashboard-theme .text-blue-400 {
+  color: var(--info);
+}
+
+/* Form Elements & Placeholders */
+[data-theme="light"] .mm-dashboard-theme input,
+[data-theme="light"] .mm-dashboard-theme select,
+[data-theme="light"] .mm-dashboard-theme textarea {
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .mm-dashboard-theme input::placeholder,
+[data-theme="light"] .mm-dashboard-theme textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* Keep chart hover tooltips high-contrast in Light Mode */
+[data-theme="light"] .mm-dashboard-theme .bg-black {
+  background-color: var(--bg-tooltip);
+  color: #FFFFFF;
+}
+
+/* Brand button secondary */
+[data-theme="light"] .mm-dashboard-theme .mm-btn-secondary {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--border-primary);
+}
+
+[data-theme="light"] .mm-dashboard-theme .mm-btn-secondary:hover {
+  background-color: var(--bg-hover);
+  border-color: #CBD5E1;
+}
+
+/* Tables inside dashboards */
+[data-theme="light"] .mm-dashboard-theme table thead {
+  background-color: var(--bg-elevated);
+}
+
+[data-theme="light"] .mm-dashboard-theme table tbody tr:hover {
+  background-color: var(--bg-hover);
+}

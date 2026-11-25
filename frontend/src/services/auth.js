@@ -35,6 +35,7 @@ export const authService = {
       if (data.token && data.user) {
         localStorage.setItem(TOKEN_KEY, data.token);
         localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+        window.dispatchEvent(new CustomEvent('mm-auth-changed', { detail: { user: data.user } }));
       }
 
       return data;
@@ -69,6 +70,7 @@ export const authService = {
       if (data.token && data.user) {
         localStorage.setItem(TOKEN_KEY, data.token);
         localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+        window.dispatchEvent(new CustomEvent('mm-auth-changed', { detail: { user: data.user } }));
       }
 
       return data;
@@ -182,6 +184,7 @@ export const authService = {
       const data = await response.json();
       if (data.user) {
         localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+        window.dispatchEvent(new CustomEvent('mm-auth-changed', { detail: { user: data.user } }));
       }
       return data.user;
     } catch (error) {
@@ -248,6 +251,7 @@ export const authService = {
     } catch {}
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    window.dispatchEvent(new CustomEvent('mm-auth-changed', { detail: { user: null } }));
   },
 };
 

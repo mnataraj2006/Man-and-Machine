@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTheme } from '../../context/ThemeContext.jsx';
 import {
   LayoutDashboard,
   Dumbbell,
@@ -21,6 +22,7 @@ import clientService from '../../services/clientService.js';
 import DashboardMobileDrawer from '../UI/DashboardMobileDrawer.jsx';
 
 export default function ClientLayout({ children, currentPath, onNavigate, onLogout }) {
+  const { resolvedTheme } = useTheme();
   const [user, setUser] = useState(authService.getUser());
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -122,7 +124,7 @@ export default function ClientLayout({ children, currentPath, onNavigate, onLogo
     'Kovilpatti';
 
   return (
-    <div className="min-h-screen bg-[#090909] text-[#F5F5F5] flex selection:bg-[#EB3E2E] selection:text-white">
+    <div data-theme={resolvedTheme} className="mm-dashboard-theme min-h-screen bg-[#090909] text-[#F5F5F5] flex selection:bg-[#EB3E2E] selection:text-white">
       {/* ════════════════════════════════════════════════
           DESKTOP SIDEBAR (>= 1024px)
       ════════════════════════════════════════════════ */}

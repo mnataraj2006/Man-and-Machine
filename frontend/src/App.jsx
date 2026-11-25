@@ -60,10 +60,16 @@ import TrainerNotifications from './pages/Trainer/Notifications.jsx';
 import TrainerProfile from './pages/Trainer/Profile.jsx';
 import TrainerSettings from './pages/Trainer/Settings.jsx';
 import authService from './services/auth.js';
+import { useTheme } from './context/ThemeContext.jsx';
 
 export default function App() {
   const [joinModalOpen, setJoinModalOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  const { setRoutePath } = useTheme();
+
+  useEffect(() => {
+    setRoutePath(currentPath);
+  }, [currentPath, setRoutePath]);
 
   // Route Guard: verify authentication and role permissions
   const checkRoutePermission = (path) => {

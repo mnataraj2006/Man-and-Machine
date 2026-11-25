@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, LogOut } from 'lucide-react';
 import useMobileDrawer from '../../hooks/useMobileDrawer.js';
+import { useTheme } from '../../context/ThemeContext.jsx';
 
 /**
  * Unified slide-out mobile sidebar drawer for Admin, Trainer, and Client portals.
@@ -23,6 +24,7 @@ export default function DashboardMobileDrawer({
   footerTopSlot = null,
   userSummary = null,
 }) {
+  const { resolvedTheme } = useTheme();
   useMobileDrawer({ isOpen, onClose, currentPath });
 
   return (
@@ -32,18 +34,19 @@ export default function DashboardMobileDrawer({
       aria-modal="true"
       aria-label={`${portalLabel} navigation menu`}
       aria-hidden={!isOpen}
-      className={`lg:hidden fixed inset-0 z-50 flex ${
+      data-theme={resolvedTheme}
+      className={`mm-dashboard-theme lg:hidden fixed inset-0 z-50 flex ${
         isOpen
           ? 'visible pointer-events-auto transition-[visibility] duration-0'
           : 'invisible pointer-events-none transition-[visibility] delay-300 duration-0'
       }`}
     >
-      {/* Dark Backdrop Overlay */}
+      {/* Backdrop Overlay */}
       <div
         data-testid="drawer-backdrop"
         aria-hidden="true"
         onClick={onClose}
-        className={`fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`fixed inset-0 ${resolvedTheme === 'light' ? 'bg-slate-900/50' : 'bg-black/80'} backdrop-blur-sm transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           isOpen ? 'opacity-100' : 'opacity-0'
         }`}
       />

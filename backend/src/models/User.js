@@ -91,6 +91,13 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    preferences: {
+      theme: {
+        type: String,
+        enum: ['dark', 'light', 'system'],
+        default: 'dark',
+      },
+    },
   },
   {
     timestamps: true,
@@ -139,6 +146,9 @@ userSchema.methods.toSafeObject = function () {
     invitationStatus: this.getInvitationStatus(),
     activationSentAt: this.activationSentAt,
     activationUsedAt: this.activationUsedAt,
+    preferences: {
+      theme: this.preferences?.theme || 'dark',
+    },
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
   };

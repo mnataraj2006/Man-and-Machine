@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { useTheme } from '../../context/ThemeContext.jsx';
 import {
   LayoutDashboard,
   Building2,
@@ -32,6 +33,7 @@ export const AdminContext = createContext({
 export const useAdmin = () => useContext(AdminContext);
 
 export default function AdminLayout({ children, currentPath, onNavigate, onLogout }) {
+  const { resolvedTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState('ALL');
   const [branches, setBranches] = useState([]);
@@ -111,7 +113,7 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
         refreshBranches: fetchBranches,
       }}
     >
-      <div className="min-h-screen bg-[#090909] text-[#F5F5F5] flex selection:bg-[#EB3E2E] selection:text-white font-sans antialiased">
+      <div data-theme={resolvedTheme} className="mm-dashboard-theme min-h-screen bg-[#090909] text-[#F5F5F5] flex selection:bg-[#EB3E2E] selection:text-white font-sans antialiased">
         {/* ── DESKTOP SIDEBAR ── */}
         <aside className="hidden lg:flex flex-col w-64 bg-[#111111] border-r border-[#303030] shrink-0 sticky top-0 h-screen z-30">
           {/* Logo & Header */}

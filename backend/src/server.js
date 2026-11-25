@@ -11,6 +11,7 @@ const branchRoutes = require('./routes/branchRoutes');
 const clientRoutes = require('./routes/clientRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const trainerRoutes = require('./routes/trainerRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -210,6 +211,7 @@ app.use('/api/branches', branchRoutes);
 app.use('/api/client', clientRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/trainer', trainerRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Root route
 app.get('/', (req, res) => {
