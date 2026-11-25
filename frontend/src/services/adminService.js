@@ -147,6 +147,25 @@ class AdminService {
     });
   }
 
+  async updateTrainerStatus(id, status) {
+    return this.request(`/trainers/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async resendTrainerInvitation(id) {
+    return this.request(`/trainers/${id}/resend-invitation`, {
+      method: 'POST',
+    });
+  }
+
+  async resetTrainerPassword(id) {
+    return this.request(`/trainers/${id}/reset-password`, {
+      method: 'POST',
+    });
+  }
+
   async getTrainerBookings(params = {}) {
     const query = new URLSearchParams(params).toString();
     return this.request(`/trainer-bookings${query ? `?${query}` : ''}`);

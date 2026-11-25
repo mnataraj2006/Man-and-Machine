@@ -24,6 +24,21 @@ const trainerProfileSchema = new mongoose.Schema(
       type: Number,
       default: 5,
     },
+    qualification: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    profileImage: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    employmentStatus: {
+      type: String,
+      enum: ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'FREELANCE'],
+      default: 'FULL_TIME',
+    },
     bio: {
       type: String,
       default: '',

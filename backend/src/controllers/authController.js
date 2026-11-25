@@ -199,9 +199,143 @@ const logout = async (req, res) => {
   });
 };
 
+/**
+ * @route   GET /api/auth/activate/:token
+ * @desc    Verify single-use account activation token
+ * @access  Public
+ */
+const verifyActivation = async (req, res, next) => {
+  try {
+    const info = await authService.verifyActivationToken(req.params.token);
+    return res.status(200).json({
+      success: true,
+      account: info,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @route   POST /api/auth/activate/:token
+ * @desc    Set initial password and activate invited account
+ * @access  Public
+ */
+const activateAccount = async (req, res, next) => {
+  try {
+    const { password, confirmPassword } = req.body;
+
+    if (!password || !isStrongPassword(password)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters and include at least one letter and one number.',
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match.',
+      });
+    }
+
+    const activated = await authService.activateAccountWithToken(req.params.token, password);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Account activated successfully! You can now sign in with your password.',
+      user: activated,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @route   POST /api/auth/forgot-password
+ * @desc    Initiate password reset without revealing email existence
+ * @access  Public
+ */
+const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address is required.',
+      });
+    }
+
+    await authService.requestPasswordReset(email);
+
+    return res.status(200).json({
+      success: true,
+      message: 'If an active account exists for this email address, a password reset link has been sent.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @route   GET /api/auth/reset-password/:token
+ * @desc    Validate password reset token before rendering form
+ * @access  Public
+ */
+const verifyResetToken = async (req, res, next) => {
+  try {
+    const info = await authService.verifyPasswordResetToken(req.params.token);
+    return res.status(200).json({
+      success: true,
+      account: info,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @route   POST /api/auth/reset-password/:token
+ * @desc    Complete password reset and invalidate active sessions
+ * @access  Public
+ */
+const resetPassword = async (req, res, next) => {
+  try {
+    const { password, confirmPassword } = req.body;
+
+    if (!password || !isStrongPassword(password)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters and include at least one letter and one number.',
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match.',
+      });
+    }
+
+    await authService.resetPasswordWithToken(req.params.token, password);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Your password has been reset successfully. Please sign in with your new password.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
   getMe,
   logout,
+  verifyActivation,
+  activateAccount,
+  forgotPassword,
+  verifyResetToken,
+  resetPassword,
 };

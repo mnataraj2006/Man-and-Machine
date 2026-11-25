@@ -29,8 +29,14 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, 'Please provide a password'],
+      required: [
+        function () {
+          return this.status !== 'PENDING_ACTIVATION';
+        },
+        'Please provide a password',
+      ],
       minlength: [8, 'Password must be at least 8 characters'],
+      default: undefined,
     },
     role: {
       type: String,
@@ -46,9 +52,44 @@ const userSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['ACTIVE', 'PENDING', 'SUSPENDED', 'INACTIVE'],
+      enum: ['PENDING_ACTIVATION', 'ACTIVE', 'PENDING', 'SUSPENDED', 'INACTIVE'],
       default: 'ACTIVE',
       index: true,
+    },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
+    activationTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    activationTokenExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    activationSentAt: {
+      type: Date,
+      default: null,
+    },
+    activationUsedAt: {
+      type: Date,
+      default: null,
+    },
+    passwordResetTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    passwordResetTokenExpiresAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+    passwordResetRequestedAt: {
+      type: Date,
+      default: null,
     },
   },
   {
@@ -56,21 +97,36 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Hash password before saving if modified
+// Hash password before saving if modified and present
 userSchema.pre('save', async function () {
-  if (!this.isModified('password')) {
+  if (!this.isModified('password') || !this.password) {
     return;
   }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-// Compare entered password with hashed password
+// Compare entered password with hashed password safely
 userSchema.methods.matchPassword = async function (enteredPassword) {
+  if (!this.password || !enteredPassword) return false;
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// Safe JSON representation: never include password
+// Derive public invitation status without exposing token hashes
+userSchema.methods.getInvitationStatus = function () {
+  if (this.activationUsedAt || (this.status === 'ACTIVE' && this.password)) {
+    return 'ACTIVATED';
+  }
+  if (this.status === 'PENDING_ACTIVATION') {
+    if (this.activationTokenExpiresAt && new Date(this.activationTokenExpiresAt) < new Date()) {
+      return 'EXPIRED';
+    }
+    return 'PENDING';
+  }
+  return this.status;
+};
+
+// Safe JSON representation: never include password or cryptographic token hashes
 userSchema.methods.toSafeObject = function () {
   return {
     id: this._id,
@@ -80,6 +136,9 @@ userSchema.methods.toSafeObject = function () {
     role: this.role,
     branchId: this.branchId,
     status: this.status,
+    invitationStatus: this.getInvitationStatus(),
+    activationSentAt: this.activationSentAt,
+    activationUsedAt: this.activationUsedAt,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
   };

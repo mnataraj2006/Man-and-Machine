@@ -16,6 +16,8 @@ const Enquiry = require('../models/Enquiry');
 const Exercise = require('../models/Exercise');
 const TrainerBooking = require('../models/TrainerBooking');
 const TrainingAppointment = require('../models/TrainingAppointment');
+const { generateSecureToken, hashToken, getFrontendBaseUrl } = require('../utils/tokenUtils');
+const { sendTrainerInvitation, sendPasswordResetEmail } = require('../utils/emailService');
 
 // Helper to construct branch query filter
 const getBranchFilter = (branchId) => {
@@ -1055,9 +1057,15 @@ const getTrainers = async (req, res, next) => {
           email: t.email,
           phone: t.phone,
           status: t.status,
+          invitationStatus: typeof t.getInvitationStatus === 'function' ? t.getInvitationStatus() : t.status,
+          activationSentAt: t.activationSentAt,
+          activationUsedAt: t.activationUsedAt,
           branch: t.branchId,
           specialization: prof?.specialization || 'Strength & Conditioning',
-          experienceYears: prof?.experienceYears || 3,
+          experienceYears: prof?.experienceYears ?? 3,
+          qualification: prof?.qualification || '',
+          profileImage: prof?.profileImage || '',
+          employmentStatus: prof?.employmentStatus || 'FULL_TIME',
           bio: prof?.bio || '',
           assignedClientCount: clientCount,
           assignedWorkoutsCount,
@@ -1092,9 +1100,16 @@ const getTrainerDetails = async (req, res, next) => {
         email: trainer.email,
         phone: trainer.phone,
         status: trainer.status,
+        invitationStatus: typeof trainer.getInvitationStatus === 'function' ? trainer.getInvitationStatus() : trainer.status,
+        activationSentAt: trainer.activationSentAt,
+        activationUsedAt: trainer.activationUsedAt,
+        createdAt: trainer.createdAt,
         branch: trainer.branchId,
         specialization: profile?.specialization || 'Strength Training',
-        experienceYears: profile?.experienceYears || 3,
+        experienceYears: profile?.experienceYears ?? 3,
+        qualification: profile?.qualification || '',
+        profileImage: profile?.profileImage || '',
+        employmentStatus: profile?.employmentStatus || 'FULL_TIME',
         bio: profile?.bio || '',
       },
       assignedClients: assignedClientsProfiles.map((cp) => cp.userId).filter(Boolean),
@@ -1107,42 +1122,131 @@ const getTrainerDetails = async (req, res, next) => {
 
 const createTrainer = async (req, res, next) => {
   try {
-    const { name, email, phone, password, branchId, specialization, experienceYears, bio } = req.body;
+    const {
+      name,
+      email,
+      phone,
+      branchId,
+      specialization,
+      experienceYears,
+      qualification,
+      profileImage,
+      employmentStatus,
+      bio,
+    } = req.body;
 
-    if (!name || !email || !phone || !password || !branchId) {
+    if (!name || !name.trim() || name.trim().length < 2 || name.trim().length > 80) {
       return res.status(400).json({
         success: false,
-        message: 'Name, email, phone, password, and branch are required.',
+        message: 'Full name must be between 2 and 80 characters.',
       });
     }
 
-    const existing = await User.findOne({ email: email.toLowerCase().trim() });
-    if (existing) {
-      return res.status(400).json({ success: false, message: 'A user with this email already exists' });
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address.',
+      });
     }
+
+    const phoneDigits = String(phone || '').replace(/\D/g, '');
+    const validPhone =
+      (phoneDigits.length === 10 && /^[6-9]\d{9}$/.test(phoneDigits)) ||
+      (phoneDigits.length === 12 && phoneDigits.startsWith('91') && /^91[6-9]\d{9}$/.test(phoneDigits));
+    if (!phone || !validPhone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid 10-digit Indian mobile number.',
+      });
+    }
+
+    if (!branchId || !mongoose.Types.ObjectId.isValid(branchId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please select a valid gym branch.',
+      });
+    }
+
+    const branch = await Branch.findOne({ _id: branchId, isActive: true });
+    if (!branch) {
+      return res.status(404).json({
+        success: false,
+        message: 'Selected branch was not found or is inactive.',
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const existing = await User.findOne({ email: normalizedEmail });
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: 'An account with this email address already exists.',
+      });
+    }
+
+    // Generate cryptographically secure 24-hour single-use activation token
+    const rawToken = generateSecureToken(32);
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     const user = await User.create({
       name: name.trim(),
-      email: email.toLowerCase().trim(),
+      email: normalizedEmail,
       phone: phone.trim(),
-      password,
-      branchId,
+      branchId: branch._id,
       role: 'TRAINER',
-      status: 'ACTIVE',
+      status: 'PENDING_ACTIVATION',
+      activationTokenHash: tokenHash,
+      activationTokenExpiresAt: expiresAt,
+      activationSentAt: new Date(),
     });
 
-    await TrainerProfile.create({
-      userId: user._id,
-      branchId,
-      specialization: specialization || 'Strength & Conditioning',
-      experienceYears: Number(experienceYears) || 3,
-      bio: bio || '',
-      contactPhone: phone,
-      contactEmail: email,
-      activeClientsCount: 0,
+    const allowedEmpStatuses = ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'FREELANCE'];
+    const normalizedEmpStatus = allowedEmpStatuses.includes(employmentStatus) ? employmentStatus : 'FULL_TIME';
+
+    try {
+      const existingProfile = await TrainerProfile.findOne({ userId: user._id });
+      if (!existingProfile) {
+        await TrainerProfile.create({
+          userId: user._id,
+          branchId: branch._id,
+          specialization: specialization?.trim() || 'Strength & Conditioning',
+          experienceYears: Number(experienceYears) >= 0 ? Number(experienceYears) : 3,
+          qualification: qualification?.trim() || '',
+          profileImage: profileImage?.trim() || '',
+          employmentStatus: normalizedEmpStatus,
+          bio: bio?.trim() || '',
+          contactPhone: phone.trim(),
+          contactEmail: normalizedEmail,
+          activeClientsCount: 0,
+        });
+      }
+    } catch (profErr) {
+      await User.findByIdAndDelete(user._id);
+      throw profErr;
+    }
+
+    const activationUrl = `${getFrontendBaseUrl()}/activate-account/${rawToken}`;
+    const emailResult = await sendTrainerInvitation({
+      to: user.email,
+      trainerName: user.name,
+      branchName: `${branch.city} Branch`,
+      activationUrl,
+      expiresInHours: 24,
     });
 
-    res.status(201).json({ success: true, message: 'Trainer created successfully', trainer: user.toSafeObject() });
+    res.status(201).json({
+      success: true,
+      message: emailResult.delivered
+        ? 'Trainer account created and activation invitation emailed.'
+        : 'Trainer account created (Pending Activation). Email delivery is not configured — share the manual activation link.',
+      trainer: user.toSafeObject(),
+      emailConfigured: emailResult.configured,
+      emailDelivered: emailResult.delivered,
+      emailNotice: emailResult.reason || null,
+      manualActivationUrl: emailResult.delivered ? undefined : activationUrl,
+    });
   } catch (err) {
     next(err);
   }
@@ -1151,22 +1255,55 @@ const createTrainer = async (req, res, next) => {
 const updateTrainer = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, phone, branchId, specialization, experienceYears, bio, status } = req.body;
+    const {
+      name,
+      phone,
+      branchId,
+      specialization,
+      experienceYears,
+      qualification,
+      profileImage,
+      employmentStatus,
+      bio,
+      status,
+    } = req.body;
 
     const user = await User.findOne({ _id: id, role: 'TRAINER' });
     if (!user) return res.status(404).json({ success: false, message: 'Trainer not found' });
 
-    if (name) user.name = name.trim();
-    if (phone) user.phone = phone.trim();
-    if (status) user.status = status;
+    if (name && name.trim()) user.name = name.trim();
+    if (phone && phone.trim()) user.phone = phone.trim();
+
+    if (status !== undefined) {
+      const allowedStatuses = ['PENDING_ACTIVATION', 'ACTIVE', 'SUSPENDED', 'INACTIVE'];
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({ success: false, message: 'Invalid trainer status provided.' });
+      }
+      if (status === 'ACTIVE' && !user.password) {
+        return res.status(400).json({
+          success: false,
+          message: 'Trainer has not completed password setup yet and cannot be activated manually before activation.',
+        });
+      }
+      if (status === 'SUSPENDED' || status === 'INACTIVE') {
+        user.tokenVersion = (user.tokenVersion || 0) + 1;
+      }
+      user.status = status;
+    }
+
     if (branchId && mongoose.Types.ObjectId.isValid(branchId)) user.branchId = branchId;
     await user.save();
 
     let prof = await TrainerProfile.findOne({ userId: id });
     if (prof) {
-      if (specialization) prof.specialization = specialization;
+      if (specialization !== undefined) prof.specialization = specialization.trim();
       if (experienceYears !== undefined) prof.experienceYears = Number(experienceYears);
-      if (bio !== undefined) prof.bio = bio;
+      if (qualification !== undefined) prof.qualification = qualification.trim();
+      if (profileImage !== undefined) prof.profileImage = profileImage.trim();
+      if (employmentStatus && ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'FREELANCE'].includes(employmentStatus)) {
+        prof.employmentStatus = employmentStatus;
+      }
+      if (bio !== undefined) prof.bio = bio.trim();
       if (branchId && mongoose.Types.ObjectId.isValid(branchId)) prof.branchId = branchId;
       if (req.body.isAvailable !== undefined) prof.isAvailable = req.body.isAvailable;
       if (req.body.acceptingClients !== undefined) prof.acceptingClients = req.body.acceptingClients;
@@ -1175,7 +1312,140 @@ const updateTrainer = async (req, res, next) => {
       await prof.save();
     }
 
-    res.status(200).json({ success: true, message: 'Trainer updated successfully' });
+    res.status(200).json({ success: true, message: 'Trainer updated successfully', trainer: user.toSafeObject() });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const updateTrainerStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const allowedStatuses = ['ACTIVE', 'SUSPENDED', 'INACTIVE'];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Status must be ACTIVE, SUSPENDED, or INACTIVE.',
+      });
+    }
+
+    const user = await User.findOne({ _id: id, role: 'TRAINER' });
+    if (!user) return res.status(404).json({ success: false, message: 'Trainer not found' });
+
+    if (status === 'ACTIVE' && !user.password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot activate before the trainer completes their account activation link.',
+      });
+    }
+
+    user.status = status;
+    if (status === 'SUSPENDED' || status === 'INACTIVE') {
+      user.tokenVersion = (user.tokenVersion || 0) + 1; // Revoke active tokens immediately
+    }
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Trainer status updated to ${status}.`,
+      trainer: user.toSafeObject(),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const resendTrainerInvitation = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findOne({ _id: id, role: 'TRAINER' }).populate('branchId', 'name city');
+    if (!user) return res.status(404).json({ success: false, message: 'Trainer not found' });
+
+    if (user.status !== 'PENDING_ACTIVATION') {
+      return res.status(400).json({
+        success: false,
+        message: 'This trainer has already completed onboarding activation. Use Reset Password if they need access recovery.',
+      });
+    }
+
+    // Generate fresh token (automatically invalidating previous activationTokenHash)
+    const rawToken = generateSecureToken(32);
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    user.activationTokenHash = tokenHash;
+    user.activationTokenExpiresAt = expiresAt;
+    user.activationSentAt = new Date();
+    user.activationUsedAt = null;
+    await user.save({ validateBeforeSave: false });
+
+    const activationUrl = `${getFrontendBaseUrl()}/activate-account/${rawToken}`;
+    const emailResult = await sendTrainerInvitation({
+      to: user.email,
+      trainerName: user.name,
+      branchName: user.branchId?.city ? `${user.branchId.city} Branch` : 'Man & Machine',
+      activationUrl,
+      expiresInHours: 24,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: emailResult.delivered
+        ? 'A new activation invitation has been emailed. Any previous link is now invalid.'
+        : 'New activation link generated (previous link invalidated). Email delivery is not configured.',
+      emailConfigured: emailResult.configured,
+      emailDelivered: emailResult.delivered,
+      emailNotice: emailResult.reason || null,
+      manualActivationUrl: emailResult.delivered ? undefined : activationUrl,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const resetTrainerPassword = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findOne({ _id: id, role: 'TRAINER' });
+    if (!user) return res.status(404).json({ success: false, message: 'Trainer not found' });
+
+    if (user.status === 'PENDING_ACTIVATION') {
+      return res.status(400).json({
+        success: false,
+        message: 'Trainer has not activated their account yet. Use Resend Invitation instead.',
+      });
+    }
+
+    const rawToken = generateSecureToken(32);
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+
+    user.passwordResetTokenHash = tokenHash;
+    user.passwordResetTokenExpiresAt = expiresAt;
+    user.passwordResetRequestedAt = new Date();
+    user.tokenVersion = (user.tokenVersion || 0) + 1; // Revoke active sessions
+    await user.save({ validateBeforeSave: false });
+
+    const resetUrl = `${getFrontendBaseUrl()}/reset-password/${rawToken}`;
+    const emailResult = await sendPasswordResetEmail({
+      to: user.email,
+      userName: user.name,
+      resetUrl,
+      expiresInMinutes: 30,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: emailResult.delivered
+        ? 'Secure 30-minute password reset link emailed to the trainer.'
+        : 'Secure 30-minute password reset link generated. Email delivery is not configured — share manually.',
+      emailConfigured: emailResult.configured,
+      emailDelivered: emailResult.delivered,
+      emailNotice: emailResult.reason || null,
+      manualResetUrl: emailResult.delivered ? undefined : resetUrl,
+    });
   } catch (err) {
     next(err);
   }
@@ -2737,6 +3007,9 @@ module.exports = {
   getTrainerDetails,
   createTrainer,
   updateTrainer,
+  updateTrainerStatus,
+  resendTrainerInvitation,
+  resetTrainerPassword,
   getTrainerBookings,
   confirmTrainerBookingPayment,
   getMembershipPlans,

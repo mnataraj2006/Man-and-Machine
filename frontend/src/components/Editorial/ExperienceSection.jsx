@@ -5,8 +5,8 @@ const panels = [
   {
     id: 'strength',
     label: '01 / STRENGTH',
-    image: '/images/framer/experience-strength.png',
-    alt: 'Heavy barbell and free weights strength zone',
+    image: '/images/members/Nataraj Shoulder.jpeg',
+    alt: 'Man & Machine Strength Training — Shoulder Press',
   },
   {
     id: 'conditioning',

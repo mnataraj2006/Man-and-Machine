@@ -32,6 +32,9 @@ router.get('/trainers', adminController.getTrainers);
 router.post('/trainers', adminController.createTrainer);
 router.get('/trainers/:id', adminController.getTrainerDetails);
 router.put('/trainers/:id', adminController.updateTrainer);
+router.patch('/trainers/:id/status', adminController.updateTrainerStatus);
+router.post('/trainers/:id/resend-invitation', adminController.resendTrainerInvitation);
+router.post('/trainers/:id/reset-password', adminController.resetTrainerPassword);
 router.get('/trainer-bookings', adminController.getTrainerBookings);
 router.post('/trainer-bookings/:id/confirm-payment', adminController.confirmTrainerBookingPayment);
 

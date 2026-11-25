@@ -3,7 +3,7 @@ const User = require('../models/User');
 
 /**
  * Middleware to protect private endpoints.
- * Validates Bearer token in Authorization header.
+ * Validates Bearer token in Authorization header, account status, and session tokenVersion.
  */
 const protect = async (req, res, next) => {
   let token;
@@ -37,6 +37,23 @@ const protect = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'Not authorized, user not found',
+      });
+    }
+
+    // Revoke access immediately if tokenVersion was incremented (reset / suspension / deactivation)
+    const decodedVer = typeof decoded.tokenVersion === 'number' ? decoded.tokenVersion : 0;
+    const userVer = typeof user.tokenVersion === 'number' ? user.tokenVersion : 0;
+    if (decodedVer !== userVer) {
+      return res.status(401).json({
+        success: false,
+        message: 'Session has been invalidated. Please log in again.',
+      });
+    }
+
+    if (user.status === 'PENDING_ACTIVATION' || user.status === 'PENDING') {
+      return res.status(403).json({
+        success: false,
+        message: 'Account activation is pending. Please set your password via your invitation link.',
       });
     }
 

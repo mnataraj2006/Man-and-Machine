@@ -712,6 +712,17 @@ const getWorkoutPlanById = async (req, res, next) => {
       });
     }
 
+    if (
+      req.user.role !== 'ADMIN' &&
+      plan.trainerId &&
+      plan.trainerId.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: You can only view workout plans assigned to your own coaching roster.',
+      });
+    }
+
     res.status(200).json({
       success: true,
       plan,

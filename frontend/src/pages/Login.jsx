@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, ArrowLeft, ArrowRight, Lock, Mail, AlertCircle, Info } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Eye, EyeOff, ArrowLeft, ArrowRight, Lock, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
 import authService from '../services/auth.js';
 
 export default function Login({ onNavigate, onOpenRegister }) {
@@ -9,7 +9,16 @@ export default function Login({ onNavigate, onOpenRegister }) {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverNotice, setServerNotice] = useState(null);
-  const [forgotNotice, setForgotNotice] = useState(false);
+  const [statusBanner, setStatusBanner] = useState(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('activated') === '1') {
+      setStatusBanner('Your trainer account is now active. Sign in using your new password.');
+    } else if (params.get('reset') === '1') {
+      setStatusBanner('Password updated successfully. Sign in with your new password.');
+    }
+  }, []);
 
   const heroImageSrc = '/images/hero/Man & Machine_ Train Hard, Stay Strong.png';
 
@@ -32,7 +41,6 @@ export default function Login({ onNavigate, onOpenRegister }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setServerNotice(null);
-    setForgotNotice(false);
 
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
@@ -68,8 +76,12 @@ export default function Login({ onNavigate, onOpenRegister }) {
 
   const handleForgotPassword = (e) => {
     e.preventDefault();
-    setForgotNotice(true);
-    setServerNotice(null);
+    if (onNavigate) {
+      onNavigate('/forgot-password');
+    } else {
+      window.history.pushState({}, '', '/forgot-password');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
   };
 
   const handleBackToWebsite = (e) => {
@@ -242,6 +254,17 @@ export default function Login({ onNavigate, onOpenRegister }) {
               </p>
             </div>
 
+            {/* Activation / Password Reset Success Banner */}
+            {statusBanner && (
+              <div
+                role="status"
+                className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/40 text-xs text-emerald-200 flex items-start gap-3 animate-fadeInUp"
+              >
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">{statusBanner}</p>
+              </div>
+            )}
+
             {/* Server notice / Authentication error alert */}
             {serverNotice && (
               <div 
@@ -255,24 +278,6 @@ export default function Login({ onNavigate, onOpenRegister }) {
                   </span>
                   <p className="text-[#B8B8B8] leading-relaxed">
                     {serverNotice.message}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Forgot Password Notice */}
-            {forgotNotice && (
-              <div 
-                role="alert"
-                className="p-4 rounded-xl bg-[#111111] border border-[#303030] text-xs text-[#F5F5F5] flex items-start gap-3 animate-fadeInUp"
-              >
-                <AlertCircle className="w-5 h-5 text-[#EB3E2E] shrink-0 mt-0.5" />
-                <div className="flex flex-col gap-1">
-                  <span className="font-bold text-[#F5F5F5] uppercase tracking-wider text-[11px]" style={{ fontFamily: "'Oswald', sans-serif" }}>
-                    PASSWORD RECOVERY
-                  </span>
-                  <p className="text-[#B8B8B8] leading-relaxed">
-                    Online password reset will be activated alongside the upcoming member portal. For immediate verification, contact Kovilpatti HQ at <a href="tel:+917598885566" className="text-[#EB3E2E] font-mono font-bold hover:underline">+91 75988 85566</a>.
                   </p>
                 </div>
               </div>

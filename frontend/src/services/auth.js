@@ -88,6 +88,78 @@ export const authService = {
   },
 
   /**
+   * Verify single-use account activation token.
+   */
+  verifyActivationToken: async (token) => {
+    const response = await fetch(`${BASE_URL}/auth/activate/${encodeURIComponent(token)}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.message || 'Invalid or expired activation link.');
+    }
+    return data;
+  },
+
+  /**
+   * Complete account activation by setting password.
+   */
+  activateAccount: async (token, { password, confirmPassword }) => {
+    const response = await fetch(`${BASE_URL}/auth/activate/${encodeURIComponent(token)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password, confirmPassword }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.message || 'Account activation failed.');
+    }
+    return data;
+  },
+
+  /**
+   * Request password reset link via email.
+   */
+  forgotPassword: async (email) => {
+    const response = await fetch(`${BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.message || 'Unable to process password reset request.');
+    }
+    return data;
+  },
+
+  /**
+   * Verify password reset token validity.
+   */
+  verifyResetToken: async (token) => {
+    const response = await fetch(`${BASE_URL}/auth/reset-password/${encodeURIComponent(token)}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.message || 'Invalid or expired password reset link.');
+    }
+    return data;
+  },
+
+  /**
+   * Reset password using valid single-use reset token.
+   */
+  resetPassword: async (token, { password, confirmPassword }) => {
+    const response = await fetch(`${BASE_URL}/auth/reset-password/${encodeURIComponent(token)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password, confirmPassword }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.message || 'Password reset failed.');
+    }
+    return data;
+  },
+
+  /**
    * Retrieve currently authenticated member profile with role & branch.
    * @returns {Promise<Object|null>}
    */

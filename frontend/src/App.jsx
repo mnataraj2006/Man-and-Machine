@@ -14,6 +14,9 @@ import Footer from './components/Footer/Footer.jsx';
 import JoinModal from './components/Navbar/JoinModal.jsx';
 import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
+import ActivateAccount from './pages/ActivateAccount.jsx';
+import ForgotPassword from './pages/ForgotPassword.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import TrainerDashboard from './pages/TrainerDashboard.jsx';
 import ClientLayout from './components/Client/ClientLayout.jsx';
@@ -285,6 +288,22 @@ export default function App() {
         onNavigate={navigate} 
       />
     );
+  }
+
+  // Dedicated Account Activation route (/activate-account/:token)
+  if (currentPath.startsWith('/activate-account/')) {
+    const token = currentPath.replace('/activate-account/', '').split('?')[0];
+    return <ActivateAccount token={token} onNavigate={navigate} />;
+  }
+
+  // Forgot & Reset Password routes
+  if (currentPath === '/forgot-password') {
+    return <ForgotPassword onNavigate={navigate} />;
+  }
+
+  if (currentPath.startsWith('/reset-password/')) {
+    const token = currentPath.replace('/reset-password/', '').split('?')[0];
+    return <ResetPassword token={token} onNavigate={navigate} />;
   }
 
   // Dedicated Login page
