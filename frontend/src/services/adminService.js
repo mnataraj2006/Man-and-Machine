@@ -17,9 +17,15 @@ class AdminService {
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}/admin${endpoint}`;
     const headers = { ...this.getAuthHeaders(), ...options.headers };
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs || 25000);
 
     try {
-      const response = await fetch(url, { ...options, headers });
+      const response = await fetch(url, {
+        ...options,
+        headers,
+        signal: options.signal || controller.signal,
+      });
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -32,8 +38,15 @@ class AdminService {
 
       return data;
     } catch (err) {
+      if (err.name === 'AbortError') {
+        const timeoutErr = new Error('Request timed out while waiting for the server. Please refresh and check if the record was created.');
+        console.error(`Admin API Timeout [${endpoint}]:`, timeoutErr);
+        throw timeoutErr;
+      }
       console.error(`Admin API Error [${endpoint}]:`, err);
       throw err;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

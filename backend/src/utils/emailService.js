@@ -13,17 +13,25 @@ const isEmailConfigured = () => {
 
 /**
  * Create Nodemailer transporter only when SMTP settings exist.
+ * Forces IPv4 and strict timeouts so cloud hosts (e.g. Render) never hang for minutes.
  */
-const createTransporter = () => {
+const createTransporter = (overridePort = null, overrideSecure = null) => {
   if (!isEmailConfigured()) return null;
 
-  const port = Number(process.env.SMTP_PORT || 587);
-  const secure = process.env.SMTP_SECURE === 'true' || port === 465;
+  const port = Number(overridePort || process.env.SMTP_PORT || 587);
+  const secure =
+    overrideSecure !== null
+      ? overrideSecure
+      : process.env.SMTP_SECURE === 'true' || port === 465;
 
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port,
     secure,
+    family: 4,
+    connectionTimeout: 4500,
+    greetingTimeout: 4500,
+    socketTimeout: 6000,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
@@ -33,6 +41,49 @@ const createTransporter = () => {
 
 const getFromAddress = () => {
   return process.env.EMAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@manandmachine.com';
+};
+
+/**
+ * Send mail with a hard upper timeout so API handlers always respond promptly.
+ */
+const sendMailSafely = async (mailOptions) => {
+  const sendWithTimeout = (transporter, ms = 10000) => {
+    let timer;
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        try {
+          transporter.close();
+        } catch {}
+        reject(new Error('SMTP connection timed out. Use the manual link or check SMTP port/host settings.'));
+      }, ms);
+    });
+
+    return Promise.race([transporter.sendMail(mailOptions), timeoutPromise]).finally(() => {
+      clearTimeout(timer);
+    });
+  };
+
+  const primaryTransporter = createTransporter();
+  try {
+    await sendWithTimeout(primaryTransporter, 7000);
+    return;
+  } catch (primaryErr) {
+    const primaryPort = Number(process.env.SMTP_PORT || 587);
+    const isNetworkTimeout =
+      /timed out|timeout|ECONNREFUSED|ETIMEDOUT|ENETUNREACH|EHOSTUNREACH/i.test(primaryErr.message || '');
+
+    // Fallback: if port 587 fails/hangs on cloud host, try SMTPS port 465 once quickly
+    if (primaryPort === 587 && isNetworkTimeout) {
+      const fallbackTransporter = createTransporter(465, true);
+      try {
+        await sendWithTimeout(fallbackTransporter, 6000);
+        return;
+      } catch (fallbackErr) {
+        throw new Error(fallbackErr.message || primaryErr.message);
+      }
+    }
+    throw primaryErr;
+  }
 };
 
 /**
@@ -49,8 +100,7 @@ const sendTrainerInvitation = async ({ to, trainerName, branchName, activationUr
   }
 
   try {
-    const transporter = createTransporter();
-    await transporter.sendMail({
+    await sendMailSafely({
       from: `"Man & Machine Fitness" <${getFromAddress()}>`,
       to,
       subject: 'Activate Your Man & Machine Coach Account',
@@ -99,8 +149,7 @@ const sendPasswordResetEmail = async ({ to, userName, resetUrl, expiresInMinutes
   }
 
   try {
-    const transporter = createTransporter();
-    await transporter.sendMail({
+    await sendMailSafely({
       from: `"Man & Machine Fitness" <${getFromAddress()}>`,
       to,
       subject: 'Password Reset Request — Man & Machine',
