@@ -16,6 +16,7 @@ const Enquiry = require('../models/Enquiry');
 const Exercise = require('../models/Exercise');
 const TrainerBooking = require('../models/TrainerBooking');
 const TrainingAppointment = require('../models/TrainingAppointment');
+const financeService = require('../services/financeService');
 const { generateSecureToken, hashToken, getFrontendBaseUrl } = require('../utils/tokenUtils');
 const { sendTrainerInvitation, sendPasswordResetEmail } = require('../utils/emailService');
 
@@ -173,16 +174,10 @@ const getDashboardOverview = async (req, res, next) => {
     });
     const prevMonthlyRevenue = prevMonthlyPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
 
-    // 8. Pending Payments
-    const pendingPaymentsCount = await Payment.countDocuments({
-      ...branchFilter,
-      status: 'PENDING',
-    });
-    const pendingPaymentsList = await Payment.find({
-      ...branchFilter,
-      status: 'PENDING',
-    });
-    const pendingPaymentsTotal = pendingPaymentsList.reduce((acc, p) => acc + (p.amount || 0), 0);
+    // 8. Finance Summary Integration (Invoices, Pending Balance, Expenses, Net Revenue)
+    const financeSummary = await financeService.computeFinanceSummary({ branchId });
+    const pendingPaymentsCount = financeSummary.pendingInvoicesCount;
+    const pendingPaymentsTotal = financeSummary.pendingBalance;
 
     // 9. New Enquiries
     const newEnquiries = await Enquiry.countDocuments({
@@ -400,10 +395,13 @@ const getDashboardOverview = async (req, res, next) => {
         activeMemberships: activeMembers,
         activeMembers,
         expiredMemberships,
-        monthlyRevenue,
+        monthlyRevenue: financeSummary.thisMonthCollection,
         prevMonthlyRevenue,
         pendingPayments: pendingPaymentsCount,
         pendingPaymentsTotal,
+        monthlyExpenses: financeSummary.monthExpenses,
+        netRevenue: financeSummary.monthNetRevenue,
+        todayCollection: financeSummary.todayCollection,
         newEnquiries,
       },
       charts: {
@@ -924,6 +922,33 @@ const createClient = async (req, res, next) => {
         clientProfile.membershipStatus = 'ACTIVE';
         clientProfile.membershipExpiryDate = expDate;
         await clientProfile.save();
+      }
+
+      if (snapshot.finalAmount > 0) {
+        let discountAmt = 0;
+        if (snapshot.discountType === 'FIXED') discountAmt = snapshot.discountValue || 0;
+        else if (snapshot.discountType === 'PERCENTAGE') {
+          discountAmt = ((snapshot.basePrice + snapshot.joiningFee) * (snapshot.discountValue || 0)) / 100;
+        }
+        const { payment } = await financeService.createInvoiceAndOptionalPayment({
+          clientId: user._id,
+          branchId,
+          membershipId: membership._id,
+          category: 'MEMBERSHIP_PURCHASE',
+          description: `Membership Purchase: ${snapshot.planName}`,
+          subtotal: snapshot.basePrice || snapshot.finalAmount,
+          joiningFee: snapshot.joiningFee || 0,
+          discount: discountAmt,
+          totalAmount: snapshot.finalAmount,
+          paidAmount: req.body.paymentStatus === 'PENDING' ? 0 : snapshot.finalAmount,
+          paymentMethod: req.body.paymentMethod || 'CASH',
+          invoiceDate: sDate,
+          createdBy: req.user ? req.user._id : null,
+        });
+        if (payment) {
+          membership.paymentId = payment._id;
+          await membership.save();
+        }
       }
     }
 
@@ -1659,9 +1684,38 @@ const confirmTrainerBookingPayment = async (req, res, next) => {
     if (booking.paymentId) {
       payment = await Payment.findByIdAndUpdate(
         booking.paymentId,
-        { status: 'PAID', paymentMethod },
+        { status: 'PAID', paymentMethod, updatedBy: req.user ? req.user._id : null },
         { new: true }
       );
+      if (payment?.invoiceId) {
+        if (!payment.receiptNumber) {
+          payment.receiptNumber = await financeService.generateSequentialNumber({
+            kind: 'RECEIPT',
+            branchId: booking.branchId,
+            date: new Date(),
+          });
+          await payment.save();
+        }
+        await financeService.recalculateInvoiceFromPayments(
+          payment.invoiceId,
+          req.user ? req.user._id : null,
+          'Trainer booking payment confirmed by Admin'
+        );
+      } else if (payment) {
+        await financeService.createInvoiceAndOptionalPayment({
+          clientId: booking.clientId._id,
+          branchId: booking.branchId,
+          trainerBookingId: booking._id,
+          category: 'PERSONAL_TRAINING',
+          description: payment.description,
+          subtotal: booking.amount,
+          totalAmount: booking.amount,
+          paymentMethod,
+          invoiceDate: new Date(),
+          createdBy: req.user ? req.user._id : null,
+          existingPayment: payment,
+        });
+      }
     } else {
       payment = await Payment.create({
         userId: booking.clientId._id,
@@ -1672,8 +1726,22 @@ const confirmTrainerBookingPayment = async (req, res, next) => {
         paymentMethod,
         status: 'PAID',
         date: new Date(),
+        createdBy: req.user ? req.user._id : null,
       });
       booking.paymentId = payment._id;
+      await financeService.createInvoiceAndOptionalPayment({
+        clientId: booking.clientId._id,
+        branchId: booking.branchId,
+        trainerBookingId: booking._id,
+        category: 'PERSONAL_TRAINING',
+        description: payment.description,
+        subtotal: booking.amount,
+        totalAmount: booking.amount,
+        paymentMethod,
+        invoiceDate: new Date(),
+        createdBy: req.user ? req.user._id : null,
+        existingPayment: payment,
+      });
     }
 
     // Assign Trainer to Client Profile
@@ -2253,12 +2321,21 @@ const createClientMembership = async (req, res, next) => {
     const sDate = startDate ? new Date(startDate) : new Date();
     const expDate = new Date(sDate.getTime() + snapshot.durationDays * 24 * 60 * 60 * 1000);
 
+    const isDeferredPayment = req.body.paymentStatus === 'PENDING';
+    const initialPaid =
+      req.body.paidAmount !== undefined
+        ? Number(req.body.paidAmount)
+        : isDeferredPayment
+        ? 0
+        : snapshot.finalAmount;
+    const memStatus = initialPaid >= snapshot.finalAmount || !isDeferredPayment ? 'ACTIVE' : 'PENDING';
+
     const membership = await Membership.create({
       userId,
       branchId: targetBranchId,
       planId: snapshot.planId,
       planName: snapshot.planName,
-      status: 'ACTIVE',
+      status: memStatus,
       startDate: sDate,
       expiryDate: expDate,
       durationDays: snapshot.durationDays,
@@ -2269,13 +2346,44 @@ const createClientMembership = async (req, res, next) => {
       discountValue: snapshot.discountValue,
       finalAmount: snapshot.finalAmount,
       amount: snapshot.finalAmount,
+      paymentMethod: req.body.paymentMethod || 'CASH',
       assignedBy: req.user ? req.user._id : null,
     });
+
+    let generatedInvoice = null;
+    if (snapshot.finalAmount > 0) {
+      let discountAmt = 0;
+      if (snapshot.discountType === 'FIXED') discountAmt = snapshot.discountValue || 0;
+      else if (snapshot.discountType === 'PERCENTAGE') {
+        discountAmt = ((snapshot.basePrice + snapshot.joiningFee) * (snapshot.discountValue || 0)) / 100;
+      }
+      const finRes = await financeService.createInvoiceAndOptionalPayment({
+        clientId: userId,
+        branchId: targetBranchId,
+        membershipId: membership._id,
+        category: 'MEMBERSHIP_PURCHASE',
+        description: `Membership Assignment: ${snapshot.planName}`,
+        subtotal: snapshot.basePrice || snapshot.finalAmount,
+        joiningFee: snapshot.joiningFee || 0,
+        discount: discountAmt,
+        totalAmount: snapshot.finalAmount,
+        paidAmount: Math.min(snapshot.finalAmount, Math.max(0, initialPaid)),
+        paymentMethod: req.body.paymentMethod || 'CASH',
+        invoiceDate: sDate,
+        createdBy: req.user ? req.user._id : null,
+      });
+      generatedInvoice = finRes.invoice;
+      if (finRes.payment) {
+        membership.paymentId = finRes.payment._id;
+        await membership.save();
+      }
+    }
 
     res.status(201).json({
       success: true,
       message: 'Membership assigned successfully',
       membership,
+      invoice: generatedInvoice,
     });
   } catch (err) {
     next(err);
@@ -2299,6 +2407,32 @@ const updateClientMembershipStatus = async (req, res, next) => {
       membership.expiryDate = baseDate;
       membership.status = 'ACTIVE';
       membership.renewalRequested = false;
+
+      const renewAmount =
+        req.body.amount !== undefined
+          ? Number(req.body.amount)
+          : Number(membership.finalAmount || membership.amount || 0);
+      if (renewAmount > 0 && req.body.createInvoice !== false) {
+        const renewPaid =
+          req.body.paymentStatus === 'PENDING'
+            ? 0
+            : req.body.paidAmount !== undefined
+            ? Number(req.body.paidAmount)
+            : renewAmount;
+        await financeService.createInvoiceAndOptionalPayment({
+          clientId: membership.userId,
+          branchId: membership.branchId,
+          membershipId: membership._id,
+          category: 'MEMBERSHIP_RENEWAL',
+          description: `Membership Renewal: ${membership.planName}`,
+          subtotal: renewAmount,
+          totalAmount: renewAmount,
+          paidAmount: Math.min(renewAmount, Math.max(0, renewPaid)),
+          paymentMethod: req.body.paymentMethod || membership.paymentMethod || 'CASH',
+          invoiceDate: new Date(),
+          createdBy: req.user ? req.user._id : null,
+        });
+      }
     } else if (action === 'EXTEND') {
       if (newExpiryDate) {
         membership.expiryDate = new Date(newExpiryDate);
@@ -2724,21 +2858,43 @@ const recordOfflinePayment = async (req, res, next) => {
 
     const txId = `MM-TXN-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
 
+    const receiptNumber = await financeService.generateSequentialNumber({
+      kind: 'RECEIPT',
+      branchId: branchId || user.branchId,
+      date: date ? new Date(date) : new Date(),
+    });
+
     const payment = await Payment.create({
       userId,
       branchId: branchId || user.branchId,
       transactionId: txId,
+      receiptNumber,
       amount: Number(amount),
       description: description.trim(),
       paymentMethod,
       status: 'PAID',
       date: date ? new Date(date) : new Date(),
+      createdBy: req.user ? req.user._id : null,
+    });
+
+    const { invoice } = await financeService.createInvoiceAndOptionalPayment({
+      clientId: userId,
+      branchId: branchId || user.branchId,
+      category: req.body.category || 'OTHER_SERVICE',
+      description: description.trim(),
+      subtotal: Number(amount),
+      totalAmount: Number(amount),
+      paymentMethod,
+      invoiceDate: payment.date,
+      createdBy: req.user ? req.user._id : null,
+      existingPayment: payment,
     });
 
     res.status(201).json({
       success: true,
       message: 'Offline payment recorded successfully',
       payment,
+      invoice,
     });
   } catch (err) {
     next(err);
@@ -2757,8 +2913,39 @@ const updatePaymentStatus = async (req, res, next) => {
     const payment = await Payment.findById(id);
     if (!payment) return res.status(404).json({ success: false, message: 'Payment record not found' });
 
+    const oldStatus = payment.status;
     payment.status = status;
+    payment.updatedBy = req.user ? req.user._id : null;
+    if (status === 'REFUNDED') {
+      payment.refundedAmount = payment.amount;
+      payment.refundedAt = new Date();
+      payment.refundedBy = req.user ? req.user._id : null;
+    } else if (status === 'PAID' && !payment.receiptNumber) {
+      payment.receiptNumber = await financeService.generateSequentialNumber({
+        kind: 'RECEIPT',
+        branchId: payment.branchId,
+        date: payment.date || new Date(),
+      });
+    }
+    payment.auditLogs.push({
+      action: 'STATUS_UPDATED',
+      oldStatus,
+      newStatus: status,
+      oldAmount: payment.amount,
+      newAmount: payment.amount,
+      reason: req.body.reason || `Updated by Admin`,
+      userId: req.user ? req.user._id : null,
+      timestamp: new Date(),
+    });
     await payment.save();
+
+    if (payment.invoiceId) {
+      await financeService.recalculateInvoiceFromPayments(
+        payment.invoiceId,
+        req.user ? req.user._id : null,
+        `Payment ${payment.transactionId} status updated to ${status}`
+      );
+    }
 
     res.status(200).json({ success: true, message: `Payment status updated to ${status}`, payment });
   } catch (err) {

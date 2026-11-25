@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, LogOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, LogOut, ChevronDown } from 'lucide-react';
 import useMobileDrawer from '../../hooks/useMobileDrawer.js';
 import { useTheme } from '../../context/ThemeContext.jsx';
 
@@ -25,7 +25,20 @@ export default function DashboardMobileDrawer({
   userSummary = null,
 }) {
   const { resolvedTheme } = useTheme();
+  const [expandedGroups, setExpandedGroups] = useState({});
   useMobileDrawer({ isOpen, onClose, currentPath });
+
+  useEffect(() => {
+    const next = {};
+    navItems.forEach((item) => {
+      if (item.children && currentPath?.startsWith(item.path)) {
+        next[item.path] = true;
+      }
+    });
+    if (Object.keys(next).length > 0) {
+      setExpandedGroups((prev) => ({ ...prev, ...next }));
+    }
+  }, [currentPath, navItems]);
 
   return (
     <div
@@ -94,6 +107,63 @@ export default function DashboardMobileDrawer({
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isItemActive(item);
+            const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+            const isExpanded = Boolean(expandedGroups[item.path]);
+
+            if (hasChildren) {
+              return (
+                <div key={item.path} className="space-y-1">
+                  <button
+                    type="button"
+                    aria-expanded={isExpanded}
+                    onClick={() =>
+                      setExpandedGroups((prev) => ({
+                        ...prev,
+                        [item.path]: !prev[item.path],
+                      }))
+                    }
+                    className={`w-full min-h-[44px] flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F03B2E] ${
+                      active
+                        ? 'bg-[#F03B2E]/15 text-[#F03B2E] border border-[#F03B2E]/35 font-bold'
+                        : 'text-[#B8B8B8] hover:text-[#F5F5F5] hover:bg-[#181818]'
+                    }`}
+                  >
+                    <span className="flex items-center gap-3 min-w-0">
+                      <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-[#F03B2E]' : 'text-[#858585]'}`} />
+                      <span className="truncate">{item.label}</span>
+                    </span>
+                    <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {isExpanded && (
+                    <div className="pl-3 ml-4 border-l border-[#303030] space-y-0.5">
+                      {item.children.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const subActive =
+                          currentPath === sub.path ||
+                          (sub.path === '/admin/finance/summary' && currentPath === '/admin/finance');
+                        return (
+                          <button
+                            key={sub.path}
+                            type="button"
+                            onClick={() => onNavigate(sub.path)}
+                            aria-current={subActive ? 'page' : undefined}
+                            className={`w-full min-h-[40px] flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer ${
+                              subActive
+                                ? 'bg-[#F03B2E] text-white font-bold shadow-sm'
+                                : 'text-[#B8B8B8] hover:text-[#F5F5F5] hover:bg-[#181818]'
+                            }`}
+                          >
+                            <SubIcon className={`w-3.5 h-3.5 shrink-0 ${subActive ? 'text-white' : 'text-[#858585]'}`} />
+                            <span className="truncate">{sub.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
 
             return (
               <button

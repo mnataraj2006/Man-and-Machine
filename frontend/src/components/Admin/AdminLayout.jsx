@@ -17,6 +17,14 @@ import {
   ChevronDown,
   Building,
   ShieldAlert,
+  Wallet,
+  FileText,
+  Calendar,
+  TrendingUp,
+  BarChart3,
+  ArrowDownRight,
+  PieChart,
+  SlidersHorizontal,
 } from 'lucide-react';
 import authService from '../../services/auth.js';
 import adminService from '../../services/adminService.js';
@@ -38,6 +46,23 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
   const [selectedBranch, setSelectedBranch] = useState('ALL');
   const [branches, setBranches] = useState([]);
   const [user, setUser] = useState(authService.getUser());
+  const [financeOpen, setFinanceOpen] = useState(() => currentPath.startsWith('/admin/finance'));
+
+  useEffect(() => {
+    if (currentPath.startsWith('/admin/finance')) {
+      setFinanceOpen(true);
+    }
+  }, [currentPath]);
+
+  const financeSubItems = [
+    { label: 'All Invoices', path: '/admin/finance/invoices', icon: FileText },
+    { label: "Today's Invoices", path: '/admin/finance/invoices/today', icon: Calendar },
+    { label: 'Day-wise Collections', path: '/admin/finance/collections/daily', icon: TrendingUp },
+    { label: 'Month-wise Collections', path: '/admin/finance/collections/monthly', icon: BarChart3 },
+    { label: 'Expenses', path: '/admin/finance/expenses', icon: ArrowDownRight },
+    { label: 'Summary', path: '/admin/finance/summary', icon: PieChart },
+    { label: 'Finance Config', path: '/admin/finance/config', icon: SlidersHorizontal },
+  ];
 
   const navItems = [
     { label: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
@@ -48,6 +73,12 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
     { label: 'Memberships', path: '/admin/memberships', icon: CreditCard },
     { label: 'Attendance', path: '/admin/attendance', icon: CalendarCheck },
     { label: 'Payments', path: '/admin/payments', icon: Receipt },
+    {
+      label: 'Finance',
+      path: '/admin/finance',
+      icon: Wallet,
+      children: financeSubItems,
+    },
     { label: 'Announcements', path: '/admin/notifications', icon: Megaphone },
     { label: 'Settings', path: '/admin/settings', icon: Settings },
   ];
@@ -71,9 +102,15 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
     setMobileMenuOpen(false);
   }, []);
 
-  const isNavItemActive = (item) =>
-    currentPath === item.path ||
-    (item.path !== '/admin/dashboard' && currentPath.startsWith(item.path));
+  const isNavItemActive = (item) => {
+    if (item.children) {
+      return currentPath.startsWith(item.path);
+    }
+    return (
+      currentPath === item.path ||
+      (item.path !== '/admin/dashboard' && currentPath.startsWith(`${item.path}/`))
+    );
+  };
 
   const handleNav = (path) => {
     setMobileMenuOpen(false);
@@ -95,6 +132,9 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
   };
 
   const getPageTitle = () => {
+    const subMatch = financeSubItems.find((s) => currentPath === s.path);
+    if (subMatch) return `Finance / ${subMatch.label}`;
+    if (currentPath === '/admin/finance') return 'Finance / Summary';
     const item = navItems.find((n) => currentPath === n.path || (n.path !== '/admin/dashboard' && currentPath.startsWith(n.path)));
     return item ? item.label : 'Admin Console';
   };
@@ -135,9 +175,57 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
           <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1 custom-scrollbar">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive =
-                currentPath === item.path ||
-                (item.path !== '/admin/dashboard' && currentPath.startsWith(item.path));
+              const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+              const isActive = isNavItemActive(item);
+
+              if (hasChildren) {
+                return (
+                  <div key={item.path} className="space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => setFinanceOpen((prev) => !prev)}
+                      aria-expanded={financeOpen}
+                      className={`w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                        isActive
+                          ? 'bg-[#EB3E2E]/15 text-[#EB3E2E] border border-[#EB3E2E]/35 font-bold'
+                          : 'text-[#B8B8B8] hover:text-[#F5F5F5] hover:bg-[#181818]'
+                      }`}
+                    >
+                      <span className="flex items-center gap-3 min-w-0">
+                        <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#EB3E2E]' : 'text-[#858585]'}`} />
+                        <span className="truncate">{item.label}</span>
+                      </span>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${financeOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {financeOpen && (
+                      <div className="pl-3 space-y-0.5 border-l border-[#303030] ml-4">
+                        {item.children.map((sub) => {
+                          const SubIcon = sub.icon;
+                          const subActive =
+                            currentPath === sub.path ||
+                            (sub.path === '/admin/finance/summary' && currentPath === '/admin/finance');
+                          return (
+                            <button
+                              key={sub.path}
+                              type="button"
+                              onClick={() => handleNav(sub.path)}
+                              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer ${
+                                subActive
+                                  ? 'bg-[#EB3E2E] text-white font-bold shadow-sm'
+                                  : 'text-[#B8B8B8] hover:text-[#F5F5F5] hover:bg-[#181818]'
+                              }`}
+                            >
+                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${subActive ? 'text-white' : 'text-[#858585]'}`} />
+                              <span className="truncate">{sub.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
 
               return (
                 <button

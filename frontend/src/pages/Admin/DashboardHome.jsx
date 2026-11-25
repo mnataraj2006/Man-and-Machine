@@ -447,7 +447,10 @@ export default function DashboardHome({ onNavigate }) {
         </div>
 
         {/* 6. Monthly Revenue */}
-        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
+        <div
+          onClick={() => onNavigate && onNavigate('/admin/finance/collections/monthly')}
+          className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/60 transition-all cursor-pointer"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-mono uppercase text-[#B8B8B8]">MONTHLY REVENUE</span>
             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
@@ -462,15 +465,18 @@ export default function DashboardHome({ onNavigate }) {
               ₹{(data?.kpis?.monthlyRevenue ?? 0).toLocaleString()}
             </span>
             <span className="text-[11px] text-[#B8B8B8] mt-0.5">
-              Prev month: ₹{(data?.kpis?.prevMonthlyRevenue ?? 0).toLocaleString()}
+              Prev month: ₹{(data?.kpis?.prevMonthlyRevenue ?? 0).toLocaleString()} &rarr;
             </span>
           </div>
         </div>
 
-        {/* 7. Pending Payments */}
-        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
+        {/* 7. Pending Balance (Invoices) */}
+        <div
+          onClick={() => onNavigate && onNavigate('/admin/finance/summary')}
+          className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/60 transition-all cursor-pointer"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#B8B8B8]">PENDING PAYMENTS</span>
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">PENDING BALANCE</span>
             <div className="w-8 h-8 rounded-lg bg-[#EB3E2E]/10 border border-[#EB3E2E]/30 flex items-center justify-center text-[#EB3E2E]">
               <Clock className="w-4 h-4" />
             </div>
@@ -480,15 +486,63 @@ export default function DashboardHome({ onNavigate }) {
               className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
               style={{ fontFamily: "'Oswald', sans-serif" }}
             >
-              {data?.kpis?.pendingPayments ?? 0}
+              ₹{(data?.kpis?.pendingPaymentsTotal ?? 0).toLocaleString()}
             </span>
             <span className="text-[11px] text-[#EB3E2E] mt-0.5">
-              Outstanding: ₹{(data?.kpis?.pendingPaymentsTotal ?? 0).toLocaleString()}
+              {data?.kpis?.pendingPayments ?? 0} outstanding invoices &rarr;
             </span>
           </div>
         </div>
 
-        {/* 8. Active Membership Plans */}
+        {/* 8. Monthly Expenses */}
+        <div
+          onClick={() => onNavigate && onNavigate('/admin/finance/expenses')}
+          className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/60 transition-all cursor-pointer"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">EXPENSES (MONTH)</span>
+            <div className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex flex-col">
+            <span
+              className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
+              style={{ fontFamily: "'Oswald', sans-serif" }}
+            >
+              ₹{(data?.kpis?.monthlyExpenses ?? 0).toLocaleString()}
+            </span>
+            <span className="text-[11px] text-[#B8B8B8] mt-0.5">
+              View expense ledger &rarr;
+            </span>
+          </div>
+        </div>
+
+        {/* 9. Net Revenue (Month) */}
+        <div
+          onClick={() => onNavigate && onNavigate('/admin/finance/summary')}
+          className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/60 transition-all cursor-pointer"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">NET REVENUE (MONTH)</span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex flex-col">
+            <span
+              className="text-2xl sm:text-3xl font-bold text-emerald-400"
+              style={{ fontFamily: "'Oswald', sans-serif" }}
+            >
+              ₹{(data?.kpis?.netRevenue ?? 0).toLocaleString()}
+            </span>
+            <span className="text-[11px] text-[#B8B8B8] mt-0.5">
+              Finance Summary &rarr;
+            </span>
+          </div>
+        </div>
+
+        {/* 10. Active Membership Plans */}
         <div
           onClick={() => onNavigate && onNavigate('/admin/membership-plans')}
           className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/60 transition-all cursor-pointer"

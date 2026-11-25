@@ -16,6 +16,7 @@ const TrainerBooking = require('../models/TrainerBooking');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const { resolveClientTrainer } = require('../utils/trainerAssignment');
+const financeService = require('../services/financeService');
 
 /**
  * Helper to calculate days remaining from an expiry date
@@ -1039,6 +1040,23 @@ const purchaseMembership = async (req, res, next) => {
 
     clientProfile.membershipId = membership._id.toString();
 
+    await financeService.createInvoiceAndOptionalPayment({
+      clientId: userId,
+      branchId,
+      membershipId: membership._id,
+      category: 'MEMBERSHIP_PURCHASE',
+      description: payment.description,
+      subtotal: basePrice,
+      joiningFee,
+      discount: Math.max(0, basePrice + joiningFee - planPayable),
+      additionalCharges: trainerPrice,
+      totalAmount: grandTotal,
+      paymentMethod: payment.paymentMethod,
+      invoiceDate: now,
+      createdBy: userId,
+      existingPayment: payment,
+    });
+
     // 3. Handle Trainer Track if selected
     if (trainingPreference === 'PERSONAL_TRAINER') {
       const bookingRef = `MM-TB-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`;
@@ -1766,6 +1784,25 @@ const bookTrainerSession = async (req, res, next) => {
       paymentId,
       notes: notes.trim(),
     });
+
+    if (paymentId) {
+      const bookingPayment = await Payment.findById(paymentId);
+      if (bookingPayment) {
+        await financeService.createInvoiceAndOptionalPayment({
+          clientId,
+          branchId,
+          trainerBookingId: booking._id,
+          category: 'PERSONAL_TRAINING',
+          description: bookingPayment.description,
+          subtotal: amount,
+          totalAmount: amount,
+          paymentMethod: bookingPayment.paymentMethod,
+          invoiceDate: bookingPayment.date || new Date(),
+          createdBy: clientId,
+          existingPayment: bookingPayment,
+        });
+      }
+    }
 
     res.status(201).json({
       success: true,

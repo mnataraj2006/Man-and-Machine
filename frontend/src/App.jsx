@@ -44,6 +44,13 @@ import AdminAttendance from './pages/Admin/Attendance.jsx';
 import AdminPayments from './pages/Admin/Payments.jsx';
 import AdminNotifications from './pages/Admin/Notifications.jsx';
 import AdminSettings from './pages/Admin/Settings.jsx';
+import AdminFinanceSummary from './pages/Admin/Finance/FinanceSummary.jsx';
+import AdminAllInvoices from './pages/Admin/Finance/AllInvoices.jsx';
+import AdminTodayInvoices from './pages/Admin/Finance/TodayInvoices.jsx';
+import AdminDailyCollections from './pages/Admin/Finance/DailyCollections.jsx';
+import AdminMonthlyCollections from './pages/Admin/Finance/MonthlyCollections.jsx';
+import AdminExpenses from './pages/Admin/Finance/Expenses.jsx';
+import AdminFinanceConfig from './pages/Admin/Finance/FinanceConfigPage.jsx';
 
 // Trainer Application Suite
 import TrainerLayout from './components/Trainer/TrainerLayout.jsx';
@@ -215,6 +222,20 @@ export default function App() {
       adminContent = <AdminAttendance onNavigate={navigate} />;
     } else if (currentPath === '/admin/payments') {
       adminContent = <AdminPayments onNavigate={navigate} />;
+    } else if (currentPath === '/admin/finance' || currentPath === '/admin/finance/summary') {
+      adminContent = <AdminFinanceSummary onNavigate={navigate} />;
+    } else if (currentPath === '/admin/finance/invoices/today') {
+      adminContent = <AdminTodayInvoices onNavigate={navigate} />;
+    } else if (currentPath === '/admin/finance/invoices') {
+      adminContent = <AdminAllInvoices onNavigate={navigate} />;
+    } else if (currentPath === '/admin/finance/collections/daily') {
+      adminContent = <AdminDailyCollections onNavigate={navigate} />;
+    } else if (currentPath === '/admin/finance/collections/monthly') {
+      adminContent = <AdminMonthlyCollections onNavigate={navigate} />;
+    } else if (currentPath === '/admin/finance/expenses') {
+      adminContent = <AdminExpenses onNavigate={navigate} />;
+    } else if (currentPath === '/admin/finance/config') {
+      adminContent = <AdminFinanceConfig onNavigate={navigate} />;
     } else if (currentPath === '/admin/notifications') {
       adminContent = <AdminNotifications onNavigate={navigate} />;
     } else if (currentPath === '/admin/settings') {

@@ -2,10 +2,14 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/authMiddleware');
 const adminController = require('../controllers/adminController');
+const financeRoutes = require('./financeRoutes');
 
 // All admin routes require valid token and ADMIN role
 router.use(protect);
 router.use(authorize('ADMIN'));
+
+// Finance Module Routes (/api/admin/finance/*)
+router.use('/finance', financeRoutes);
 
 // 1. Dashboard & KPIs
 router.get('/dashboard', adminController.getDashboardOverview);
