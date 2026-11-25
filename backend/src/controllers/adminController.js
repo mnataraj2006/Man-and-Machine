@@ -1366,6 +1366,41 @@ const updateTrainerStatus = async (req, res, next) => {
   }
 };
 
+const deleteTrainer = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid trainer ID.' });
+    }
+
+    const user = await User.findOne({ _id: id, role: 'TRAINER' });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Trainer not found.' });
+    }
+
+    await Promise.all([
+      ClientProfile.updateMany(
+        { trainerId: id },
+        { $set: { trainerId: null, trainingPreference: 'SELF_TRAINED' } }
+      ),
+      Membership.updateMany({ trainerId: id }, { $set: { trainerId: null } }),
+      TrainerProfile.deleteMany({ userId: id }),
+      TrainingAppointment.deleteMany({ trainerId: id, status: 'SCHEDULED' }),
+      TrainerBooking.deleteMany({ trainerId: id, bookingStatus: 'PENDING_PAYMENT' }),
+      Notification.deleteMany({ userId: id }),
+    ]);
+
+    await User.deleteOne({ _id: id, role: 'TRAINER' });
+
+    res.status(200).json({
+      success: true,
+      message: 'Trainer account deleted permanently.',
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const resendTrainerInvitation = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -3017,6 +3052,7 @@ module.exports = {
   createTrainer,
   updateTrainer,
   updateTrainerStatus,
+  deleteTrainer,
   resendTrainerInvitation,
   resetTrainerPassword,
   getTrainerBookings,

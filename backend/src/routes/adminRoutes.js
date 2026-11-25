@@ -35,6 +35,7 @@ router.put('/trainers/:id', adminController.updateTrainer);
 router.patch('/trainers/:id/status', adminController.updateTrainerStatus);
 router.post('/trainers/:id/resend-invitation', adminController.resendTrainerInvitation);
 router.post('/trainers/:id/reset-password', adminController.resetTrainerPassword);
+router.delete('/trainers/:id', adminController.deleteTrainer);
 router.get('/trainer-bookings', adminController.getTrainerBookings);
 router.post('/trainer-bookings/:id/confirm-payment', adminController.confirmTrainerBookingPayment);
 

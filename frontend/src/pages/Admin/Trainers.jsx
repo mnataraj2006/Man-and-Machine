@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Clock,
   X,
+  Trash2,
 } from 'lucide-react';
 import adminService from '../../services/adminService.js';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
@@ -270,6 +271,28 @@ export default function Trainers() {
       });
     } catch (err) {
       alert(err.message || 'Failed to initiate password reset');
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
+  const handleDeleteTrainer = async (t) => {
+    if (
+      !window.confirm(
+        `Permanently delete trainer "${t.name}"? Any assigned clients will be unassigned and this action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    try {
+      setActionBusyId(t.id);
+      await adminService.deleteTrainer(t.id);
+      if (selectedTrainerDetails?.trainer?.id === t.id) {
+        setSelectedTrainerDetails(null);
+      }
+      await fetchTrainers();
+    } catch (err) {
+      alert(err.message || 'Failed to delete trainer');
     } finally {
       setActionBusyId(null);
     }
@@ -592,6 +615,17 @@ export default function Trainers() {
                                   )}
                                 </>
                               )}
+
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => handleDeleteTrainer(t)}
+                                className="p-2 rounded-lg bg-[#202020] hover:bg-[#EB3E2E]/25 text-[#B8B8B8] hover:text-[#FF493B] border border-transparent hover:border-[#EB3E2E]/40 cursor-pointer disabled:opacity-50"
+                                title="Delete Trainer"
+                                aria-label={`Delete ${t.name}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -704,6 +738,17 @@ export default function Trainers() {
                           )}
                         </>
                       )}
+
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => handleDeleteTrainer(t)}
+                        className="py-2 px-3 rounded-lg bg-[#EB3E2E]/10 hover:bg-[#EB3E2E]/25 border border-[#EB3E2E]/30 text-[#FF493B] text-xs font-bold uppercase inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        aria-label={`Delete ${t.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
+                      </button>
                     </div>
                   </div>
                 );

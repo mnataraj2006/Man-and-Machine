@@ -166,6 +166,12 @@ class AdminService {
     });
   }
 
+  async deleteTrainer(id) {
+    return this.request(`/trainers/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getTrainerBookings(params = {}) {
     const query = new URLSearchParams(params).toString();
     return this.request(`/trainer-bookings${query ? `?${query}` : ''}`);
