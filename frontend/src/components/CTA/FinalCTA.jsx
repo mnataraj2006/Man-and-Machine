@@ -1,53 +1,79 @@
 import React from 'react';
+import authService from '../../services/auth.js';
+import { Reveal } from '../Motion/ScrollMotion.jsx';
 
 export default function FinalCTA({ onOpenJoinModal, onNavigate }) {
+  const handleJoinClick = (e) => {
+    e.preventDefault();
+    if (authService.isAuthenticated()) {
+      const route = authService.getDashboardRoute(authService.getRole());
+      if (onNavigate) onNavigate(route);
+      return;
+    }
+    if (onNavigate) {
+      onNavigate('/signup');
+    } else if (onOpenJoinModal) {
+      onOpenJoinModal();
+    } else {
+      window.history.pushState({}, '', '/signup');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+  };
+
   return (
-    <section className="w-full py-16 sm:py-20 bg-[#060614] border-t border-[#292936]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 sm:gap-8">
-          <div className="flex flex-col gap-2">
-            <span 
-              className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E58A32] font-bold"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              MAN &amp; MACHINE / TAMIL NADU
-            </span>
-            <h2 
-              className="uppercase text-[#F5F5F5] font-bold tracking-tight"
-              style={{
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: 'clamp(1.75rem, 4vw, 2.5rem)',
-                lineHeight: '1.1',
-              }}
-            >
-              SHOW UP. GET STRONGER.
-            </h2>
-            <p className="text-sm sm:text-base text-[#B8B8C7]">
-              Your strongest version is built one session at a time.
-            </p>
-          </div>
-          <div className="w-full md:w-auto">
-            <a
-              href="/login"
-              onClick={(e) => {
-                e.preventDefault();
-                if (onNavigate) {
-                  onNavigate('/login');
-                } else {
-                  window.history.pushState({}, '', '/login');
-                  window.dispatchEvent(new PopStateEvent('popstate'));
-                }
-              }}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#E58A32] hover:bg-[#F09A43] text-white font-bold text-xs uppercase tracking-wider px-8 py-4 rounded-xl shadow-[0_0_24px_rgba(229,138,50,0.35)] active:scale-95 transition-all group cursor-pointer min-h-[48px]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              <span>START YOUR JOURNEY</span>
-              <span className="material-symbols-outlined text-[18px] group-hover:translate-x-1.5 transition-transform">
-                arrow_forward
-              </span>
-            </a>
-          </div>
-        </div>
+    <section
+      id="contact"
+      className="relative w-full bg-[#EB3E2E] overflow-hidden scroll-mt-20"
+    >
+      {/* Dramatic Full-Width Background Image with Subtle Ambient Movement */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
+        <img
+          src="/images/hero/Man & Machine_ Train Hard, Stay Strong.png"
+          alt="Train inside Man & Machine"
+          loading="lazy"
+          className="animate-ambient-drift w-full h-full object-cover object-center opacity-25 mix-blend-multiply"
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(120deg, rgba(235,62,46,0.92) 0%, rgba(190,42,30,0.82) 55%, rgba(11,11,11,0.55) 100%)',
+          }}
+        />
+      </div>
+
+      {/* Editorial Content Container */}
+      <div className="relative z-10 w-full max-w-[1440px] mx-auto px-6 md:px-14 py-20 sm:py-24 lg:py-[100px] flex flex-col items-start gap-8">
+        <Reveal delay={0}>
+          <p className="font-editorial-label text-[#F5F5F5]">
+            YOUR FIRST STEP STARTS HERE.
+          </p>
+        </Reveal>
+
+        <Reveal variant="mask" delay={90} className="max-w-[850px]">
+          <h2
+            className="font-editorial-display font-semibold uppercase text-[#F5F5F5]"
+            style={{ fontSize: 'clamp(2.85rem, 6vw, 5rem)', lineHeight: '1.06' }}
+          >
+            READY TO BECOME STRONGER?
+          </h2>
+        </Reveal>
+
+        <Reveal delay={160}>
+          <p className="font-editorial-body text-[#F5F5F5]/90 text-[16px]">
+            Your first step starts here.
+          </p>
+        </Reveal>
+
+        <Reveal delay={220}>
+          <a
+            href="/signup"
+            onClick={handleJoinClick}
+            className="inline-flex items-center justify-center gap-3 px-[26px] py-[20px] bg-[#090909] hover:bg-[#181818] text-[#F5F5F5] font-editorial-label transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-[1.015] hover:-translate-y-0.5 cursor-pointer"
+          >
+            <span>JOIN MAN &amp; MACHINE</span>
+          </a>
+        </Reveal>
       </div>
     </section>
   );

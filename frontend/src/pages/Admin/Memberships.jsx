@@ -222,11 +222,11 @@ export default function Memberships({ onNavigate }) {
         <div>
           <h2
             className="text-xl sm:text-2xl font-bold uppercase tracking-tight text-[#F5F5F5]"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            style={{ fontFamily: "'Oswald', sans-serif" }}
           >
             MEMBERSHIP PLANS &amp; SUBSCRIBERS
           </h2>
-          <p className="text-xs text-[#A3A3A3]">
+          <p className="text-xs text-[#B8B8B8]">
             Manage subscription plans, athlete memberships, validity periods, and renewals.
           </p>
         </div>
@@ -236,8 +236,7 @@ export default function Memberships({ onNavigate }) {
             <button
               type="button"
               onClick={openAssignModal}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black transition-all cursor-pointer shadow-lg shadow-[#E58A32]/10"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white transition-all cursor-pointer shadow-lg shadow-[#EB3E2E]/10"
             >
               <Plus className="w-4 h-4" />
               <span>Assign Membership</span>
@@ -246,8 +245,7 @@ export default function Memberships({ onNavigate }) {
             <button
               type="button"
               onClick={() => onNavigate ? onNavigate('/admin/membership-plans') : (window.location.href = '/admin/membership-plans')}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black transition-all cursor-pointer shadow-lg shadow-[#E58A32]/10"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white transition-all cursor-pointer shadow-lg shadow-[#EB3E2E]/10"
             >
               <ClipboardList className="w-4 h-4" />
               <span>Manage Plans in Catalog</span>
@@ -257,16 +255,15 @@ export default function Memberships({ onNavigate }) {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-3 border-b border-[#292929] pb-2">
+      <div className="flex items-center gap-3 border-b border-[#303030] pb-2">
         <button
           type="button"
           onClick={() => setActiveTab('CLIENT_MEMBERSHIPS')}
           className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
             activeTab === 'CLIENT_MEMBERSHIPS'
-              ? 'bg-[#E58A32] text-black font-bold'
-              : 'bg-[#181818] text-[#A3A3A3] hover:text-[#F5F5F5] border border-[#292929]'
+              ? 'bg-[#EB3E2E] text-white font-bold'
+              : 'bg-[#181818] text-[#B8B8B8] hover:text-[#F5F5F5] border border-[#303030]'
           }`}
-          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
         >
           Active Subscriptions &amp; Expirations
         </button>
@@ -276,10 +273,9 @@ export default function Memberships({ onNavigate }) {
           onClick={() => setActiveTab('PLANS')}
           className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
             activeTab === 'PLANS'
-              ? 'bg-[#E58A32] text-black font-bold'
-              : 'bg-[#181818] text-[#A3A3A3] hover:text-[#F5F5F5] border border-[#292929]'
+              ? 'bg-[#EB3E2E] text-white font-bold'
+              : 'bg-[#181818] text-[#B8B8B8] hover:text-[#F5F5F5] border border-[#303030]'
           }`}
-          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
         >
           Membership Plans Catalog
         </button>
@@ -289,12 +285,12 @@ export default function Memberships({ onNavigate }) {
       {activeTab === 'CLIENT_MEMBERSHIPS' && (
         <div className="space-y-4">
           {/* Filters Bar */}
-          <div className="bg-[#141414] border border-[#292929] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="bg-[#111111] border border-[#303030] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <select
                 value={branchFilter}
                 onChange={(e) => setBranchFilter(e.target.value)}
-                className="px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:outline-none cursor-pointer"
+                className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:outline-none cursor-pointer"
               >
                 <option value="ALL">All Branches</option>
                 {branches.map((b) => (
@@ -307,7 +303,7 @@ export default function Memberships({ onNavigate }) {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:outline-none cursor-pointer"
+                className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:outline-none cursor-pointer"
               >
                 <option value="ALL">All Statuses</option>
                 <option value="ACTIVE">ACTIVE</option>
@@ -319,7 +315,7 @@ export default function Memberships({ onNavigate }) {
               <select
                 value={expiryFilter}
                 onChange={(e) => setExpiryFilter(e.target.value)}
-                className="px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:outline-none cursor-pointer"
+                className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:outline-none cursor-pointer"
               >
                 <option value="ALL">All Expiry Dates</option>
                 <option value="7">⚠️ Expiring within 7 Days</option>
@@ -327,17 +323,17 @@ export default function Memberships({ onNavigate }) {
               </select>
             </div>
 
-            <span className="text-xs font-mono text-[#A3A3A3]">
+            <span className="text-xs font-mono text-[#B8B8B8]">
               Found {memberships.length} records
             </span>
           </div>
 
           {/* Memberships Table */}
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl overflow-hidden shadow-xl">
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-[#292929] bg-[#141414] text-[11px] font-mono uppercase tracking-wider text-[#A3A3A3]">
+                  <tr className="border-b border-[#303030] bg-[#111111] text-[11px] font-mono uppercase tracking-wider text-[#B8B8B8]">
                     <th className="py-3 px-4 font-semibold">Athlete</th>
                     <th className="py-3 px-4 font-semibold">Branch</th>
                     <th className="py-3 px-4 font-semibold">Plan Name</th>
@@ -347,16 +343,16 @@ export default function Memberships({ onNavigate }) {
                     <th className="py-3 px-4 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#222222] text-xs">
+                <tbody className="divide-y divide-[#202020] text-xs">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-[#A3A3A3]">
+                      <td colSpan={7} className="py-12 text-center text-[#B8B8B8]">
                         Loading memberships...
                       </td>
                     </tr>
                   ) : memberships.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-[#A3A3A3]">
+                      <td colSpan={7} className="py-12 text-center text-[#B8B8B8]">
                         No client memberships match the specified filter.
                       </td>
                     </tr>
@@ -368,14 +364,14 @@ export default function Memberships({ onNavigate }) {
                       const daysLeft = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
 
                       return (
-                        <tr key={m._id} className="hover:bg-[#1E1E1E] transition-colors">
+                        <tr key={m._id} className="hover:bg-[#202020] transition-colors">
                           <td className="py-3 px-4 font-bold text-[#F5F5F5]">
                             {m.userId?.name || 'Athlete'}
-                            <span className="block text-[10px] text-[#A3A3A3] font-mono font-normal">
+                            <span className="block text-[10px] text-[#B8B8B8] font-mono font-normal">
                               {m.userId?.phone}
                             </span>
                           </td>
-                          <td className="py-3 px-4 font-mono text-[#E58A32]">
+                          <td className="py-3 px-4 font-mono text-[#EB3E2E]">
                             {m.branchId?.city || 'HQ'}
                           </td>
                           <td className="py-3 px-4 font-medium text-[#F5F5F5]">{m.planName}</td>
@@ -386,11 +382,11 @@ export default function Memberships({ onNavigate }) {
                                 {expiry.toLocaleDateString()}
                               </span>
                             </div>
-                            <span className="text-[10px] text-[#A3A3A3]">
+                            <span className="text-[10px] text-[#B8B8B8]">
                               {isExpired ? 'Expired' : `${daysLeft} days remaining`}
                             </span>
                           </td>
-                          <td className="py-3 px-4 font-bold text-[#E58A32]">₹{m.amount}</td>
+                          <td className="py-3 px-4 font-bold text-[#EB3E2E]">₹{m.amount}</td>
                           <td className="py-3 px-4">
                             <span
                               className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
@@ -409,14 +405,14 @@ export default function Memberships({ onNavigate }) {
                               <button
                                 type="button"
                                 onClick={() => setActionModal({ membership: m, action: 'RENEW' })}
-                                className="px-2 py-1 rounded bg-[#252525] hover:bg-[#E58A32] hover:text-black text-[#F5F5F5] font-semibold text-[10px] transition-colors cursor-pointer"
+                                className="px-2 py-1 rounded bg-[#252525] hover:bg-[#EB3E2E] hover:text-white text-[#F5F5F5] font-semibold text-[10px] transition-colors cursor-pointer"
                               >
                                 Renew
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setActionModal({ membership: m, action: 'EXTEND' })}
-                                className="px-2 py-1 rounded bg-[#252525] hover:bg-[#2F2F2F] text-[#A3A3A3] hover:text-white text-[10px] transition-colors cursor-pointer"
+                                className="px-2 py-1 rounded bg-[#252525] hover:bg-[#2F2F2F] text-[#B8B8B8] hover:text-white text-[10px] transition-colors cursor-pointer"
                               >
                                 Extend
                               </button>
@@ -424,7 +420,7 @@ export default function Memberships({ onNavigate }) {
                                 <button
                                   type="button"
                                   onClick={() => setActionModal({ membership: m, action: 'PAUSE' })}
-                                  className="p-1 rounded bg-[#252525] hover:bg-amber-500/20 text-[#A3A3A3] hover:text-amber-400 cursor-pointer"
+                                  className="p-1 rounded bg-[#252525] hover:bg-amber-500/20 text-[#B8B8B8] hover:text-amber-400 cursor-pointer"
                                   title="Pause Membership"
                                 >
                                   <Pause className="w-3 h-3" />
@@ -458,11 +454,11 @@ export default function Memberships({ onNavigate }) {
           {plans.map((p) => (
             <div
               key={p._id}
-              className="bg-[#181818] border border-[#292929] hover:border-[#E58A32]/40 rounded-2xl p-5 flex flex-col justify-between transition-all"
+              className="bg-[#181818] border border-[#303030] hover:border-[#EB3E2E]/40 rounded-2xl p-5 flex flex-col justify-between transition-all"
             >
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#252525] text-[#E58A32] font-bold">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#252525] text-[#EB3E2E] font-bold">
                     {p.code || 'PASS'}
                   </span>
                   <span className="text-[10px] font-mono font-bold text-green-400">
@@ -472,29 +468,29 @@ export default function Memberships({ onNavigate }) {
 
                 <h3
                   className="text-base font-bold uppercase text-[#F5F5F5] mb-1"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  style={{ fontFamily: "'Oswald', sans-serif" }}
                 >
                   {p.name}
                 </h3>
-                <p className="text-xs text-[#A3A3A3] mb-3">{p.description}</p>
+                <p className="text-xs text-[#B8B8B8] mb-3">{p.description}</p>
 
-                <div className="text-2xl font-bold text-[#E58A32] mb-4">
+                <div className="text-2xl font-bold text-[#EB3E2E] mb-4">
                   ₹{p.price.toLocaleString()}
                 </div>
 
                 {/* Benefits */}
-                <div className="space-y-1.5 border-t border-[#292929] pt-3 text-xs text-[#F5F5F5]">
-                  <span className="text-[10px] font-mono text-[#A3A3A3] uppercase block">INCLUDED BENEFITS:</span>
+                <div className="space-y-1.5 border-t border-[#303030] pt-3 text-xs text-[#F5F5F5]">
+                  <span className="text-[10px] font-mono text-[#B8B8B8] uppercase block">INCLUDED BENEFITS:</span>
                   {p.features?.map((f, i) => (
-                    <div key={i} className="flex items-center gap-1.5 text-[11px] text-[#A3A3A3]">
-                      <CheckCircle2 className="w-3 h-3 text-[#E58A32] shrink-0" />
+                    <div key={i} className="flex items-center gap-1.5 text-[11px] text-[#B8B8B8]">
+                      <CheckCircle2 className="w-3 h-3 text-[#EB3E2E] shrink-0" />
                       <span>{f}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-[#222222] flex justify-between items-center text-[11px] text-[#A3A3A3]">
+              <div className="mt-4 pt-3 border-t border-[#202020] flex justify-between items-center text-[11px] text-[#B8B8B8]">
                 <span>Status: {p.isActive ? 'Active Plan' : 'Inactive'}</span>
               </div>
             </div>
@@ -505,20 +501,20 @@ export default function Memberships({ onNavigate }) {
       {/* ── ASSIGN MEMBERSHIP MODAL ── */}
       {isAssignModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
             <h3
               className="text-lg font-bold uppercase tracking-tight text-[#F5F5F5] mb-1"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               Assign Client Membership
             </h3>
-            <p className="text-xs text-[#A3A3A3] mb-4">
+            <p className="text-xs text-[#B8B8B8] mb-4">
               Select client, target branch, and a valid membership plan. Multi-branch pricing and fee breakdown calculate live.
             </p>
 
             <form onSubmit={handleAssignMembership} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Select Athlete *</label>
+                <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Select Athlete *</label>
                 <select
                   required
                   value={assignForm.userId}
@@ -527,7 +523,7 @@ export default function Memberships({ onNavigate }) {
                     const calculated = recalculateAssignPricing(newUserId, assignForm.branchId, assignForm.planId, plans);
                     setAssignForm((prev) => ({ ...prev, ...calculated }));
                   }}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#E58A32]"
+                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#EB3E2E]"
                 >
                   <option value="">-- Choose Athlete --</option>
                   {allClientsList.map((c) => (
@@ -540,7 +536,7 @@ export default function Memberships({ onNavigate }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Target Branch *</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Target Branch *</label>
                   <select
                     value={assignForm.branchId}
                     onChange={(e) => {
@@ -548,7 +544,7 @@ export default function Memberships({ onNavigate }) {
                       const calculated = recalculateAssignPricing(assignForm.userId, newBranchId, assignForm.planId, plans);
                       setAssignForm((prev) => ({ ...prev, ...calculated }));
                     }}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#E58A32]"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#EB3E2E]"
                   >
                     {branches.map((b) => (
                       <option key={b._id} value={b._id}>
@@ -559,7 +555,7 @@ export default function Memberships({ onNavigate }) {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Membership Plan *</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Membership Plan *</label>
                   <select
                     value={assignForm.planId}
                     onChange={(e) => {
@@ -567,7 +563,7 @@ export default function Memberships({ onNavigate }) {
                       const calculated = recalculateAssignPricing(assignForm.userId, assignForm.branchId, newPlanId, plans);
                       setAssignForm((prev) => ({ ...prev, ...calculated }));
                     }}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#E58A32]"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#EB3E2E]"
                   >
                     {plans.map((p) => (
                       <option key={p._id} value={p._id}>
@@ -579,9 +575,9 @@ export default function Memberships({ onNavigate }) {
               </div>
 
               {/* Branch Pricing Breakdown Card */}
-              <div className="p-3.5 rounded-xl bg-[#121212] border border-[#292929] space-y-2">
+              <div className="p-3.5 rounded-xl bg-[#111111] border border-[#303030] space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-[10px] font-mono text-[#A3A3A3] uppercase">Branch Price Breakdown</span>
+                  <span className="text-[10px] font-mono text-[#B8B8B8] uppercase">Branch Price Breakdown</span>
                   {!assignForm.isAvailable ? (
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-red-500/10 border border-red-500/30 text-red-400">
                       NOT AVAILABLE AT THIS BRANCH
@@ -595,22 +591,22 @@ export default function Memberships({ onNavigate }) {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                   <div className="p-2 rounded-lg bg-[#181818] border border-[#262626]">
-                    <span className="text-[9px] font-mono text-[#A3A3A3] block uppercase">Base Price</span>
+                    <span className="text-[9px] font-mono text-[#B8B8B8] block uppercase">Base Price</span>
                     <span className="text-xs font-bold text-[#F5F5F5]">₹{assignForm.basePrice.toLocaleString()}</span>
                   </div>
                   <div className="p-2 rounded-lg bg-[#181818] border border-[#262626]">
-                    <span className="text-[9px] font-mono text-[#A3A3A3] block uppercase">Joining Fee</span>
+                    <span className="text-[9px] font-mono text-[#B8B8B8] block uppercase">Joining Fee</span>
                     <span className="text-xs font-bold text-[#F5F5F5]">₹{assignForm.joiningFee.toLocaleString()}</span>
                   </div>
                   <div className="p-2 rounded-lg bg-[#181818] border border-[#262626]">
-                    <span className="text-[9px] font-mono text-[#A3A3A3] block uppercase">Discount</span>
+                    <span className="text-[9px] font-mono text-[#B8B8B8] block uppercase">Discount</span>
                     <span className="text-xs font-bold text-amber-400">
                       -₹{assignForm.discountAmount.toLocaleString()}
                     </span>
                   </div>
-                  <div className="p-2 rounded-lg bg-[#1E1E1E] border border-[#E58A32]/30">
-                    <span className="text-[9px] font-mono text-[#E58A32] block uppercase">Branch Total</span>
-                    <span className="text-xs font-bold text-[#E58A32]">₹{assignForm.calculatedPrice.toLocaleString()}</span>
+                  <div className="p-2 rounded-lg bg-[#202020] border border-[#EB3E2E]/30">
+                    <span className="text-[9px] font-mono text-[#EB3E2E] block uppercase">Branch Total</span>
+                    <span className="text-xs font-bold text-[#EB3E2E]">₹{assignForm.calculatedPrice.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -626,28 +622,28 @@ export default function Memberships({ onNavigate }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Pass Start Date *</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Pass Start Date *</label>
                   <input
                     type="date"
                     required
                     value={assignForm.startDate}
                     onChange={(e) => setAssignForm({ ...assignForm, startDate: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Confirmed Fee (₹) *</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Confirmed Fee (₹) *</label>
                   <input
                     type="number"
                     required
                     value={assignForm.amount}
                     onChange={(e) => setAssignForm({ ...assignForm, amount: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#E58A32]"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#EB3E2E]"
                   />
                 </div>
               </div>
 
-              <p className="text-[10px] text-[#A3A3A3] italic pt-1">
+              <p className="text-[10px] text-[#B8B8B8] italic pt-1">
                 Notice: Assigning creates an active membership snapshot in the client's file. To log the paid receipt, record an offline transaction under Payments.
               </p>
 
@@ -655,14 +651,14 @@ export default function Memberships({ onNavigate }) {
                 <button
                   type="button"
                   onClick={() => setIsAssignModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] text-[#A3A3A3] hover:text-[#F5F5F5]"
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] text-[#B8B8B8] hover:text-[#F5F5F5]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!assignForm.isAvailable}
-                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Confirm &amp; Assign Pass
                 </button>
@@ -674,10 +670,10 @@ export default function Memberships({ onNavigate }) {
       {/* ── ACTION MODAL (RENEW / EXTEND / PAUSE) ── */}
       {actionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-sm p-6 relative">
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-sm p-6 relative">
             <h3
               className="text-base font-bold uppercase tracking-tight text-[#F5F5F5] mb-2"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               {actionModal.action === 'RENEW'
                 ? 'Renew Athlete Membership'
@@ -687,7 +683,7 @@ export default function Memberships({ onNavigate }) {
                 ? 'Pause Subscription'
                 : 'Membership Action'}
             </h3>
-            <p className="text-xs text-[#A3A3A3] mb-4">
+            <p className="text-xs text-[#B8B8B8] mb-4">
               Athlete: <strong className="text-[#F5F5F5]">{actionModal.membership.userId?.name}</strong> • Current
               plan: {actionModal.membership.planName}
             </p>
@@ -695,13 +691,13 @@ export default function Memberships({ onNavigate }) {
             <form onSubmit={handleMembershipAction} className="space-y-4">
               {(actionModal.action === 'RENEW' || actionModal.action === 'EXTEND') && (
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">
                     Months to Add:
                   </label>
                   <select
                     value={actionExtensionMonths}
                     onChange={(e) => setActionExtensionMonths(Number(e.target.value))}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
                   >
                     <option value={1}>1 Month Extension</option>
                     <option value={3}>3 Months Extension</option>
@@ -715,13 +711,13 @@ export default function Memberships({ onNavigate }) {
                 <button
                   type="button"
                   onClick={() => setActionModal(null)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#222222] text-[#A3A3A3]"
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#202020] text-[#B8B8B8]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#E58A32] text-black"
+                  className="px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] text-white"
                 >
                   Confirm {actionModal.action}
                 </button>

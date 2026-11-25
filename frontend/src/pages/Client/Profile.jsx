@@ -84,8 +84,8 @@ export default function Profile() {
   if (loading) {
     return (
       <div className="flex flex-col gap-6 animate-pulse">
-        <div className="h-10 bg-[#151515] rounded-xl w-64" />
-        <div className="h-96 bg-[#151515] rounded-2xl" />
+        <div className="h-10 bg-[#181818] rounded-xl w-64" />
+        <div className="h-96 bg-[#181818] rounded-2xl" />
       </div>
     );
   }
@@ -96,19 +96,19 @@ export default function Profile() {
     <div className="flex flex-col gap-6 sm:gap-8 max-w-4xl">
       {/* ── HEADER ── */}
       <div className="flex flex-col gap-1.5">
-        <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
+        <span className="text-[10px] font-mono text-[#EB3E2E] uppercase tracking-wider font-bold">
           ACCOUNT IDENTITY
         </span>
         <h1
           className="uppercase font-bold tracking-tight text-[#F5F5F5]"
           style={{
-            fontFamily: "'Space Grotesk', sans-serif",
+            fontFamily: "'Oswald', sans-serif",
             fontSize: 'clamp(1.75rem, 3.2vw, 2.5rem)',
           }}
         >
           ATHLETE PROFILE.
         </h1>
-        <p className="text-xs sm:text-sm text-[#A3A3A3]">
+        <p className="text-xs sm:text-sm text-[#B8B8B8]">
           Manage your personal information, contact credentials, and primary fitness goals.
         </p>
       </div>
@@ -118,8 +118,8 @@ export default function Profile() {
         <div
           className={`p-4 rounded-xl border text-xs flex items-center gap-3 ${
             statusNotice.type === 'success'
-              ? 'bg-[#151515] border-emerald-500/80 text-emerald-400'
-              : 'bg-[#151515] border-red-500/80 text-red-400'
+              ? 'bg-[#181818] border-emerald-500/80 text-emerald-400'
+              : 'bg-[#181818] border-red-500/80 text-red-400'
           }`}
         >
           {statusNotice.type === 'success' ? (
@@ -132,23 +132,23 @@ export default function Profile() {
       )}
 
       {/* ── PROFILE FORM CARD ── */}
-      <div className="p-6 sm:p-8 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col gap-6">
-        <div className="flex items-center gap-4 border-b border-[#292929] pb-6">
-          <div className="w-16 h-16 rounded-2xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-center text-[#E58A32] text-2xl font-bold">
+      <div className="p-6 sm:p-8 rounded-2xl bg-[#181818] border border-[#303030] flex flex-col gap-6">
+        <div className="flex items-center gap-4 border-b border-[#303030] pb-6">
+          <div className="w-16 h-16 rounded-2xl bg-[#202020] border border-[#303030] flex items-center justify-center text-[#EB3E2E] text-2xl font-bold">
             {user?.name ? user.name.charAt(0).toUpperCase() : 'M'}
           </div>
           <div className="flex flex-col">
             <span
               className="text-lg sm:text-xl font-bold uppercase text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               {user?.name}
             </span>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-[#E58A32]/10 text-[#E58A32] border border-[#E58A32]/30">
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-[#EB3E2E]/10 text-[#EB3E2E] border border-[#EB3E2E]/30">
                 ROLE: {user?.role || 'CLIENT'}
               </span>
-              <span className="text-xs text-[#A3A3A3]">{user?.branchId?.city || 'Kovilpatti'} Branch</span>
+              <span className="text-xs text-[#B8B8B8]">{user?.branchId?.city || 'Kovilpatti'} Branch</span>
             </div>
           </div>
         </div>
@@ -157,7 +157,7 @@ export default function Profile() {
           {/* Editable: Full Name & Phone */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold uppercase text-[#F5F5F5]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <label className="text-xs font-bold uppercase text-[#F5F5F5]">
                 FULL NAME
               </label>
               <input
@@ -166,12 +166,12 @@ export default function Profile() {
                 value={formData.name}
                 onChange={handleChange}
                 required
-                className="bg-[#1C1C1C] border border-[#292929] rounded-xl px-4 py-3 text-sm text-[#F5F5F5] focus:outline-none focus:border-[#E58A32]"
+                className="bg-[#202020] border border-[#303030] rounded-xl px-4 py-3 text-sm text-[#F5F5F5] focus:outline-none focus:border-[#EB3E2E]"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold uppercase text-[#F5F5F5]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <label className="text-xs font-bold uppercase text-[#F5F5F5]">
                 MOBILE NUMBER
               </label>
               <input
@@ -180,7 +180,7 @@ export default function Profile() {
                 value={formData.phone}
                 onChange={handleChange}
                 placeholder="+91 XXXXXXXXXX"
-                className="bg-[#1C1C1C] border border-[#292929] rounded-xl px-4 py-3 text-sm text-[#F5F5F5] focus:outline-none focus:border-[#E58A32]"
+                className="bg-[#202020] border border-[#303030] rounded-xl px-4 py-3 text-sm text-[#F5F5F5] focus:outline-none focus:border-[#EB3E2E]"
               />
             </div>
           </div>
@@ -189,31 +189,31 @@ export default function Profile() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold uppercase text-[#A3A3A3]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                <label className="text-xs font-bold uppercase text-[#B8B8B8]">
                   REGISTERED EMAIL
                 </label>
-                <span className="text-[10px] text-[#A3A3A3]/70">Locked to identity</span>
+                <span className="text-[10px] text-[#B8B8B8]/70">Locked to identity</span>
               </div>
               <input
                 type="email"
                 disabled
                 value={user?.email || ''}
-                className="bg-[#1C1C1C]/50 border border-[#292929]/50 rounded-xl px-4 py-3 text-sm text-[#A3A3A3] cursor-not-allowed"
+                className="bg-[#202020]/50 border border-[#303030]/50 rounded-xl px-4 py-3 text-sm text-[#B8B8B8] cursor-not-allowed"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold uppercase text-[#A3A3A3]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                <label className="text-xs font-bold uppercase text-[#B8B8B8]">
                   PRIMARY BRANCH ASSIGNMENT
                 </label>
-                <span className="text-[10px] text-[#A3A3A3]/70">Admin managed</span>
+                <span className="text-[10px] text-[#B8B8B8]/70">Admin managed</span>
               </div>
               <input
                 type="text"
                 disabled
                 value={`${user?.branchId?.city || 'Kovilpatti'} (${user?.branchId?.name || 'HQ'})`}
-                className="bg-[#1C1C1C]/50 border border-[#292929]/50 rounded-xl px-4 py-3 text-sm text-[#A3A3A3] cursor-not-allowed"
+                className="bg-[#202020]/50 border border-[#303030]/50 rounded-xl px-4 py-3 text-sm text-[#B8B8B8] cursor-not-allowed"
               />
             </div>
           </div>
@@ -221,14 +221,14 @@ export default function Profile() {
           {/* Editable Goals & Experience */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold uppercase text-[#F5F5F5]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <label className="text-xs font-bold uppercase text-[#F5F5F5]">
                 PRIMARY FITNESS GOAL
               </label>
               <select
                 name="fitnessGoal"
                 value={formData.fitnessGoal}
                 onChange={handleChange}
-                className="bg-[#1C1C1C] border border-[#292929] rounded-xl px-4 py-3 text-sm text-[#F5F5F5] focus:outline-none focus:border-[#E58A32]"
+                className="bg-[#202020] border border-[#303030] rounded-xl px-4 py-3 text-sm text-[#F5F5F5] focus:outline-none focus:border-[#EB3E2E]"
               >
                 <option value="Muscle Building">Muscle Building / Hypertrophy</option>
                 <option value="Weight Loss">Fat Loss &amp; Lean Toning</option>
@@ -239,14 +239,14 @@ export default function Profile() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold uppercase text-[#F5F5F5]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <label className="text-xs font-bold uppercase text-[#F5F5F5]">
                 EXPERIENCE LEVEL
               </label>
               <select
                 name="experienceLevel"
                 value={formData.experienceLevel}
                 onChange={handleChange}
-                className="bg-[#1C1C1C] border border-[#292929] rounded-xl px-4 py-3 text-sm text-[#F5F5F5] focus:outline-none focus:border-[#E58A32]"
+                className="bg-[#202020] border border-[#303030] rounded-xl px-4 py-3 text-sm text-[#F5F5F5] focus:outline-none focus:border-[#EB3E2E]"
               >
                 <option value="Beginner">Beginner (0 — 6 months)</option>
                 <option value="Intermediate">Intermediate (6 months — 2 years)</option>
@@ -255,12 +255,11 @@ export default function Profile() {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-[#292929] flex justify-end">
+          <div className="pt-4 border-t border-[#303030] flex justify-end">
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-[#E58A32] hover:bg-[#F09A43] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(229,138,50,0.25)] cursor-pointer disabled:opacity-60"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-[#EB3E2E] hover:bg-[#FF493B] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(235,62,46,0.25)] cursor-pointer disabled:opacity-60"
             >
               {isSubmitting ? (
                 <span>SAVING CHANGES...</span>

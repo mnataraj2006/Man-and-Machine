@@ -425,19 +425,19 @@ export default function MembershipPlans() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono uppercase text-[#E58A32] tracking-wider">
+            <span className="text-xs font-mono uppercase text-[#EB3E2E] tracking-wider">
               PRICING &amp; MEMBERSHIP TIERS
             </span>
-            <span className="text-[#292929]">•</span>
-            <span className="text-xs text-[#A3A3A3] font-mono">Branch-Specific Rates</span>
+            <span className="text-[#303030]">•</span>
+            <span className="text-xs text-[#B8B8B8] font-mono">Branch-Specific Rates</span>
           </div>
           <h2
             className="text-xl sm:text-2xl font-bold uppercase tracking-tight text-[#F5F5F5] mt-1"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            style={{ fontFamily: "'Oswald', sans-serif" }}
           >
             MEMBERSHIP PLANS CATALOG
           </h2>
-          <p className="text-xs text-[#A3A3A3] mt-0.5">
+          <p className="text-xs text-[#B8B8B8] mt-0.5">
             Configure flexible gym pass templates with independent branch pricing for Kovilpatti, Karur, and Sivakasi.
           </p>
         </div>
@@ -445,8 +445,7 @@ export default function MembershipPlans() {
         <button
           type="button"
           onClick={handleOpenCreate}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black transition-all cursor-pointer shadow-lg shadow-[#E58A32]/10 shrink-0"
-          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white transition-all cursor-pointer shadow-lg shadow-[#EB3E2E]/10 shrink-0"
         >
           <Plus className="w-4 h-4" />
           <span>+ Create New Plan</span>
@@ -456,28 +455,28 @@ export default function MembershipPlans() {
       {/* ── 4 SUMMARY CARDS ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
         {/* Total Plans */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#A3A3A3]">TOTAL PLANS</span>
-            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">TOTAL PLANS</span>
+            <div className="w-8 h-8 rounded-lg bg-[#202020] border border-[#303030] flex items-center justify-center text-[#F5F5F5]">
               <ClipboardList className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex flex-col">
             <span
               className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               {summary.totalPlans}
             </span>
-            <span className="text-[11px] text-[#A3A3A3] mt-0.5">Configured Templates</span>
+            <span className="text-[11px] text-[#B8B8B8] mt-0.5">Configured Templates</span>
           </div>
         </div>
 
         {/* Active Plans */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#A3A3A3]">ACTIVE PLANS</span>
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">ACTIVE PLANS</span>
             <div className="w-8 h-8 rounded-lg bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-400">
               <CheckCircle2 className="w-4 h-4" />
             </div>
@@ -485,18 +484,18 @@ export default function MembershipPlans() {
           <div className="mt-3 flex flex-col">
             <span
               className="text-2xl sm:text-3xl font-bold text-green-400"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               {summary.activePlans}
             </span>
-            <span className="text-[11px] text-[#A3A3A3] mt-0.5">Available to Clients</span>
+            <span className="text-[11px] text-[#B8B8B8] mt-0.5">Available to Clients</span>
           </div>
         </div>
 
         {/* Inactive Plans */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#A3A3A3]">INACTIVE PLANS</span>
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">INACTIVE PLANS</span>
             <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
               <XCircle className="w-4 h-4" />
             </div>
@@ -504,44 +503,44 @@ export default function MembershipPlans() {
           <div className="mt-3 flex flex-col">
             <span
               className="text-2xl sm:text-3xl font-bold text-amber-400"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               {summary.inactivePlans}
             </span>
-            <span className="text-[11px] text-[#A3A3A3] mt-0.5">Archived / Paused</span>
+            <span className="text-[11px] text-[#B8B8B8] mt-0.5">Archived / Paused</span>
           </div>
         </div>
 
         {/* Branches Covered */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#A3A3A3]">BRANCHES COVERED</span>
-            <div className="w-8 h-8 rounded-lg bg-[#E58A32]/10 border border-[#E58A32]/20 flex items-center justify-center text-[#E58A32]">
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">BRANCHES COVERED</span>
+            <div className="w-8 h-8 rounded-lg bg-[#EB3E2E]/10 border border-[#EB3E2E]/20 flex items-center justify-center text-[#EB3E2E]">
               <Building className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex flex-col">
             <span
               className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               {summary.branchesCovered} / 3
             </span>
-            <span className="text-[11px] text-[#A3A3A3] mt-0.5">Kovilpatti, Karur, Sivakasi</span>
+            <span className="text-[11px] text-[#B8B8B8] mt-0.5">Kovilpatti, Karur, Sivakasi</span>
           </div>
         </div>
       </div>
 
       {/* ── SEARCH & FILTER CONTROLS ── */}
-      <div className="bg-[#141414] border border-[#292929] rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <div className="bg-[#111111] border border-[#303030] rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         <form onSubmit={handleSearchSubmit} className="flex-1 relative">
-          <Search className="w-4 h-4 text-[#A3A3A3] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-4 h-4 text-[#B8B8B8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search plans by name, code or description..."
-            className="w-full pl-9 pr-4 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] placeholder-[#A3A3A3] focus:border-[#E58A32] focus:outline-none"
+            className="w-full pl-9 pr-4 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] placeholder-[#B8B8B8] focus:border-[#EB3E2E] focus:outline-none"
           />
         </form>
 
@@ -553,7 +552,7 @@ export default function MembershipPlans() {
               setBranchFilter(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none cursor-pointer"
+            className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none cursor-pointer"
           >
             <option value="ALL">All Branches</option>
             {branches.map((b) => (
@@ -570,7 +569,7 @@ export default function MembershipPlans() {
               setPlanTypeFilter(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none cursor-pointer"
+            className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none cursor-pointer"
           >
             <option value="ALL">All Plan Types</option>
             <option value="MONTHLY">Monthly</option>
@@ -587,7 +586,7 @@ export default function MembershipPlans() {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none cursor-pointer"
+            className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none cursor-pointer"
           >
             <option value="ALL">All Status</option>
             <option value="ACTIVE">Active Only</option>
@@ -618,11 +617,11 @@ export default function MembershipPlans() {
       )}
 
       {/* ── MEMBERSHIP PLANS TABLE ── */}
-      <div className="bg-[#181818] border border-[#292929] rounded-2xl overflow-hidden shadow-xl">
+      <div className="bg-[#181818] border border-[#303030] rounded-2xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-[#292929] bg-[#141414] text-[11px] font-mono uppercase tracking-wider text-[#A3A3A3]">
+              <tr className="border-b border-[#303030] bg-[#111111] text-[11px] font-mono uppercase tracking-wider text-[#B8B8B8]">
                 <th className="py-3.5 px-4 font-semibold">Plan Name</th>
                 <th className="py-3.5 px-4 font-semibold">Type</th>
                 <th className="py-3.5 px-4 font-semibold">Duration</th>
@@ -634,19 +633,19 @@ export default function MembershipPlans() {
                 <th className="py-3.5 px-4 font-semibold text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#222222] text-xs">
+            <tbody className="divide-y divide-[#202020] text-xs">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-[#A3A3A3]">
+                  <td colSpan={9} className="py-12 text-center text-[#B8B8B8]">
                     <div className="flex items-center justify-center gap-2">
-                      <RefreshCw className="w-4 h-4 animate-spin text-[#E58A32]" />
+                      <RefreshCw className="w-4 h-4 animate-spin text-[#EB3E2E]" />
                       <span>Loading membership plans...</span>
                     </div>
                   </td>
                 </tr>
               ) : plans.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-[#A3A3A3]">
+                  <td colSpan={9} className="py-12 text-center text-[#B8B8B8]">
                     No membership plans match the specified criteria.
                   </td>
                 </tr>
@@ -657,12 +656,12 @@ export default function MembershipPlans() {
                   const sivakasi = getCityPricing(p, 'Sivakasi');
 
                   return (
-                    <tr key={p._id} className="hover:bg-[#1E1E1E] transition-colors">
+                    <tr key={p._id} className="hover:bg-[#202020] transition-colors">
                       {/* Plan Name & Code */}
                       <td className="py-3.5 px-4">
                         <div className="flex flex-col">
                           <span className="font-bold text-[#F5F5F5] text-sm">{p.name}</span>
-                          <span className="text-[10px] text-[#E58A32] font-mono mt-0.5">
+                          <span className="text-[10px] text-[#EB3E2E] font-mono mt-0.5">
                             {p.code || 'NO-CODE'} • {p.benefits?.length || p.features?.length || 0} Benefits
                           </span>
                         </div>
@@ -670,7 +669,7 @@ export default function MembershipPlans() {
 
                       {/* Plan Type */}
                       <td className="py-3.5 px-4">
-                        <span className="px-2 py-0.5 rounded bg-[#252525] text-[#A3A3A3] font-mono text-[10px] font-bold">
+                        <span className="px-2 py-0.5 rounded bg-[#252525] text-[#B8B8B8] font-mono text-[10px] font-bold">
                           {p.planType}
                         </span>
                       </td>
@@ -678,7 +677,7 @@ export default function MembershipPlans() {
                       {/* Duration */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-1.5 font-mono text-[#F5F5F5]">
-                          <Clock className="w-3.5 h-3.5 text-[#E58A32]" />
+                          <Clock className="w-3.5 h-3.5 text-[#EB3E2E]" />
                           <span>{p.durationDays || (p.durationMonths * 30)} Days</span>
                         </div>
                       </td>
@@ -689,7 +688,7 @@ export default function MembershipPlans() {
                           <div className="flex flex-col">
                             <span className="font-bold text-[#F5F5F5]">{formatINR(kovilpatti.finalPrice)}</span>
                             {kovilpatti.joiningFee > 0 && (
-                              <span className="text-[10px] text-[#A3A3A3]">
+                              <span className="text-[10px] text-[#B8B8B8]">
                                 incl. {formatINR(kovilpatti.joiningFee)} fee
                               </span>
                             )}
@@ -707,7 +706,7 @@ export default function MembershipPlans() {
                           <div className="flex flex-col">
                             <span className="font-bold text-[#F5F5F5]">{formatINR(karur.finalPrice)}</span>
                             {karur.joiningFee > 0 && (
-                              <span className="text-[10px] text-[#A3A3A3]">
+                              <span className="text-[10px] text-[#B8B8B8]">
                                 incl. {formatINR(karur.joiningFee)} fee
                               </span>
                             )}
@@ -725,7 +724,7 @@ export default function MembershipPlans() {
                           <div className="flex flex-col">
                             <span className="font-bold text-[#F5F5F5]">{formatINR(sivakasi.finalPrice)}</span>
                             {sivakasi.joiningFee > 0 && (
-                              <span className="text-[10px] text-[#A3A3A3]">
+                              <span className="text-[10px] text-[#B8B8B8]">
                                 incl. {formatINR(sivakasi.joiningFee)} fee
                               </span>
                             )}
@@ -751,7 +750,7 @@ export default function MembershipPlans() {
                       </td>
 
                       {/* Last Updated */}
-                      <td className="py-3.5 px-4 text-[#A3A3A3] font-mono text-[11px]">
+                      <td className="py-3.5 px-4 text-[#B8B8B8] font-mono text-[11px]">
                         {new Date(p.updatedAt || p.createdAt).toLocaleDateString('en-IN', {
                           day: '2-digit',
                           month: 'short',
@@ -766,7 +765,7 @@ export default function MembershipPlans() {
                           <button
                             type="button"
                             onClick={() => handleOpenView(p._id)}
-                            className="p-1.5 rounded-lg bg-[#252525] hover:bg-[#E58A32] hover:text-black text-[#A3A3A3] transition-colors"
+                            className="p-1.5 rounded-lg bg-[#252525] hover:bg-[#EB3E2E] hover:text-white text-[#B8B8B8] transition-colors"
                             title="View Plan Details & Roster"
                           >
                             <Eye className="w-3.5 h-3.5" />
@@ -776,7 +775,7 @@ export default function MembershipPlans() {
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(p)}
-                            className="p-1.5 rounded-lg bg-[#252525] hover:bg-[#E58A32] hover:text-black text-[#A3A3A3] transition-colors"
+                            className="p-1.5 rounded-lg bg-[#252525] hover:bg-[#EB3E2E] hover:text-white text-[#B8B8B8] transition-colors"
                             title="Edit Pricing & Duration"
                           >
                             <Edit className="w-3.5 h-3.5" />
@@ -786,7 +785,7 @@ export default function MembershipPlans() {
                           <button
                             type="button"
                             onClick={() => handleDuplicate(p)}
-                            className="p-1.5 rounded-lg bg-[#252525] hover:bg-blue-500/20 hover:text-blue-400 text-[#A3A3A3] transition-colors"
+                            className="p-1.5 rounded-lg bg-[#252525] hover:bg-[#EB3E2E] hover:text-white text-[#B8B8B8] transition-colors"
                             title="Duplicate Plan"
                           >
                             <Copy className="w-3.5 h-3.5" />
@@ -798,7 +797,7 @@ export default function MembershipPlans() {
                             onClick={() => handleToggleStatus(p)}
                             className={`p-1.5 rounded-lg transition-colors ${
                               p.isActive
-                                ? 'bg-[#252525] hover:bg-amber-500/20 text-[#A3A3A3] hover:text-amber-400'
+                                ? 'bg-[#252525] hover:bg-amber-500/20 text-[#B8B8B8] hover:text-amber-400'
                                 : 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
                             }`}
                             title={p.isActive ? 'Deactivate Plan' : 'Activate Plan'}
@@ -810,7 +809,7 @@ export default function MembershipPlans() {
                           <button
                             type="button"
                             onClick={() => handleDelete(p)}
-                            className="p-1.5 rounded-lg bg-[#252525] hover:bg-red-500/20 text-[#A3A3A3] hover:text-red-400 transition-colors"
+                            className="p-1.5 rounded-lg bg-[#252525] hover:bg-red-500/20 text-[#B8B8B8] hover:text-red-400 transition-colors"
                             title="Delete Plan"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -827,8 +826,8 @@ export default function MembershipPlans() {
 
         {/* ── PAGINATION BAR ── */}
         {totalPages > 1 && (
-          <div className="p-4 border-t border-[#292929] bg-[#141414] flex items-center justify-between">
-            <span className="text-xs text-[#A3A3A3] font-mono">
+          <div className="p-4 border-t border-[#303030] bg-[#111111] flex items-center justify-between">
+            <span className="text-xs text-[#B8B8B8] font-mono">
               Showing page {page} of {totalPages} ({totalCount} total plans)
             </span>
             <div className="flex items-center gap-2">
@@ -836,7 +835,7 @@ export default function MembershipPlans() {
                 type="button"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-3 py-1 bg-[#222222] text-[#F5F5F5] rounded text-xs disabled:opacity-40 cursor-pointer"
+                className="px-3 py-1 bg-[#202020] text-[#F5F5F5] rounded text-xs disabled:opacity-40 cursor-pointer"
               >
                 Previous
               </button>
@@ -844,7 +843,7 @@ export default function MembershipPlans() {
                 type="button"
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="px-3 py-1 bg-[#222222] text-[#F5F5F5] rounded text-xs disabled:opacity-40 cursor-pointer"
+                className="px-3 py-1 bg-[#202020] text-[#F5F5F5] rounded text-xs disabled:opacity-40 cursor-pointer"
               >
                 Next
               </button>
@@ -856,23 +855,23 @@ export default function MembershipPlans() {
       {/* ── CREATE / EDIT PLAN MODAL ── */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-3xl p-6 relative my-8 max-h-[90vh] overflow-y-auto space-y-6">
-            <div className="flex items-start justify-between border-b border-[#292929] pb-4">
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-3xl p-6 relative my-8 max-h-[90vh] overflow-y-auto space-y-6">
+            <div className="flex items-start justify-between border-b border-[#303030] pb-4">
               <div>
                 <h3
                   className="text-lg font-bold uppercase text-[#F5F5F5]"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  style={{ fontFamily: "'Oswald', sans-serif" }}
                 >
                   {editingPlan ? `Edit Membership Plan: ${editingPlan.name}` : 'Create New Membership Plan'}
                 </h3>
-                <p className="text-xs text-[#A3A3A3] mt-0.5">
+                <p className="text-xs text-[#B8B8B8] mt-0.5">
                   Configure branch-specific pricing, joining fees, discounts, and member benefits.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(false)}
-                className="p-1 rounded-lg bg-[#252525] text-[#A3A3A3] hover:text-white"
+                className="p-1 rounded-lg bg-[#252525] text-[#B8B8B8] hover:text-white"
               >
                 <XCircle className="w-5 h-5" />
               </button>
@@ -888,13 +887,13 @@ export default function MembershipPlans() {
             <form onSubmit={handleSubmitPlan} className="space-y-6">
               {/* SECTION A: BASIC INFORMATION */}
               <div className="space-y-4">
-                <h4 className="text-xs font-mono uppercase text-[#E58A32] font-bold tracking-wider">
+                <h4 className="text-xs font-mono uppercase text-[#EB3E2E] font-bold tracking-wider">
                   1. Basic Plan Specifications
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[11px] font-mono text-[#A3A3A3] uppercase block mb-1">
+                    <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
                       Plan Name *
                     </label>
                     <input
@@ -903,12 +902,12 @@ export default function MembershipPlans() {
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       placeholder="e.g. 3 Months Transformation Pro"
-                      className="w-full px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                      className="w-full px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-mono text-[#A3A3A3] uppercase block mb-1">
+                    <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
                       Plan Code (Optional)
                     </label>
                     <input
@@ -916,12 +915,12 @@ export default function MembershipPlans() {
                       value={formData.code}
                       onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                       placeholder="e.g. MM-3M-PRO"
-                      className="w-full px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] font-mono uppercase focus:border-[#E58A32] focus:outline-none"
+                      className="w-full px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] font-mono uppercase focus:border-[#EB3E2E] focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-mono text-[#A3A3A3] uppercase block mb-1">
+                    <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
                       Plan Type
                     </label>
                     <select
@@ -935,7 +934,7 @@ export default function MembershipPlans() {
                         else if (type === 'YEARLY') defaultDays = 365;
                         setFormData({ ...formData, planType: type, durationDays: defaultDays });
                       }}
-                      className="w-full px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none cursor-pointer"
+                      className="w-full px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none cursor-pointer"
                     >
                       <option value="MONTHLY">Monthly (30 Days)</option>
                       <option value="QUARTERLY">Quarterly (90 Days)</option>
@@ -946,7 +945,7 @@ export default function MembershipPlans() {
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-mono text-[#A3A3A3] uppercase block mb-1">
+                    <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
                       Duration in Days *
                     </label>
                     <input
@@ -955,13 +954,13 @@ export default function MembershipPlans() {
                       min={1}
                       value={formData.durationDays}
                       onChange={(e) => setFormData({ ...formData, durationDays: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] font-mono focus:border-[#E58A32] focus:outline-none"
+                      className="w-full px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] font-mono focus:border-[#EB3E2E] focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-mono text-[#A3A3A3] uppercase block mb-1">
+                  <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
                     Plan Description
                   </label>
                   <textarea
@@ -969,14 +968,14 @@ export default function MembershipPlans() {
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     placeholder="Brief overview of who this pass is for and included privileges..."
-                    className="w-full px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   />
                 </div>
               </div>
 
               {/* SECTION B: BENEFITS */}
-              <div className="space-y-3 border-t border-[#292929] pt-4">
-                <h4 className="text-xs font-mono uppercase text-[#E58A32] font-bold tracking-wider">
+              <div className="space-y-3 border-t border-[#303030] pt-4">
+                <h4 className="text-xs font-mono uppercase text-[#EB3E2E] font-bold tracking-wider">
                   2. Included Amenities &amp; Benefits
                 </h4>
 
@@ -989,15 +988,15 @@ export default function MembershipPlans() {
                         onClick={() => toggleBenefit(opt)}
                         className={`flex items-center gap-2.5 p-2 rounded-xl border text-xs cursor-pointer transition-colors ${
                           isChecked
-                            ? 'bg-[#E58A32]/10 border-[#E58A32]/40 text-[#F5F5F5]'
-                            : 'bg-[#121212] border-[#252525] text-[#A3A3A3] hover:text-[#F5F5F5]'
+                            ? 'bg-[#EB3E2E]/10 border-[#EB3E2E]/40 text-[#F5F5F5]'
+                            : 'bg-[#111111] border-[#252525] text-[#B8B8B8] hover:text-[#F5F5F5]'
                         }`}
                       >
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => {}}
-                          className="rounded text-[#E58A32] focus:ring-0"
+                          className="rounded text-[#EB3E2E] focus:ring-0"
                         />
                         <span className="text-xs select-none">{opt}</span>
                       </label>
@@ -1012,7 +1011,7 @@ export default function MembershipPlans() {
                     value={formData.customBenefit}
                     onChange={(e) => setFormData({ ...formData, customBenefit: e.target.value })}
                     placeholder="Add custom benefit (e.g. Free protein shake on workout days)..."
-                    className="flex-1 px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="flex-1 px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   />
                   <button
                     type="button"
@@ -1025,12 +1024,12 @@ export default function MembershipPlans() {
               </div>
 
               {/* SECTION C: BRANCH AVAILABILITY & INDEPENDENT PRICING */}
-              <div className="space-y-4 border-t border-[#292929] pt-4">
+              <div className="space-y-4 border-t border-[#303030] pt-4">
                 <div>
-                  <h4 className="text-xs font-mono uppercase text-[#E58A32] font-bold tracking-wider">
+                  <h4 className="text-xs font-mono uppercase text-[#EB3E2E] font-bold tracking-wider">
                     3. Branch Availability &amp; Independent Pricing
                   </h4>
-                  <p className="text-[11px] text-[#A3A3A3] mt-0.5">
+                  <p className="text-[11px] text-[#B8B8B8] mt-0.5">
                     Configure distinct pricing, joining fees, and discounts for each branch location independently.
                   </p>
                 </div>
@@ -1044,28 +1043,28 @@ export default function MembershipPlans() {
                         key={bp.branchId || idx}
                         className={`p-4 rounded-xl border transition-colors ${
                           bp.isAvailable
-                            ? 'bg-[#121212] border-[#292929]'
-                            : 'bg-[#0E0E0E] border-[#222222] opacity-60'
+                            ? 'bg-[#111111] border-[#303030]'
+                            : 'bg-[#111111] border-[#202020] opacity-60'
                         }`}
                       >
                         {/* Branch Title & Toggle */}
-                        <div className="flex items-center justify-between pb-3 border-b border-[#222222]">
+                        <div className="flex items-center justify-between pb-3 border-b border-[#202020]">
                           <div className="flex items-center gap-2">
-                            <Building className="w-4 h-4 text-[#E58A32]" />
+                            <Building className="w-4 h-4 text-[#EB3E2E]" />
                             <span className="font-bold text-sm text-[#F5F5F5]">
                               {bp.branchName} Hub
                             </span>
                           </div>
 
                           <label className="flex items-center gap-2 cursor-pointer select-none">
-                            <span className="text-[11px] font-mono uppercase text-[#A3A3A3]">
+                            <span className="text-[11px] font-mono uppercase text-[#B8B8B8]">
                               {bp.isAvailable ? 'Available' : 'Disabled'}
                             </span>
                             <input
                               type="checkbox"
                               checked={bp.isAvailable}
                               onChange={(e) => updateBranchField(idx, 'isAvailable', e.target.checked)}
-                              className="w-4 h-4 rounded text-[#E58A32] focus:ring-0"
+                              className="w-4 h-4 rounded text-[#EB3E2E] focus:ring-0"
                             />
                           </label>
                         </div>
@@ -1074,7 +1073,7 @@ export default function MembershipPlans() {
                           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-3">
                             {/* Base Price */}
                             <div>
-                              <label className="text-[10px] font-mono text-[#A3A3A3] uppercase block mb-1">
+                              <label className="text-[10px] font-mono text-[#B8B8B8] uppercase block mb-1">
                                 Base Price (₹) *
                               </label>
                               <input
@@ -1083,13 +1082,13 @@ export default function MembershipPlans() {
                                 required
                                 value={bp.basePrice}
                                 onChange={(e) => updateBranchField(idx, 'basePrice', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-[#181818] border border-[#292929] rounded-lg text-xs font-mono text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                                className="w-full px-2.5 py-1.5 bg-[#181818] border border-[#303030] rounded-lg text-xs font-mono text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                               />
                             </div>
 
                             {/* Joining Fee */}
                             <div>
-                              <label className="text-[10px] font-mono text-[#A3A3A3] uppercase block mb-1">
+                              <label className="text-[10px] font-mono text-[#B8B8B8] uppercase block mb-1">
                                 Joining Fee (₹)
                               </label>
                               <input
@@ -1097,20 +1096,20 @@ export default function MembershipPlans() {
                                 min={0}
                                 value={bp.joiningFee}
                                 onChange={(e) => updateBranchField(idx, 'joiningFee', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-[#181818] border border-[#292929] rounded-lg text-xs font-mono text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                                className="w-full px-2.5 py-1.5 bg-[#181818] border border-[#303030] rounded-lg text-xs font-mono text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                               />
                             </div>
 
                             {/* Discount Type & Value */}
                             <div>
-                              <label className="text-[10px] font-mono text-[#A3A3A3] uppercase block mb-1">
+                              <label className="text-[10px] font-mono text-[#B8B8B8] uppercase block mb-1">
                                 Discount
                               </label>
                               <div className="flex gap-1.5">
                                 <select
                                   value={bp.discountType}
                                   onChange={(e) => updateBranchField(idx, 'discountType', e.target.value)}
-                                  className="px-1.5 py-1.5 bg-[#181818] border border-[#292929] rounded-lg text-[10px] text-[#F5F5F5] focus:outline-none"
+                                  className="px-1.5 py-1.5 bg-[#181818] border border-[#303030] rounded-lg text-[10px] text-[#F5F5F5] focus:outline-none"
                                 >
                                   <option value="NONE">None</option>
                                   <option value="FIXED">Flat ₹</option>
@@ -1122,22 +1121,22 @@ export default function MembershipPlans() {
                                   disabled={bp.discountType === 'NONE'}
                                   value={bp.discountValue}
                                   onChange={(e) => updateBranchField(idx, 'discountValue', e.target.value)}
-                                  className="w-full px-2 py-1.5 bg-[#181818] border border-[#292929] rounded-lg text-xs font-mono text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none disabled:opacity-40"
+                                  className="w-full px-2 py-1.5 bg-[#181818] border border-[#303030] rounded-lg text-xs font-mono text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none disabled:opacity-40"
                                 />
                               </div>
                             </div>
 
                             {/* Live Final Price Calculation Box */}
-                            <div className="bg-[#181818] p-2 rounded-lg border border-[#292929] flex flex-col justify-between">
-                              <span className="text-[9px] font-mono uppercase text-[#A3A3A3]">
+                            <div className="bg-[#181818] p-2 rounded-lg border border-[#303030] flex flex-col justify-between">
+                              <span className="text-[9px] font-mono uppercase text-[#B8B8B8]">
                                 Final Payable Rate
                               </span>
                               <div className="flex items-baseline gap-1 mt-1">
-                                <span className="text-base font-bold text-[#E58A32] font-mono">
+                                <span className="text-base font-bold text-[#EB3E2E] font-mono">
                                   {formatINR(finalPreview)}
                                 </span>
                               </div>
-                              <span className="text-[9px] text-[#A3A3A3] font-mono">
+                              <span className="text-[9px] text-[#B8B8B8] font-mono">
                                 Base ₹{bp.basePrice} + Fee ₹{bp.joiningFee}
                               </span>
                             </div>
@@ -1150,18 +1149,18 @@ export default function MembershipPlans() {
               </div>
 
               {/* MODAL FOOTER */}
-              <div className="flex items-center justify-end gap-3 border-t border-[#292929] pt-4">
+              <div className="flex items-center justify-end gap-3 border-t border-[#303030] pt-4">
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 bg-[#222222] hover:bg-[#292929] text-[#A3A3A3] hover:text-white rounded-xl text-xs font-semibold"
+                  className="px-4 py-2 bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] hover:text-white rounded-xl text-xs font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={formSubmitting}
-                  className="px-5 py-2 bg-[#E58A32] hover:bg-[#F09A43] text-black rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-[#E58A32]/10 disabled:opacity-50 cursor-pointer"
+                  className="px-5 py-2 bg-[#EB3E2E] hover:bg-[#FF493B] text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-[#EB3E2E]/10 disabled:opacity-50 cursor-pointer"
                 >
                   {formSubmitting ? 'Saving Plan...' : editingPlan ? 'Save Plan Changes' : 'Create Plan'}
                 </button>
@@ -1174,15 +1173,15 @@ export default function MembershipPlans() {
       {/* ── VIEW PLAN DETAILS MODAL ── */}
       {viewingPlanId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto space-y-5">
-            <div className="flex items-start justify-between border-b border-[#292929] pb-4">
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto space-y-5">
+            <div className="flex items-start justify-between border-b border-[#303030] pb-4">
               <div>
-                <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider">
+                <span className="text-[10px] font-mono text-[#EB3E2E] uppercase tracking-wider">
                   MEMBERSHIP SPECIFICATION DOSSIER
                 </span>
                 <h3
                   className="text-lg font-bold uppercase text-[#F5F5F5] mt-0.5"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  style={{ fontFamily: "'Oswald', sans-serif" }}
                 >
                   {viewingPlanData?.plan?.name || 'Loading Plan...'}
                 </h3>
@@ -1193,39 +1192,39 @@ export default function MembershipPlans() {
                   setViewingPlanId(null);
                   setViewingPlanData(null);
                 }}
-                className="p-1 rounded-lg bg-[#252525] text-[#A3A3A3] hover:text-white"
+                className="p-1 rounded-lg bg-[#252525] text-[#B8B8B8] hover:text-white"
               >
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
 
             {viewingLoading ? (
-              <div className="py-12 text-center text-xs text-[#A3A3A3]">
+              <div className="py-12 text-center text-xs text-[#B8B8B8]">
                 Loading plan specifications...
               </div>
             ) : viewingPlanData?.plan ? (
               <div className="space-y-5 text-xs">
                 {/* Meta Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#121212] p-4 rounded-xl border border-[#292929]">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#111111] p-4 rounded-xl border border-[#303030]">
                   <div>
-                    <span className="text-[10px] font-mono uppercase text-[#A3A3A3]">Plan Type</span>
+                    <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Plan Type</span>
                     <p className="font-bold text-[#F5F5F5] mt-0.5">{viewingPlanData.plan.planType}</p>
                   </div>
                   <div>
-                    <span className="text-[10px] font-mono uppercase text-[#A3A3A3]">Duration</span>
+                    <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Duration</span>
                     <p className="font-mono text-[#F5F5F5] mt-0.5">
                       {viewingPlanData.plan.durationDays || (viewingPlanData.plan.durationMonths * 30)} Days
                     </p>
                   </div>
                   <div>
-                    <span className="text-[10px] font-mono uppercase text-[#A3A3A3]">Active Athletes</span>
+                    <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Active Athletes</span>
                     <p className="font-bold text-green-400 mt-0.5">
                       {viewingPlanData.activeMembershipsCount || 0} Members
                     </p>
                   </div>
                   <div>
-                    <span className="text-[10px] font-mono uppercase text-[#A3A3A3]">Total All-Time</span>
-                    <p className="font-bold text-[#E58A32] mt-0.5">
+                    <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Total All-Time</span>
+                    <p className="font-bold text-[#EB3E2E] mt-0.5">
                       {viewingPlanData.totalMembershipsCount || 0} Passes
                     </p>
                   </div>
@@ -1234,10 +1233,10 @@ export default function MembershipPlans() {
                 {/* Description */}
                 {viewingPlanData.plan.description && (
                   <div>
-                    <span className="text-[10px] font-mono uppercase text-[#A3A3A3] block mb-1">
+                    <span className="text-[10px] font-mono uppercase text-[#B8B8B8] block mb-1">
                       Description:
                     </span>
-                    <p className="text-xs text-[#CCCCCC] bg-[#141414] p-3 rounded-xl border border-[#252525]">
+                    <p className="text-xs text-[#CCCCCC] bg-[#111111] p-3 rounded-xl border border-[#252525]">
                       {viewingPlanData.plan.description}
                     </p>
                   </div>
@@ -1245,14 +1244,14 @@ export default function MembershipPlans() {
 
                 {/* Benefits */}
                 <div>
-                  <span className="text-[10px] font-mono uppercase text-[#A3A3A3] block mb-1.5">
+                  <span className="text-[10px] font-mono uppercase text-[#B8B8B8] block mb-1.5">
                     Included Benefits:
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {(viewingPlanData.plan.benefits || viewingPlanData.plan.features || []).map((b, i) => (
                       <div
                         key={i}
-                        className="flex items-center gap-2 p-2 rounded-lg bg-[#141414] border border-[#252525]"
+                        className="flex items-center gap-2 p-2 rounded-lg bg-[#111111] border border-[#252525]"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />
                         <span className="text-[#F5F5F5] text-xs">{b}</span>
@@ -1263,13 +1262,13 @@ export default function MembershipPlans() {
 
                 {/* Branch Breakdown Table */}
                 <div>
-                  <span className="text-[10px] font-mono uppercase text-[#A3A3A3] block mb-1.5">
+                  <span className="text-[10px] font-mono uppercase text-[#B8B8B8] block mb-1.5">
                     Branch Pricing Breakdown:
                   </span>
-                  <div className="overflow-x-auto border border-[#292929] rounded-xl">
+                  <div className="overflow-x-auto border border-[#303030] rounded-xl">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="bg-[#141414] border-b border-[#292929] text-[10px] font-mono uppercase text-[#A3A3A3]">
+                        <tr className="bg-[#111111] border-b border-[#303030] text-[10px] font-mono uppercase text-[#B8B8B8]">
                           <th className="py-2.5 px-3">Branch Location</th>
                           <th className="py-2.5 px-3">Status</th>
                           <th className="py-2.5 px-3">Base Price</th>
@@ -1278,9 +1277,9 @@ export default function MembershipPlans() {
                           <th className="py-2.5 px-3 text-right">Final Amount</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#222222] font-mono text-xs">
+                      <tbody className="divide-y divide-[#202020] font-mono text-xs">
                         {(viewingPlanData.plan.branchPricing || []).map((bp, i) => (
-                          <tr key={i} className="hover:bg-[#1C1C1C]">
+                          <tr key={i} className="hover:bg-[#202020]">
                             <td className="py-2.5 px-3 font-semibold text-[#F5F5F5]">
                               {bp.branchId?.city || 'HQ Hub'} ({bp.branchId?.name || 'Branch'})
                             </td>
@@ -1296,15 +1295,15 @@ export default function MembershipPlans() {
                               </span>
                             </td>
                             <td className="py-2.5 px-3 text-[#CCCCCC]">{formatINR(bp.basePrice)}</td>
-                            <td className="py-2.5 px-3 text-[#A3A3A3]">{formatINR(bp.joiningFee)}</td>
-                            <td className="py-2.5 px-3 text-[#A3A3A3]">
+                            <td className="py-2.5 px-3 text-[#B8B8B8]">{formatINR(bp.joiningFee)}</td>
+                            <td className="py-2.5 px-3 text-[#B8B8B8]">
                               {bp.discountType === 'NONE'
                                 ? 'None'
                                 : bp.discountType === 'PERCENTAGE'
                                 ? `${bp.discountValue}%`
                                 : formatINR(bp.discountValue)}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-bold text-[#E58A32]">
+                            <td className="py-2.5 px-3 text-right font-bold text-[#EB3E2E]">
                               {bp.isAvailable ? formatINR(bp.finalPrice) : 'N/A'}
                             </td>
                           </tr>
@@ -1314,7 +1313,7 @@ export default function MembershipPlans() {
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-3 border-t border-[#292929]">
+                <div className="flex justify-end pt-3 border-t border-[#303030]">
                   <button
                     type="button"
                     onClick={() => {
@@ -1323,7 +1322,7 @@ export default function MembershipPlans() {
                       setViewingPlanData(null);
                       handleOpenEdit(p);
                     }}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-[#E58A32] hover:bg-[#F09A43] text-black font-bold rounded-xl uppercase tracking-wider text-xs cursor-pointer"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-[#EB3E2E] hover:bg-[#FF493B] text-white font-bold rounded-xl uppercase tracking-wider text-xs cursor-pointer"
                   >
                     <Edit className="w-3.5 h-3.5" />
                     <span>Edit Plan</span>
@@ -1337,14 +1336,14 @@ export default function MembershipPlans() {
       {/* ── SAFE DELETE PROTECTION MODAL ── */}
       {deleteWarningModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#181818] border border-amber-500/40 rounded-2xl w-full max-w-md p-6 relative shadow-[0_0_40px_rgba(229,138,50,0.18)]">
+          <div className="bg-[#181818] border border-amber-500/40 rounded-2xl w-full max-w-md p-6 relative shadow-[0_0_40px_rgba(235,62,46,0.18)]">
             <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-4">
-              <ShieldAlert className="w-6 h-6 text-[#E58A32]" />
+              <ShieldAlert className="w-6 h-6 text-[#EB3E2E]" />
             </div>
 
             <h3
               className="text-lg font-bold uppercase tracking-tight text-[#F5F5F5] mb-2"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               Safe Delete Protection
             </h3>
@@ -1353,8 +1352,8 @@ export default function MembershipPlans() {
               Cannot delete <strong className="text-[#F5F5F5]">"{deleteWarningModal.plan.name}"</strong> because it is currently linked to active or historical athlete pass records in the gym database.
             </p>
 
-            <div className="p-3.5 rounded-xl bg-[#121212] border border-[#292929] text-[11px] text-[#A3A3A3] mb-5 space-y-1">
-              <div className="text-[#E58A32] font-semibold flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+            <div className="p-3.5 rounded-xl bg-[#111111] border border-[#303030] text-[11px] text-[#B8B8B8] mb-5 space-y-1">
+              <div className="text-[#EB3E2E] font-semibold flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
                 <span>✓ Database Integrity Rule</span>
               </div>
               <p>
@@ -1366,7 +1365,7 @@ export default function MembershipPlans() {
               <button
                 type="button"
                 onClick={() => setDeleteWarningModal(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] hover:bg-[#292929] text-[#A3A3A3] hover:text-[#F5F5F5] transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] hover:text-[#F5F5F5] transition-colors"
               >
                 Keep Active
               </button>
@@ -1377,7 +1376,7 @@ export default function MembershipPlans() {
                   setDeleteWarningModal(null);
                   await handleToggleStatus(pId, false);
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black font-semibold transition-all shadow-lg shadow-[#E58A32]/20"
+                className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white font-semibold transition-all shadow-lg shadow-[#EB3E2E]/20"
               >
                 Deactivate Plan Instead
               </button>

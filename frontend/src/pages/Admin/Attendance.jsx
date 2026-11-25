@@ -111,11 +111,11 @@ export default function Attendance() {
         <div>
           <h2
             className="text-xl sm:text-2xl font-bold uppercase tracking-tight text-[#F5F5F5]"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            style={{ fontFamily: "'Oswald', sans-serif" }}
           >
             ATTENDANCE &amp; FACILITY ACCESS
           </h2>
-          <p className="text-xs text-[#A3A3A3]">
+          <p className="text-xs text-[#B8B8B8]">
             Multi-branch daily athlete access control, check-in timestamps, and streak tracking.
           </p>
         </div>
@@ -124,9 +124,9 @@ export default function Attendance() {
           <button
             type="button"
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#1F1F1F] hover:bg-[#252525] text-[#F5F5F5] border border-[#292929] hover:border-[#E58A32] transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#252525] text-[#F5F5F5] border border-[#303030] hover:border-[#EB3E2E] transition-colors cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-[#E58A32]" />
+            <Download className="w-3.5 h-3.5 text-[#EB3E2E]" />
             <span>Export CSV</span>
           </button>
 
@@ -142,8 +142,7 @@ export default function Attendance() {
               });
               setIsRecordModalOpen(true);
             }}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black transition-all cursor-pointer shadow-lg shadow-[#E58A32]/10"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white transition-all cursor-pointer shadow-lg shadow-[#EB3E2E]/10"
           >
             <Plus className="w-4 h-4" />
             <span>Record Check-In</span>
@@ -157,25 +156,23 @@ export default function Attendance() {
 
       {/* ── METRICS SUMMARY STRIP ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 flex items-center justify-between">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 flex items-center justify-between">
           <div>
-            <span className="text-[10px] font-mono uppercase text-[#A3A3A3]">DAY CHECK-INS</span>
+            <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">DAY CHECK-INS</span>
             <p
               className="text-2xl font-bold text-[#F5F5F5] mt-1"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
             >
               {attendanceRecords.length}
             </p>
           </div>
-          <CalendarCheck className="w-8 h-8 text-[#E58A32]" />
+          <CalendarCheck className="w-8 h-8 text-[#EB3E2E]" />
         </div>
 
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 flex items-center justify-between">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 flex items-center justify-between">
           <div>
-            <span className="text-[10px] font-mono uppercase text-[#A3A3A3]">MONTH TOTAL VISITS</span>
+            <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">MONTH TOTAL VISITS</span>
             <p
               className="text-2xl font-bold text-green-400 mt-1"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
             >
               {monthTotal}
             </p>
@@ -183,9 +180,9 @@ export default function Attendance() {
           <Calendar className="w-8 h-8 text-green-400" />
         </div>
 
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 flex items-center justify-between">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 flex items-center justify-between">
           <div>
-            <span className="text-[10px] font-mono uppercase text-[#A3A3A3]">DUPLICATE PREVENT RULE</span>
+            <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">DUPLICATE PREVENT RULE</span>
             <p className="text-xs font-semibold text-[#F5F5F5] mt-1">1 Check-in / Day</p>
             <span className="text-[10px] text-green-400">Strictly Enforced</span>
           </div>
@@ -194,24 +191,24 @@ export default function Attendance() {
       </div>
 
       {/* ── FILTER BY DATE & BRANCH ── */}
-      <div className="bg-[#141414] border border-[#292929] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-[#111111] border border-[#303030] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-[#A3A3A3] uppercase">Select Date:</span>
+            <span className="text-xs font-mono text-[#B8B8B8] uppercase">Select Date:</span>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="px-3 py-1.5 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:outline-none cursor-pointer"
+              className="px-3 py-1.5 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:outline-none cursor-pointer"
             />
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-[#A3A3A3] uppercase">Branch:</span>
+            <span className="text-xs font-mono text-[#B8B8B8] uppercase">Branch:</span>
             <select
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
-              className="px-3 py-1.5 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:outline-none cursor-pointer"
+              className="px-3 py-1.5 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:outline-none cursor-pointer"
             >
               <option value="ALL">All Branches</option>
               {branches.map((b) => (
@@ -226,18 +223,18 @@ export default function Attendance() {
         <button
           type="button"
           onClick={() => setDate(new Date().toISOString().slice(0, 10))}
-          className="text-xs font-bold text-[#E58A32] hover:underline cursor-pointer"
+          className="text-xs font-bold text-[#EB3E2E] hover:underline cursor-pointer"
         >
           Reset to Today
         </button>
       </div>
 
       {/* ── ATTENDANCE LOG TABLE ── */}
-      <div className="bg-[#181818] border border-[#292929] rounded-2xl overflow-hidden shadow-xl">
+      <div className="bg-[#181818] border border-[#303030] rounded-2xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-[#292929] bg-[#141414] text-[11px] font-mono uppercase tracking-wider text-[#A3A3A3]">
+              <tr className="border-b border-[#303030] bg-[#111111] text-[11px] font-mono uppercase tracking-wider text-[#B8B8B8]">
                 <th className="py-3 px-4 font-semibold">Athlete</th>
                 <th className="py-3 px-4 font-semibold">Branch</th>
                 <th className="py-3 px-4 font-semibold">Date</th>
@@ -246,29 +243,29 @@ export default function Attendance() {
                 <th className="py-3 px-4 font-semibold text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#222222] text-xs">
+            <tbody className="divide-y divide-[#202020] text-xs">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-[#A3A3A3]">
+                  <td colSpan={6} className="py-12 text-center text-[#B8B8B8]">
                     Loading attendance records...
                   </td>
                 </tr>
               ) : attendanceRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-[#A3A3A3]">
+                  <td colSpan={6} className="py-12 text-center text-[#B8B8B8]">
                     No gym check-ins recorded for {date} at selected hub.
                   </td>
                 </tr>
               ) : (
                 attendanceRecords.map((a) => (
-                  <tr key={a._id} className="hover:bg-[#1E1E1E] transition-colors">
+                  <tr key={a._id} className="hover:bg-[#202020] transition-colors">
                     <td className="py-3 px-4 font-bold text-[#F5F5F5]">
                       {a.userId?.name || 'Athlete'}
-                      <span className="block text-[10px] text-[#A3A3A3] font-mono font-normal">
+                      <span className="block text-[10px] text-[#B8B8B8] font-mono font-normal">
                         {a.userId?.phone}
                       </span>
                     </td>
-                    <td className="py-3 px-4 font-mono text-[#E58A32]">
+                    <td className="py-3 px-4 font-mono text-[#EB3E2E]">
                       {a.branchId?.city || 'HQ'}
                     </td>
                     <td className="py-3 px-4 font-mono text-[#F5F5F5]">
@@ -278,7 +275,7 @@ export default function Attendance() {
                       {new Date(a.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </td>
                     <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded-md bg-[#252525] text-[#A3A3A3] font-mono text-[10px]">
+                      <span className="px-2 py-0.5 rounded-md bg-[#252525] text-[#B8B8B8] font-mono text-[10px]">
                         {a.method}
                       </span>
                     </td>
@@ -286,7 +283,7 @@ export default function Attendance() {
                       <button
                         type="button"
                         onClick={() => handleDeleteRecord(a._id, a.userId?.name)}
-                        className="p-1 rounded text-[#A3A3A3] hover:text-red-400 cursor-pointer"
+                        className="p-1 rounded text-[#B8B8B8] hover:text-red-400 cursor-pointer"
                         title="Delete Attendance Entry"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -303,22 +300,22 @@ export default function Attendance() {
       {/* ── RECORD ATTENDANCE MODAL ── */}
       {isRecordModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-md p-6 relative">
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-md p-6 relative">
             <h3
               className="text-lg font-bold uppercase tracking-tight text-[#F5F5F5] mb-4"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               Record Athlete Check-In
             </h3>
 
             <form onSubmit={handleRecordSubmit} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Select Athlete</label>
+                <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Select Athlete</label>
                 <select
                   required
                   value={recordForm.userId}
                   onChange={(e) => setRecordForm({ ...recordForm, userId: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none"
+                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none"
                 >
                   <option value="">-- Choose Athlete --</option>
                   {allClients.map((c) => (
@@ -331,21 +328,21 @@ export default function Attendance() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Check-in Date</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Check-in Date</label>
                   <input
                     type="date"
                     required
                     value={recordForm.date}
                     onChange={(e) => setRecordForm({ ...recordForm, date: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Hub Branch</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Hub Branch</label>
                   <select
                     value={recordForm.branchId}
                     onChange={(e) => setRecordForm({ ...recordForm, branchId: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
                   >
                     {branches.map((b) => (
                       <option key={b._id} value={b._id}>
@@ -357,11 +354,11 @@ export default function Attendance() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Verification Method</label>
+                <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Verification Method</label>
                 <select
                   value={recordForm.method}
                   onChange={(e) => setRecordForm({ ...recordForm, method: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
+                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
                 >
                   <option value="STAFF_CHECKIN">Staff Desk Check-In</option>
                   <option value="BIOMETRIC">Biometric Access Gate</option>
@@ -369,7 +366,7 @@ export default function Attendance() {
                 </select>
               </div>
 
-              <p className="text-[10px] text-[#A3A3A3] italic pt-1">
+              <p className="text-[10px] text-[#B8B8B8] italic pt-1">
                 Notice: Duplicate entries for the same client on the same calendar day are prevented by backend business
                 rules.
               </p>
@@ -378,13 +375,13 @@ export default function Attendance() {
                 <button
                   type="button"
                   onClick={() => setIsRecordModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] text-[#A3A3A3]"
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] text-[#B8B8B8]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] text-black"
+                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] text-white"
                 >
                   Log Check-In
                 </button>

@@ -66,19 +66,19 @@ export default function Notifications() {
       {/* ── HEADER ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex flex-col gap-1.5">
-          <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
+          <span className="text-[10px] font-mono text-[#EB3E2E] uppercase tracking-wider font-bold">
             COMMUNICATION DISPATCH
           </span>
           <h1
             className="uppercase font-bold tracking-tight text-[#F5F5F5]"
             style={{
-              fontFamily: "'Space Grotesk', sans-serif",
+              fontFamily: "'Oswald', sans-serif",
               fontSize: 'clamp(1.75rem, 3.2vw, 2.5rem)',
             }}
           >
             IN-APP NOTIFICATIONS.
           </h1>
-          <p className="text-xs sm:text-sm text-[#A3A3A3]">
+          <p className="text-xs sm:text-sm text-[#B8B8B8]">
             Official facility announcements, workout plan alerts, and membership reminders.
           </p>
         </div>
@@ -87,9 +87,9 @@ export default function Notifications() {
           <button
             type="button"
             onClick={handleMarkAllRead}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#151515] hover:bg-[#1C1C1C] border border-[#292929] hover:border-[#E58A32] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#181818] hover:bg-[#202020] border border-[#303030] hover:border-[#EB3E2E] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] transition-colors cursor-pointer"
           >
-            <CheckCheck className="w-4 h-4 text-[#E58A32]" />
+            <CheckCheck className="w-4 h-4 text-[#EB3E2E]" />
             <span>MARK ALL AS READ</span>
           </button>
         )}
@@ -104,10 +104,9 @@ export default function Notifications() {
             onClick={() => setSelectedCategory(cat.id)}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider shrink-0 transition-all cursor-pointer ${
               selectedCategory === cat.id
-                ? 'bg-[#E58A32] text-white shadow-[0_0_15px_rgba(229,138,50,0.25)]'
-                : 'bg-[#151515] border border-[#292929] text-[#A3A3A3] hover:text-[#F5F5F5]'
+                ? 'bg-[#EB3E2E] text-white shadow-[0_0_15px_rgba(235,62,46,0.25)]'
+                : 'bg-[#181818] border border-[#303030] text-[#B8B8B8] hover:text-[#F5F5F5]'
             }`}
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
           >
             {cat.label}
           </button>
@@ -115,22 +114,22 @@ export default function Notifications() {
       </div>
 
       {/* ── NOTIFICATIONS LIST ── */}
-      <div className="p-6 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col gap-3">
+      <div className="p-6 rounded-2xl bg-[#181818] border border-[#303030] flex flex-col gap-3">
         {loading ? (
-          <div className="py-12 text-center text-xs text-[#A3A3A3]">Loading notifications...</div>
+          <div className="py-12 text-center text-xs text-[#B8B8B8]">Loading notifications...</div>
         ) : notifications.length > 0 ? (
-          <div className="flex flex-col divide-y divide-[#292929]">
+          <div className="flex flex-col divide-y divide-[#303030]">
             {notifications.map((n) => (
               <div
                 key={n._id}
                 className={`py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs transition-colors ${
-                  !n.isRead ? 'bg-[#1C1C1C]/40 -mx-3 px-3 rounded-xl' : ''
+                  !n.isRead ? 'bg-[#202020]/40 -mx-3 px-3 rounded-xl' : ''
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <div
                     className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${
-                      !n.isRead ? 'bg-[#E58A32]' : 'bg-[#292929]'
+                      !n.isRead ? 'bg-[#EB3E2E]' : 'bg-[#303030]'
                     }`}
                   />
                   <div className="flex flex-col gap-0.5">
@@ -138,12 +137,12 @@ export default function Notifications() {
                       <span className="font-bold text-[#F5F5F5] uppercase text-xs sm:text-sm">
                         {n.title}
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-[#141414] border border-[#292929] text-[#E58A32]">
+                      <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-[#111111] border border-[#303030] text-[#EB3E2E]">
                         {n.category}
                       </span>
                     </div>
-                    <p className="text-xs text-[#A3A3A3] leading-relaxed mt-0.5">{n.message}</p>
-                    <span className="text-[10px] font-mono text-[#A3A3A3]/70 mt-1">
+                    <p className="text-xs text-[#B8B8B8] leading-relaxed mt-0.5">{n.message}</p>
+                    <span className="text-[10px] font-mono text-[#B8B8B8]/70 mt-1">
                       {new Date(n.createdAt).toLocaleDateString()} at{' '}
                       {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
@@ -154,7 +153,7 @@ export default function Notifications() {
                   <button
                     type="button"
                     onClick={() => handleMarkRead(n._id)}
-                    className="self-end sm:self-center px-3 py-1 rounded-lg bg-[#141414] hover:bg-[#E58A32] text-[#A3A3A3] hover:text-white border border-[#292929] text-[10px] font-bold uppercase tracking-wider transition-colors shrink-0 cursor-pointer"
+                    className="self-end sm:self-center px-3 py-1 rounded-lg bg-[#111111] hover:bg-[#EB3E2E] text-[#B8B8B8] hover:text-white border border-[#303030] text-[10px] font-bold uppercase tracking-wider transition-colors shrink-0 cursor-pointer"
                   >
                     Mark Read
                   </button>
@@ -164,9 +163,9 @@ export default function Notifications() {
           </div>
         ) : (
           <div className="py-12 flex flex-col items-center justify-center text-center gap-3">
-            <Bell className="w-10 h-10 text-[#292929]" />
+            <Bell className="w-10 h-10 text-[#303030]" />
             <h3 className="text-sm font-bold uppercase text-[#F5F5F5]">NO NOTIFICATIONS FOUND</h3>
-            <p className="text-xs text-[#A3A3A3] max-w-sm">
+            <p className="text-xs text-[#B8B8B8] max-w-sm">
               You are up to date! Future workout assignments, renewal notices, and branch alerts will appear here.
             </p>
           </div>

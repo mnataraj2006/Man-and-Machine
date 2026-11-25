@@ -1,0 +1,59 @@
+/* ==========================================================================
+   MAN & MACHINE — OFFICIAL DESIGN SYSTEM TOKENS
+   ========================================================================== */
+
+:root {
+  /* Core Backgrounds */
+  --mm-bg-primary: #090909;
+  --mm-bg-secondary: #111111;
+  --mm-bg-card: #181818;
+  --mm-bg-elevated: #202020;
+
+  /* Text Hierarchy */
+  --mm-text-primary: #F5F5F5;
+  --mm-text-secondary: #B8B8B8;
+  --mm-text-muted: #858585;
+
+  /* Official Brand Red Accent */
+  --mm-red: #EB3E2E;
+  --mm-red-alt: #F03B2E;
+  --mm-red-hover: #FF493B;
+  --mm-red-tint: rgba(235, 62, 46, 0.12);
+  --mm-red-border: rgba(235, 62, 46, 0.38);
+
+  /* Borders & Dividers */
+  --mm-border: #303030;
+  --mm-divider: #252525;
+
+  /* Semantic Status (Restrained) */
+  --mm-success: #10B981;
+  --mm-warning: #F59E0B;
+  --mm-danger: #EF4444;
+
+  /* Typography */
+  --mm-font-display: 'Oswald', 'Arial Narrow', sans-serif;
+  --mm-font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mm-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Radii & Spacing */
+  --mm-radius-none: 0px;
+  --mm-radius-sm: 4px;
+  --mm-radius-md: 8px;
+  --mm-radius-lg: 12px;
+
+  /* Elevation & Focus */
+  --mm-shadow-card: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --mm-shadow-red: 0 6px 20px rgba(235, 62, 46, 0.25);
+  --mm-focus-ring: 0 0 0 2px rgba(235, 62, 46, 0.35);
+
+  /* Motion */
+  --mm-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --mm-transition-fast: 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  --mm-transition-smooth: 350ms cubic-bezier(0.22, 1, 0.36, 1);
+  --mm-transition-cinematic: 600ms cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Legacy Aliases (Unified) */
+  --mm-bg: var(--mm-bg-primary);
+  --mm-surface: var(--mm-bg-card);
+  --mm-accent: var(--mm-red);
+}

@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import Header from './components/Navbar/Header.jsx';
 import Hero from './components/Hero/Hero.jsx';
-import SocialProof from './components/Stats/SocialProof.jsx';
+import BrandStatement from './components/Editorial/BrandStatement.jsx';
+import WhyManAndMachine from './components/Editorial/WhyManAndMachine.jsx';
+import ExperienceSection from './components/Editorial/ExperienceSection.jsx';
 import Facilities from './components/Facilities/Facilities.jsx';
-import Manifesto from './components/CTA/Manifesto.jsx';
 import MembershipPlansPreview from './components/Membership/MembershipPlansPreview.jsx';
-import Testimonials from './components/Reviews/Testimonials.jsx';
-import Branches from './components/Branches/Branches.jsx';
-import MembershipCTA from './components/CTA/MembershipCTA.jsx';
-import LocationAndHours from './components/Location/LocationAndHours.jsx';
+import TrainersSection from './components/Trainer/TrainersSection.jsx';
+import CommunitySection from './components/Stats/CommunitySection.jsx';
+import TransformationSection from './components/Editorial/TransformationSection.jsx';
 import FinalCTA from './components/CTA/FinalCTA.jsx';
 import Footer from './components/Footer/Footer.jsx';
 import JoinModal from './components/Navbar/JoinModal.jsx';
@@ -297,52 +297,52 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-[#F5F5F5] font-body-md text-body-md antialiased selection:bg-primary-container selection:text-white w-full">
-      {/* Fixed Header */}
+    <div className="min-h-screen bg-[#090909] text-[#F5F5F5] antialiased selection:bg-[#EB3E2E] selection:text-[#F5F5F5] w-full">
+      {/* 01 — Navigation */}
       <Header 
         onOpenJoinModal={handleOpenJoin} 
         onNavigate={navigate}
       />
 
       {/* Main Content Sections */}
-      <main className="w-full bg-[#09090B] min-h-screen">
+      <main className="w-full bg-[#090909] min-h-screen">
         <div className="flex flex-col w-full text-[#F5F5F5]">
-          {/* 1. Hero Section */}
+          {/* 02 — Hero */}
           <Hero 
             onOpenJoinModal={handleOpenJoin} 
             onNavigate={navigate}
           />
 
-          {/* 2. Social Proof / Credibility Strip */}
-          <SocialProof />
+          {/* 03 — Brand Statement (01 / THE STANDARD) */}
+          <BrandStatement />
 
-          {/* 3. Facilities Bento Grid & Mobile Gallery Section */}
+          {/* 04 — Why Man & Machine (02 / NO SHORTCUTS) */}
+          <WhyManAndMachine />
+
+          {/* 05 — Man & Machine Experience (03 / FIND YOUR EDGE) */}
+          <ExperienceSection />
+
+          {/* 06 — Training Ground (04 / THE TRAINING GROUND) */}
           <Facilities />
 
-          {/* 4. Cinematic Statement / Manifesto Break */}
-          <Manifesto />
-
-          {/* 5. Dynamic Membership Plans Preview Section */}
+          {/* 07 — Memberships (05 / MAKE THE COMMITMENT) */}
           <MembershipPlansPreview onNavigate={navigate} onOpenJoinModal={handleOpenJoin} />
 
-          {/* 6. Verified Reviews Section */}
-          <Testimonials />
+          {/* 08 — Trainers (06 / IN YOUR CORNER) */}
+          <TrainersSection onNavigate={navigate} />
 
-          {/* 6. Our Branches Section (One Brand. Three Locations.) */}
-          <Branches />
+          {/* 09 — Community (07 / OUR PEOPLE) */}
+          <CommunitySection />
 
-          {/* 7. Membership High-Conversion CTA Section */}
-          <MembershipCTA onOpenJoinModal={handleOpenJoin} onNavigate={navigate} />
+          {/* 10 — Transformation (08 / ONE REP AT A TIME) */}
+          <TransformationSection />
 
-          {/* 8. Location & Hours Interactive Section */}
-          <LocationAndHours />
-
-          {/* 9. Final CTA */}
+          {/* 11 — Final CTA */}
           <FinalCTA onOpenJoinModal={handleOpenJoin} onNavigate={navigate} />
         </div>
       </main>
 
-      {/* Footer */}
+      {/* 12 — Footer */}
       <Footer onOpenJoinModal={handleOpenJoin} onNavigate={navigate} />
 
       {/* Interactive Registration / Join Modal */}

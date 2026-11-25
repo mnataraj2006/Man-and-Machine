@@ -38,13 +38,13 @@ export default function Attendance() {
   if (loading) {
     return (
       <div className="flex flex-col gap-6 animate-pulse">
-        <div className="h-10 bg-[#151515] rounded-xl w-64" />
+        <div className="h-10 bg-[#181818] rounded-xl w-64" />
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="h-28 bg-[#151515] rounded-2xl" />
-          <div className="h-28 bg-[#151515] rounded-2xl" />
-          <div className="h-28 bg-[#151515] rounded-2xl" />
+          <div className="h-28 bg-[#181818] rounded-2xl" />
+          <div className="h-28 bg-[#181818] rounded-2xl" />
+          <div className="h-28 bg-[#181818] rounded-2xl" />
         </div>
-        <div className="h-64 bg-[#151515] rounded-2xl" />
+        <div className="h-64 bg-[#181818] rounded-2xl" />
       </div>
     );
   }
@@ -77,73 +77,73 @@ export default function Attendance() {
     <div className="flex flex-col gap-6 sm:gap-8">
       {/* ── HEADER ── */}
       <div className="flex flex-col gap-1.5">
-        <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
+        <span className="text-[10px] font-mono text-[#EB3E2E] uppercase tracking-wider font-bold">
           CONSISTENCY METRICS
         </span>
         <h1
           className="uppercase font-bold tracking-tight text-[#F5F5F5]"
           style={{
-            fontFamily: "'Space Grotesk', sans-serif",
+            fontFamily: "'Oswald', sans-serif",
             fontSize: 'clamp(1.75rem, 3.2vw, 2.5rem)',
           }}
         >
           GYM ATTENDANCE LOG.
         </h1>
-        <p className="text-xs sm:text-sm text-[#A3A3A3]">
+        <p className="text-xs sm:text-sm text-[#B8B8B8]">
           Official check-in records verified at Kovilpatti, Karur, and Sivakasi facilities.
         </p>
       </div>
 
       {/* ── STATS CARDS ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-5 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between">
-          <span className="text-[10px] font-mono text-[#A3A3A3] uppercase">THIS MONTH</span>
+        <div className="p-5 rounded-2xl bg-[#181818] border border-[#303030] flex flex-col justify-between">
+          <span className="text-[10px] font-mono text-[#B8B8B8] uppercase">THIS MONTH</span>
           <div className="flex items-baseline gap-2 my-2">
-            <span className="text-3xl font-bold text-[#F5F5F5]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <span className="text-3xl font-bold text-[#F5F5F5]" style={{ fontFamily: "'Oswald', sans-serif" }}>
               {totalThisMonth}
             </span>
-            <span className="text-xs text-[#A3A3A3]">sessions</span>
+            <span className="text-xs text-[#B8B8B8]">sessions</span>
           </div>
           <span className="text-[10px] text-emerald-400 font-semibold">Active Gym Attendance</span>
         </div>
 
-        <div className="p-5 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between">
-          <span className="text-[10px] font-mono text-[#A3A3A3] uppercase">YEAR TO DATE</span>
+        <div className="p-5 rounded-2xl bg-[#181818] border border-[#303030] flex flex-col justify-between">
+          <span className="text-[10px] font-mono text-[#B8B8B8] uppercase">YEAR TO DATE</span>
           <div className="flex items-baseline gap-2 my-2">
-            <span className="text-3xl font-bold text-[#E58A32]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <span className="text-3xl font-bold text-[#EB3E2E]" style={{ fontFamily: "'Oswald', sans-serif" }}>
               {totalThisYear}
             </span>
-            <span className="text-xs text-[#A3A3A3]">total visits</span>
+            <span className="text-xs text-[#B8B8B8]">total visits</span>
           </div>
-          <span className="text-[10px] text-[#A3A3A3]">Cumulative in {year}</span>
+          <span className="text-[10px] text-[#B8B8B8]">Cumulative in {year}</span>
         </div>
 
-        <div className="p-5 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col justify-between">
-          <span className="text-[10px] font-mono text-[#A3A3A3] uppercase">CONSISTENCY STATUS</span>
+        <div className="p-5 rounded-2xl bg-[#181818] border border-[#303030] flex flex-col justify-between">
+          <span className="text-[10px] font-mono text-[#B8B8B8] uppercase">CONSISTENCY STATUS</span>
           <div className="flex items-center gap-2 my-2">
-            <Flame className="w-6 h-6 text-[#E58A32]" />
-            <span className="text-xl font-bold text-[#F5F5F5]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <Flame className="w-6 h-6 text-[#EB3E2E]" />
+            <span className="text-xl font-bold text-[#F5F5F5]" style={{ fontFamily: "'Oswald', sans-serif" }}>
               {totalThisMonth >= 12 ? 'DEDICATED' : totalThisMonth >= 4 ? 'CONSISTENT' : 'ON TRACK'}
             </span>
           </div>
-          <span className="text-[10px] text-[#A3A3A3]">Official Check-in System</span>
+          <span className="text-[10px] text-[#B8B8B8]">Official Check-in System</span>
         </div>
       </div>
 
       {/* ── CALENDAR VIEW ── */}
-      <div className="p-6 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col gap-4">
-        <div className="flex items-center justify-between border-b border-[#292929] pb-3">
+      <div className="p-6 rounded-2xl bg-[#181818] border border-[#303030] flex flex-col gap-4">
+        <div className="flex items-center justify-between border-b border-[#303030] pb-3">
           <div className="flex flex-col">
-            <span className="text-[10px] font-mono text-[#E58A32] uppercase font-bold">MONTHLY VISUAL</span>
-            <h3 className="text-base font-bold uppercase text-[#F5F5F5]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <span className="text-[10px] font-mono text-[#EB3E2E] uppercase font-bold">MONTHLY VISUAL</span>
+            <h3 className="text-base font-bold uppercase text-[#F5F5F5]" style={{ fontFamily: "'Oswald', sans-serif" }}>
               {monthNames[month]} {year}
             </h3>
           </div>
-          <span className="text-xs text-[#A3A3A3]">{attendedDays.size} days attended this month</span>
+          <span className="text-xs text-[#B8B8B8]">{attendedDays.size} days attended this month</span>
         </div>
 
         {/* Days of week */}
-        <div className="grid grid-cols-7 gap-1 text-center font-mono text-[10px] text-[#A3A3A3] font-bold py-2">
+        <div className="grid grid-cols-7 gap-1 text-center font-mono text-[10px] text-[#B8B8B8] font-bold py-2">
           <span>SUN</span>
           <span>MON</span>
           <span>TUE</span>
@@ -171,10 +171,10 @@ export default function Attendance() {
                 key={`day-${dayNum}`}
                 className={`h-10 sm:h-12 rounded-xl border flex flex-col items-center justify-center transition-all ${
                   isAttended
-                    ? 'bg-[#E58A32] border-[#E58A32] text-white font-bold shadow-[0_0_12px_rgba(229,138,50,0.30)]'
+                    ? 'bg-[#EB3E2E] border-[#EB3E2E] text-white font-bold shadow-[0_0_12px_rgba(235,62,46,0.30)]'
                     : isToday
-                    ? 'bg-[#1C1C1C] border-[#E58A32] text-[#F5F5F5]'
-                    : 'bg-[#1C1C1C] border-[#292929] text-[#A3A3A3]'
+                    ? 'bg-[#202020] border-[#EB3E2E] text-[#F5F5F5]'
+                    : 'bg-[#202020] border-[#303030] text-[#B8B8B8]'
                 }`}
               >
                 <span className="text-xs">{dayNum}</span>
@@ -184,56 +184,56 @@ export default function Attendance() {
           })}
         </div>
 
-        <div className="flex items-center gap-4 pt-3 border-t border-[#292929] text-xs text-[#A3A3A3]">
+        <div className="flex items-center gap-4 pt-3 border-t border-[#303030] text-xs text-[#B8B8B8]">
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-[#E58A32]" />
+            <div className="w-3 h-3 rounded bg-[#EB3E2E]" />
             <span>Attended</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded border border-[#E58A32] bg-[#1C1C1C]" />
+            <div className="w-3 h-3 rounded border border-[#EB3E2E] bg-[#202020]" />
             <span>Today</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded border border-[#292929] bg-[#1C1C1C]" />
+            <div className="w-3 h-3 rounded border border-[#303030] bg-[#202020]" />
             <span>Neutral / Rest</span>
           </div>
         </div>
       </div>
 
       {/* ── ATTENDANCE LOG TABLE ── */}
-      <div className="p-6 rounded-2xl bg-[#151515] border border-[#292929] flex flex-col gap-4">
-        <div className="flex items-center justify-between border-b border-[#292929] pb-3">
-          <h3 className="text-base font-bold uppercase text-[#F5F5F5]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+      <div className="p-6 rounded-2xl bg-[#181818] border border-[#303030] flex flex-col gap-4">
+        <div className="flex items-center justify-between border-b border-[#303030] pb-3">
+          <h3 className="text-base font-bold uppercase text-[#F5F5F5]" style={{ fontFamily: "'Oswald', sans-serif" }}>
             CHECK-IN RECORD HISTORY
           </h3>
-          <span className="text-xs font-mono text-[#A3A3A3]">Staff &amp; QR Verified</span>
+          <span className="text-xs font-mono text-[#B8B8B8]">Staff &amp; QR Verified</span>
         </div>
 
         {records.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-[#292929] text-[10px] font-mono text-[#A3A3A3] uppercase">
+                <tr className="border-b border-[#303030] text-[10px] font-mono text-[#B8B8B8] uppercase">
                   <th className="py-2.5 px-3">DATE</th>
                   <th className="py-2.5 px-3">CHECK-IN TIME</th>
                   <th className="py-2.5 px-3">BRANCH</th>
                   <th className="py-2.5 px-3">VERIFICATION METHOD</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#292929]">
+              <tbody className="divide-y divide-[#303030]">
                 {records.map((rec) => (
-                  <tr key={rec._id} className="hover:bg-[#1C1C1C] transition-colors">
+                  <tr key={rec._id} className="hover:bg-[#202020] transition-colors">
                     <td className="py-3 px-3 font-bold text-[#F5F5F5]">
                       {new Date(rec.date).toLocaleDateString()}
                     </td>
-                    <td className="py-3 px-3 font-mono text-[#A3A3A3]">
+                    <td className="py-3 px-3 font-mono text-[#B8B8B8]">
                       {rec.checkInTime ? new Date(rec.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Logged'}
                     </td>
                     <td className="py-3 px-3 text-[#F5F5F5]">
                       {rec.branchId?.city || 'Home'} Branch
                     </td>
                     <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-[#E58A32]/10 text-[#E58A32] border border-[#E58A32]/30">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-[#EB3E2E]/10 text-[#EB3E2E] border border-[#EB3E2E]/30">
                         {rec.method || 'STAFF_CHECKIN'}
                       </span>
                     </td>
@@ -243,7 +243,7 @@ export default function Attendance() {
             </table>
           </div>
         ) : (
-          <div className="py-8 text-center text-xs text-[#A3A3A3]">
+          <div className="py-8 text-center text-xs text-[#B8B8B8]">
             No attendance check-ins recorded yet. Check in with reception at your branch.
           </div>
         )}

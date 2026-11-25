@@ -65,24 +65,23 @@ export default function Workouts({ onNavigate }) {
       {/* ── HEADER ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
+          <span className="text-[10px] font-mono text-[#EB3E2E] uppercase tracking-wider font-bold">
             PROGRAMMING MATRIX
           </span>
           <h1
             className="text-2xl sm:text-3xl font-black uppercase text-white tracking-tight"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            style={{ fontFamily: "'Oswald', sans-serif" }}
           >
             TRAINING PROGRAMS & WORKOUTS.
           </h1>
-          <p className="text-xs text-[#A3A3A3]">
+          <p className="text-xs text-[#B8B8B8]">
             Curate, calibrate, and publish multi-day training splits for your assigned athletes.
           </p>
         </div>
 
         <button
           onClick={() => onNavigate?.('/trainer/workouts/create')}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#E58A32] hover:bg-[#F09A43] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(229,138,50,0.25)] shrink-0"
-          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#EB3E2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(235,62,46,0.25)] shrink-0"
         >
           <Plus className="w-4 h-4" />
           <span>Create New Program</span>
@@ -90,15 +89,15 @@ export default function Workouts({ onNavigate }) {
       </div>
 
       {/* ── SEARCH & FILTER CONTROLS ── */}
-      <div className="p-4 rounded-2xl bg-[#141414] border border-[#292929] flex flex-col md:flex-row items-center gap-3">
+      <div className="p-4 rounded-2xl bg-[#111111] border border-[#303030] flex flex-col md:flex-row items-center gap-3">
         <div className="relative flex-1 w-full">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#737373]" />
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#858585]" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search plans by title or assigned athlete..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#181818] border border-[#292929] text-xs text-white placeholder-[#737373] focus:outline-none focus:border-[#E58A32]"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#181818] border border-[#303030] text-xs text-white placeholder-[#858585] focus:outline-none focus:border-[#EB3E2E]"
           />
         </div>
 
@@ -109,8 +108,8 @@ export default function Workouts({ onNavigate }) {
               onClick={() => setStatusFilter(s)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                 statusFilter === s
-                  ? 'bg-[#E58A32] text-white'
-                  : 'bg-[#181818] text-[#A3A3A3] hover:text-white border border-[#292929]'
+                  ? 'bg-[#EB3E2E] text-white'
+                  : 'bg-[#181818] text-[#B8B8B8] hover:text-white border border-[#303030]'
               }`}
             >
               {s}
@@ -123,7 +122,7 @@ export default function Workouts({ onNavigate }) {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-48 bg-[#141414] rounded-2xl animate-pulse" />
+            <div key={i} className="h-48 bg-[#111111] rounded-2xl animate-pulse" />
           ))}
         </div>
       ) : error ? (
@@ -131,12 +130,12 @@ export default function Workouts({ onNavigate }) {
           {error}
         </div>
       ) : plans.length === 0 ? (
-        <div className="p-12 rounded-2xl bg-[#141414] border border-[#292929] text-center flex flex-col items-center justify-center gap-3">
-          <Dumbbell className="w-10 h-10 text-[#292929]" />
-          <h3 className="text-sm font-bold uppercase text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+        <div className="p-12 rounded-2xl bg-[#111111] border border-[#303030] text-center flex flex-col items-center justify-center gap-3">
+          <Dumbbell className="w-10 h-10 text-[#303030]" />
+          <h3 className="text-sm font-bold uppercase text-white" style={{ fontFamily: "'Oswald', sans-serif" }}>
             NO WORKOUT PROGRAMS FOUND
           </h3>
-          <p className="text-xs text-[#A3A3A3] max-w-sm">
+          <p className="text-xs text-[#B8B8B8] max-w-sm">
             Build a custom multi-day training program for your athletes or select a library template.
           </p>
         </div>
@@ -145,7 +144,7 @@ export default function Workouts({ onNavigate }) {
           {plans.map((plan) => (
             <div
               key={plan._id}
-              className="p-5 rounded-2xl bg-[#141414] border border-[#292929] hover:border-[#E58A32]/40 transition-all flex flex-col justify-between gap-4"
+              className="p-5 rounded-2xl bg-[#111111] border border-[#303030] hover:border-[#EB3E2E]/40 transition-all flex flex-col justify-between gap-4"
             >
               <div className="flex flex-col gap-2">
                 <div className="flex items-start justify-between gap-2">
@@ -158,38 +157,38 @@ export default function Workouts({ onNavigate }) {
                   >
                     {plan.status}
                   </span>
-                  <span className="text-[10px] font-mono text-[#A3A3A3]">
+                  <span className="text-[10px] font-mono text-[#B8B8B8]">
                     {plan.weeklyFrequency || 4} Days / Wk
                   </span>
                 </div>
 
                 <h3
                   className="text-base font-bold uppercase text-white"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  style={{ fontFamily: "'Oswald', sans-serif" }}
                 >
                   {plan.title}
                 </h3>
-                <p className="text-xs text-[#A3A3A3] line-clamp-2">
+                <p className="text-xs text-[#B8B8B8] line-clamp-2">
                   {plan.description || plan.trainerInstructions || 'Structured biomechanical progression.'}
                 </p>
 
                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  <span className="px-2 py-0.5 rounded text-[10px] bg-[#1C1C1C] text-[#E58A32] font-semibold">
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-[#202020] text-[#EB3E2E] font-semibold">
                     {plan.goal}
                   </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] bg-[#1C1C1C] text-[#A3A3A3]">
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-[#202020] text-[#B8B8B8]">
                     {plan.trainingLevel || 'All Levels'}
                   </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] bg-[#1C1C1C] text-[#A3A3A3]">
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-[#202020] text-[#B8B8B8]">
                     {plan.exercises?.length || 0} Exercises
                   </span>
                 </div>
               </div>
 
               {/* Assigned Athlete Footer */}
-              <div className="pt-3 border-t border-[#292929] flex flex-col gap-2.5">
+              <div className="pt-3 border-t border-[#303030] flex flex-col gap-2.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-[10px] font-mono text-[#737373] uppercase">ASSIGNED TO:</span>
+                  <span className="text-[10px] font-mono text-[#858585] uppercase">ASSIGNED TO:</span>
                   <span className="font-bold text-white truncate max-w-[140px]">
                     {plan.assignedTo?.name || (plan.isTemplate ? 'Template' : 'Unassigned')}
                   </span>
@@ -199,7 +198,7 @@ export default function Workouts({ onNavigate }) {
                   <button
                     onClick={() => handleDuplicate(plan._id)}
                     title="Duplicate as new draft"
-                    className="p-2 rounded-xl bg-[#181818] hover:bg-[#202020] border border-[#292929] text-[#A3A3A3] hover:text-white transition-colors"
+                    className="p-2 rounded-xl bg-[#181818] hover:bg-[#202020] border border-[#303030] text-[#B8B8B8] hover:text-white transition-colors"
                   >
                     <Copy className="w-3.5 h-3.5" />
                   </button>
@@ -213,7 +212,7 @@ export default function Workouts({ onNavigate }) {
                   )}
                   <button
                     onClick={() => onNavigate?.(`/trainer/workouts/${plan._id}`)}
-                    className="flex-1 py-2 rounded-xl bg-[#1C1C1C] hover:bg-[#E58A32] hover:text-white border border-[#292929] text-[#A3A3A3] text-xs font-bold uppercase transition-all flex items-center justify-center gap-1"
+                    className="flex-1 py-2 rounded-xl bg-[#202020] hover:bg-[#EB3E2E] hover:text-white border border-[#303030] text-[#B8B8B8] text-xs font-bold uppercase transition-all flex items-center justify-center gap-1"
                   >
                     <span>View / Edit</span>
                     <ArrowRight className="w-3.5 h-3.5" />

@@ -1,53 +1,62 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Check,
-  Building,
-  ArrowRight,
-  Sparkles,
-  Info,
-  X,
-  CreditCard,
-  AlertCircle,
-  RefreshCw,
-  ShieldCheck,
-  PhoneCall,
-} from 'lucide-react';
+import { X, Check, Info } from 'lucide-react';
 import clientService from '../../services/clientService.js';
 import branchService from '../../services/branchService.js';
 import authService from '../../services/auth.js';
+import { Reveal } from '../Motion/ScrollMotion.jsx';
+
+const FALLBACK_TIERS = [
+  {
+    _id: 'starter-fallback',
+    eyebrow: '01 / MEMBERSHIP',
+    name: 'STARTER',
+    description: 'Your first step toward stronger.',
+    durationLabel: '1 MONTH / PROPOSED',
+    benefitsSummary: 'Gym floor access • Equipment induction',
+    benefits: ['Gym floor access', 'Equipment induction'],
+    isFeatured: false,
+    finalPrice: null,
+  },
+  {
+    _id: 'athlete-fallback',
+    eyebrow: 'THE CONSISTENT CHOICE',
+    name: 'ATHLETE',
+    description: 'For those who keep showing up.',
+    durationLabel: '3 MONTHS / PROPOSED',
+    benefitsSummary: 'Gym floor access • Progress check-ins',
+    benefits: ['Gym floor access', 'Progress check-ins'],
+    isFeatured: true,
+    finalPrice: null,
+  },
+  {
+    _id: 'elite-fallback',
+    eyebrow: '03 / MEMBERSHIP',
+    name: 'ELITE',
+    description: 'Go all in. Leave nothing behind.',
+    durationLabel: '12 MONTHS / PROPOSED',
+    benefitsSummary: 'Gym floor access • Training guidance',
+    benefits: ['Gym floor access', 'Training guidance'],
+    isFeatured: false,
+    finalPrice: null,
+  },
+];
 
 export default function MembershipPlansPreview({ onNavigate, onOpenJoinModal }) {
-  // Branches & selection
   const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState('');
-  const [loadingBranches, setLoadingBranches] = useState(true);
-
-  // Plans & display state
   const [plans, setPlans] = useState([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
-  const [error, setError] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState('ALL');
-
-  // Modal inspection state
+  const [usingFallback, setUsingFallback] = useState(false);
   const [detailsModalPlan, setDetailsModalPlan] = useState(null);
-
-  // Role notification for Admin/Trainer attempting to purchase
   const [roleNotice, setRoleNotice] = useState(null);
 
-  // 1. Load active branches on mount
   useEffect(() => {
     let isMounted = true;
-    const fetchBranches = async () => {
+    const loadBranches = async () => {
       try {
-        setLoadingBranches(true);
         const branchList = await branchService.getBranches();
-        if (isMounted && branchList && branchList.length > 0) {
+        if (isMounted && branchList?.length > 0) {
           setBranches(branchList);
-
-          // Default branch logic:
-          // 1) If user is logged in and has an assigned branchId, use that
-          // 2) If sessionStorage has a saved branch from previous interaction, use that
-          // 3) Else default to Kovilpatti (HQ) or first branch
           const currentUser = authService.getUser();
           const userBranchId = currentUser?.branchId?._id || currentUser?.branchId;
           const savedBranchId = sessionStorage.getItem('mm_selected_branch_id');
@@ -58,636 +67,392 @@ export default function MembershipPlansPreview({ onNavigate, onOpenJoinModal }) 
           } else if (savedBranchId && branchList.some((b) => (b.id || b._id) === savedBranchId)) {
             defaultId = savedBranchId;
           } else {
-            const hq = branchList.find((b) => b.city?.toLowerCase() === 'kovilpatti') || branchList[0];
+            const hq =
+              branchList.find((b) => b.city?.toLowerCase() === 'kovilpatti') || branchList[0];
             defaultId = hq.id || hq._id;
           }
-
           setSelectedBranchId(defaultId);
         }
       } catch (err) {
-        console.error('Failed to load branches for preview:', err);
-      } finally {
-        if (isMounted) setLoadingBranches(false);
+        if (isMounted) {
+          setUsingFallback(true);
+          setLoadingPlans(false);
+        }
       }
     };
-
-    fetchBranches();
+    loadBranches();
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // 2. Fetch plans whenever selectedBranchId changes
-  const fetchPlansForBranch = async (branchId) => {
-    if (!branchId) return;
-    try {
-      setLoadingPlans(true);
-      setError(null);
-      const res = await clientService.getPublicAvailablePlans(branchId);
-      setPlans(res.plans || []);
-      // Reset category filter if previous category no longer exists
-      setSelectedCategory('ALL');
-    } catch (err) {
-      console.error('Failed to load available plans:', err);
-      setError('Unable to load membership plans right now. Please try again.');
-    } finally {
-      setLoadingPlans(false);
-    }
-  };
-
   useEffect(() => {
-    if (selectedBranchId) {
-      fetchPlansForBranch(selectedBranchId);
-      sessionStorage.setItem('mm_selected_branch_id', selectedBranchId);
-    }
+    if (!selectedBranchId) return;
+    let isMounted = true;
+    const loadPlans = async () => {
+      try {
+        setLoadingPlans(true);
+        const res = await clientService.getPublicAvailablePlans(selectedBranchId);
+        const fetchedPlans = res?.plans || [];
+        if (isMounted) {
+          if (fetchedPlans.length > 0) {
+            setPlans(fetchedPlans);
+            setUsingFallback(false);
+          } else {
+            setPlans(FALLBACK_TIERS);
+            setUsingFallback(true);
+          }
+          sessionStorage.setItem('mm_selected_branch_id', selectedBranchId);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setPlans(FALLBACK_TIERS);
+          setUsingFallback(true);
+        }
+      } finally {
+        if (isMounted) setLoadingPlans(false);
+      }
+    };
+    loadPlans();
+    return () => {
+      isMounted = false;
+    };
   }, [selectedBranchId]);
 
-  // Handle branch tab switch
-  const handleSelectBranch = (branchId) => {
-    if (branchId === selectedBranchId) return;
-    setSelectedBranchId(branchId);
+  const formatDurationLabel = (plan) => {
+    if (plan.durationLabel) return plan.durationLabel;
+    const days = plan.durationDays || 30;
+    if (days >= 360) return '12 MONTHS';
+    if (days >= 180) return '6 MONTHS';
+    if (days >= 85 && days <= 95) return '3 MONTHS';
+    if (days >= 28 && days <= 31) return '1 MONTH';
+    return `${days} DAYS`;
   };
 
-  // Currently active branch object
-  const currentBranch = branches.find((b) => (b.id || b._id) === selectedBranchId) || branches[0];
-
-  // Derive unique categories present in the plans (e.g. 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY')
-  const availableCategories = ['ALL'];
-  plans.forEach((p) => {
-    const type = p.planType || (p.durationDays <= 31 ? 'MONTHLY' : p.durationDays <= 95 ? 'QUARTERLY' : p.durationDays <= 185 ? 'HALF_YEARLY' : 'YEARLY');
-    if (!availableCategories.includes(type)) {
-      availableCategories.push(type);
+  const formatCurrency = (amount) => {
+    if (amount === null || amount === undefined || Number.isNaN(Number(amount))) {
+      return null;
     }
-  });
-
-  // Filtered plans based on category
-  const filteredPlans = plans.filter((p) => {
-    if (selectedCategory === 'ALL') return true;
-    const type = p.planType || (p.durationDays <= 31 ? 'MONTHLY' : p.durationDays <= 95 ? 'QUARTERLY' : p.durationDays <= 185 ? 'HALF_YEARLY' : 'YEARLY');
-    return type === selectedCategory;
-  });
-
-  // Check if any plan is explicitly marked as featured/popular
-  const hasExplicitFeatured = plans.some((p) => p.isFeatured || p.isPopular);
-
-  // Map category code to human-readable label
-  const formatCategoryLabel = (cat) => {
-    switch (cat) {
-      case 'ALL':
-        return 'ALL PLANS';
-      case 'MONTHLY':
-        return 'MONTHLY';
-      case 'QUARTERLY':
-        return 'QUARTERLY';
-      case 'HALF_YEARLY':
-        return 'HALF-YEARLY';
-      case 'YEARLY':
-        return 'ANNUAL';
-      case 'CUSTOM':
-        return 'SPECIAL';
-      default:
-        return cat.replace('_', ' ');
-    }
+    return `₹${Number(amount).toLocaleString('en-IN')}`;
   };
 
-  // Format duration text
-  const formatDurationText = (plan) => {
-    if (plan.durationMonths && plan.durationMonths > 1) {
-      return `${plan.durationMonths} MONTHS`;
-    }
-    if (plan.durationDays >= 365) {
-      return '1 YEAR';
-    }
-    return `${plan.durationDays} DAYS`;
-  };
-
-  // 3. Handle CHOOSE PLAN action
-  const handleChoosePlan = (plan) => {
+  const handlePlanCTA = (plan) => {
     setRoleNotice(null);
-
-    // Save plan and branch in sessionStorage for handoff
-    sessionStorage.setItem('mm_selected_plan_id', plan._id);
-    sessionStorage.setItem('mm_selected_branch_id', selectedBranchId);
-
     const isAuthed = authService.isAuthenticated();
     const role = authService.getRole();
 
-    if (!isAuthed) {
-      // Unauthenticated visitor -> redirect to signup preserving selection
-      if (onNavigate) {
-        onNavigate('/signup');
-      } else {
-        window.history.pushState({}, '', '/signup');
-        window.dispatchEvent(new PopStateEvent('popstate'));
+    if (plan._id && !String(plan._id).endsWith('-fallback')) {
+      sessionStorage.setItem('mm_selected_plan_id', plan._id);
+    }
+    if (selectedBranchId) {
+      sessionStorage.setItem('mm_selected_branch_id', selectedBranchId);
+    }
+
+    if (isAuthed) {
+      if (role === 'CLIENT') {
+        const target =
+          plan._id && !String(plan._id).endsWith('-fallback')
+            ? `/client/membership?planId=${plan._id}`
+            : '/client/membership';
+        if (onNavigate) onNavigate(target);
+        return;
       }
+      setRoleNotice(`Signed in as ${role}. Membership enrollment is available for Client accounts.`);
       return;
     }
 
-    if (role === 'CLIENT') {
-      // Authenticated client -> proceed to client membership checkout
-      const targetUrl = `/client/membership?planId=${encodeURIComponent(plan._id)}`;
-      if (onNavigate) {
-        onNavigate(targetUrl);
-      } else {
-        window.history.pushState({}, '', targetUrl);
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      }
-      return;
-    }
-
-    // If Admin or Trainer is logged in, inform them they cannot purchase client memberships
-    setRoleNotice({
-      role,
-      message: `You are currently logged in as ${role === 'ADMIN' ? 'an Administrator' : 'a Trainer'}. Membership enrollments are designed for client athlete accounts.`,
-    });
-  };
-
-  const handleViewAllPlans = () => {
-    const isAuthed = authService.isAuthenticated();
-    const role = authService.getRole();
-
-    if (isAuthed && role === 'CLIENT') {
-      if (onNavigate) onNavigate('/client/membership');
-      else {
-        window.history.pushState({}, '', '/client/membership');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      }
+    if (onNavigate) {
+      onNavigate('/signup');
+    } else if (onOpenJoinModal) {
+      onOpenJoinModal();
     } else {
-      // Smooth scroll to top of membership plans preview or navigate
-      const elem = document.getElementById('membership-plans');
-      if (elem) {
-        elem.scrollIntoView({ behavior: 'smooth' });
-      }
+      window.history.pushState({}, '', '/signup');
+      window.dispatchEvent(new PopStateEvent('popstate'));
     }
   };
+
+  const displayedPlans = plans.length > 0 ? plans : FALLBACK_TIERS;
 
   return (
     <section
-      id="membership-plans"
-      className="w-full py-16 sm:py-24 bg-[#09090B] text-[#F5F5F5] relative overflow-hidden border-t border-[#1C1C1F]"
+      id="memberships"
+      className="relative w-full max-w-[1440px] mx-auto px-6 md:px-14 py-16 sm:py-20 lg:py-[100px] scroll-mt-20"
     >
-      {/* Background ambient lighting accents */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-[#E58A32]/5 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-[#E58A32]/3 rounded-full blur-[100px] pointer-events-none" />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        {/* ── 1. SECTION HEADER ── */}
-        <div className="flex flex-col items-center text-center max-w-3xl mx-auto mb-12 sm:mb-16">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#181818] border border-[#292929] mb-4">
-            <span className="w-2 h-2 rounded-full bg-[#E58A32] animate-pulse" />
-            <span
-              className="text-[10px] sm:text-xs font-mono uppercase tracking-[0.2em] text-[#E58A32] font-bold"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              YOUR JOURNEY STARTS HERE
-            </span>
+      <div className="flex flex-col items-start gap-10">
+        {/* Top Row: Title + Optional Branch Filter */}
+        <div className="w-full flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+          <div className="flex flex-col items-start gap-5">
+            <Reveal delay={0}>
+              <p className="font-editorial-label text-[#EB3E2E]">05 / MAKE THE COMMITMENT</p>
+            </Reveal>
+            <Reveal variant="mask" delay={80}>
+              <h2
+                className="font-editorial-display font-semibold uppercase text-[#F5F5F5]"
+                style={{ fontSize: 'clamp(2.75rem, 5vw, 4.5rem)' }}
+              >
+                CHOOSE YOUR LEVEL.
+              </h2>
+            </Reveal>
           </div>
 
-          <span className="text-xs sm:text-sm font-mono tracking-widest text-[#A3A3A3] uppercase block mb-2">
-            MEMBERSHIP PLANS
-          </span>
-
-          <h2
-            className="uppercase font-bold tracking-tight text-[#F5F5F5] leading-[1.05]"
-            style={{
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: 'clamp(2rem, 4.5vw, 3.4rem)',
-            }}
-          >
-            CHOOSE YOUR COMMITMENT.{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#F5F5F5] via-[#E58A32] to-[#F5F5F5]">
-              BUILD YOUR STRENGTH.
-            </span>
-          </h2>
-
-          <p className="mt-4 text-xs sm:text-base text-[#A3A3A3] max-w-2xl leading-relaxed">
-            Find the membership that fits your goals. Choose your plan, train your way, and become part of Man &amp; Machine.
-          </p>
+          {/* Minimal Branch Selector Tabs */}
+          {branches.length > 0 && (
+            <Reveal delay={120}>
+              <div
+                className="flex flex-wrap items-center gap-2 border border-[#303030] bg-[#181818] p-1"
+                role="tablist"
+                aria-label="Select gym branch for membership pricing"
+              >
+                {branches.map((branch) => {
+                  const id = branch.id || branch._id;
+                  const active = id === selectedBranchId;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setSelectedBranchId(id)}
+                      className={`font-editorial-label px-4 py-2.5 transition-colors duration-300 cursor-pointer ${
+                        active
+                          ? 'bg-[#EB3E2E] text-[#F5F5F5]'
+                          : 'text-[#B8B8B8] hover:text-[#F5F5F5]'
+                      }`}
+                    >
+                      {branch.city}
+                    </button>
+                  );
+                })}
+              </div>
+            </Reveal>
+          )}
         </div>
 
-        {/* ── 2. ROLE NOTICE FOR ADMIN/TRAINER ── */}
+        {/* Role Notice */}
         {roleNotice && (
-          <div className="max-w-2xl mx-auto mb-8 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Info className="w-5 h-5 shrink-0" />
-              <span>{roleNotice.message}</span>
+          <div className="w-full border border-[#EB3E2E] bg-[#181818] px-5 py-3.5 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 text-xs text-[#F5F5F5]">
+              <Info className="w-4 h-4 text-[#EB3E2E] shrink-0" />
+              <span>{roleNotice}</span>
             </div>
             <button
               type="button"
               onClick={() => setRoleNotice(null)}
-              className="text-amber-400 hover:text-white p-1 rounded-md"
+              className="text-[#B8B8B8] hover:text-[#F5F5F5] cursor-pointer"
+              aria-label="Dismiss notice"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
-        {/* ── 3. BRANCH SELECTOR ── */}
-        <div className="flex flex-col items-center gap-3.5 mb-10">
-          <span className="text-[10px] sm:text-[11px] font-mono uppercase tracking-widest text-[#A3A3A3] font-bold">
-            SELECT YOUR GYM
-          </span>
-
-          <div className="flex flex-wrap items-center justify-center gap-2 p-1.5 rounded-2xl bg-[#141416] border border-[#252528] shadow-inner max-w-full">
-            {loadingBranches ? (
-              <div className="h-10 w-64 bg-[#1F1F23] rounded-xl animate-pulse" />
-            ) : (
-              branches.map((b) => {
-                const bId = b.id || b._id;
-                const isSelected = bId === selectedBranchId;
-                return (
-                  <button
-                    key={bId}
-                    type="button"
-                    onClick={() => handleSelectBranch(bId)}
-                    className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#E58A32] text-white shadow-[0_0_20px_rgba(229,138,50,0.35)] scale-[1.02]'
-                        : 'text-[#A3A3A3] hover:text-[#F5F5F5] hover:bg-[#1E1E22]'
-                    }`}
-                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                  >
-                    {b.city || b.name}
-                  </button>
-                );
-              })
-            )}
-          </div>
-
-          {/* Current Branch Location Hint */}
-          {currentBranch && !loadingBranches && (
-            <div className="flex items-center gap-2 text-xs text-[#A3A3A3]">
-              <Building className="w-3.5 h-3.5 text-[#E58A32]" />
-              <span>
-                Showing branch-calibrated pricing for{' '}
-                <strong className="text-[#F5F5F5]">{currentBranch.name || currentBranch.city}</strong> ({currentBranch.city})
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* ── 4. CATEGORY FILTER (IF > 1 CATEGORY) ── */}
-        {availableCategories.length > 2 && (
-          <div className="flex items-center justify-center gap-2 mb-8 overflow-x-auto pb-2 scrollbar-none">
-            {availableCategories.map((cat) => {
-              const active = selectedCategory === cat;
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-3.5 py-1.5 rounded-lg text-[11px] font-mono uppercase tracking-wider transition-colors cursor-pointer shrink-0 ${
-                    active
-                      ? 'bg-[#292929] text-[#F5F5F5] border border-[#E58A32]/60'
-                      : 'text-[#A3A3A3] hover:text-[#F5F5F5] bg-[#141416] border border-[#252528]'
-                  }`}
-                >
-                  {formatCategoryLabel(cat)}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ── 5. MEMBERSHIP CARDS CONTAINER ── */}
+        {/* Membership Architectural Grid */}
         {loadingPlans ? (
-          // Skeleton Cards
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((i) => (
+          <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[1, 2, 3].map((n) => (
               <div
-                key={i}
-                className="bg-[#181818] border border-[#292929] rounded-2xl p-6 flex flex-col justify-between h-[450px] animate-pulse"
+                key={n}
+                className="h-[420px] bg-[#181818] border border-[#303030] p-8 animate-pulse flex flex-col justify-between"
               >
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <div className="h-4 w-20 bg-[#252525] rounded" />
-                    <div className="h-4 w-16 bg-[#252525] rounded" />
-                  </div>
-                  <div className="h-6 w-3/4 bg-[#252525] rounded" />
-                  <div className="h-10 w-1/2 bg-[#252525] rounded mt-4" />
-                  <div className="space-y-2 pt-6">
-                    <div className="h-3 w-full bg-[#222222] rounded" />
-                    <div className="h-3 w-5/6 bg-[#222222] rounded" />
-                    <div className="h-3 w-4/6 bg-[#222222] rounded" />
-                  </div>
+                  <div className="h-3 w-28 bg-[#303030]" />
+                  <div className="h-8 w-44 bg-[#303030]" />
+                  <div className="h-4 w-56 bg-[#303030]" />
                 </div>
-                <div className="space-y-2 pt-6">
-                  <div className="h-10 w-full bg-[#222222] rounded-xl" />
-                  <div className="h-10 w-full bg-[#252525] rounded-xl" />
-                </div>
+                <div className="h-12 w-full bg-[#303030]" />
               </div>
             ))}
           </div>
-        ) : error ? (
-          // Error State
-          <div className="p-8 sm:p-12 rounded-2xl bg-[#141416] border border-[#292929] text-center max-w-lg mx-auto flex flex-col items-center gap-4">
-            <AlertCircle className="w-10 h-10 text-red-400" />
-            <h3
-              className="text-base font-bold uppercase text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              UNABLE TO LOAD PLANS
-            </h3>
-            <p className="text-xs text-[#A3A3A3]">{error}</p>
-            <button
-              type="button"
-              onClick={() => fetchPlansForBranch(selectedBranchId)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E58A32] hover:bg-[#F09A43] text-black font-bold text-xs uppercase tracking-wider transition-all"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Retry</span>
-            </button>
-          </div>
-        ) : filteredPlans.length === 0 ? (
-          // Empty State
-          <div className="p-8 sm:p-12 rounded-2xl bg-[#141416] border border-[#292929] text-center max-w-lg mx-auto flex flex-col items-center gap-4">
-            <Info className="w-10 h-10 text-[#E58A32]" />
-            <h3
-              className="text-base font-bold uppercase text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              NO PLANS AVAILABLE
-            </h3>
-            <p className="text-xs text-[#A3A3A3] leading-relaxed">
-              Membership plans are currently unavailable for this branch. Please contact the gym for assistance.
-            </p>
-            <a
-              href="tel:+917598885566"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1F1F23] hover:bg-[#252528] text-[#F5F5F5] border border-[#292929] text-xs font-bold uppercase tracking-wider transition-all"
-            >
-              <PhoneCall className="w-4 h-4 text-[#E58A32]" />
-              <span>Call +91 75988 85566</span>
-            </a>
-          </div>
         ) : (
-          // Plan Cards Grid
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
-            {filteredPlans.map((plan) => {
-              const isFeatured = hasExplicitFeatured && (plan.isFeatured || plan.isPopular);
-              const hasDiscount = plan.discountValue && plan.discountValue > 0;
-              const durationLabel = formatDurationText(plan);
-              const benefitsList = plan.benefits || [];
+          <div
+            className={`w-full grid grid-cols-1 md:grid-cols-2 ${
+              displayedPlans.length >= 4 ? 'xl:grid-cols-4' : 'lg:grid-cols-3'
+            } gap-6`}
+          >
+            {displayedPlans.map((plan, idx) => {
+              const isFeatured =
+                Boolean(plan.isFeatured) ||
+                (displayedPlans.length >= 3 && idx === 1 && !displayedPlans.some((p) => p.isFeatured));
+              const eyebrow =
+                plan.eyebrow ||
+                (isFeatured
+                  ? 'THE CONSISTENT CHOICE'
+                  : `0${idx + 1} / MEMBERSHIP`);
+              const formattedPrice = formatCurrency(plan.finalPrice);
+              const formattedBase = formatCurrency(plan.basePrice);
+              const hasDiscount =
+                plan.basePrice &&
+                plan.finalPrice &&
+                Number(plan.basePrice) > Number(plan.finalPrice);
+              const benefitsText =
+                plan.benefitsSummary ||
+                (plan.benefits && plan.benefits.length > 0
+                  ? plan.benefits.slice(0, 3).join(' • ')
+                  : 'Gym floor access • Equipment guidance');
 
               return (
-                <div
-                  key={plan._id}
-                  className={`rounded-2xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-300 relative group ${
+                <Reveal
+                  key={plan._id || plan.name}
+                  delay={idx * 90}
+                  className={`flex flex-col justify-between gap-7 p-8 bg-[#181818] border transition-colors duration-500 ${
                     isFeatured
-                      ? 'bg-[#191715] border-2 border-[#E58A32] shadow-[0_0_30px_rgba(229,138,50,0.15)] hover:shadow-[0_0_40px_rgba(229,138,50,0.25)]'
-                      : 'bg-[#181818] border border-[#292929] hover:border-[#3e3e3e] hover:-translate-y-1'
+                      ? 'border-[#EB3E2E]'
+                      : 'border-[#303030] hover:border-[#B8B8B8]'
                   }`}
                 >
-                  {/* Featured Badge if explicitly flagged */}
-                  {isFeatured && (
-                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-[#E58A32] text-black font-mono font-bold text-[10px] tracking-wider uppercase shadow-[0_0_15px_rgba(229,138,50,0.4)] shrink-0 whitespace-nowrap">
-                      MOST POPULAR
-                    </div>
-                  )}
-
-                  <div className="space-y-4">
-                    {/* Header: Category & Duration Pill */}
-                    <div className="flex items-center justify-between gap-2 border-b border-[#252525] pb-3">
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-[#E58A32] font-bold">
-                        {plan.planType || 'STANDARD'}
-                      </span>
-                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-[#252525] text-[#A3A3A3]">
-                        {durationLabel}
-                      </span>
-                    </div>
-
-                    {/* Plan Name */}
-                    <div className="min-h-[48px] flex items-center">
-                      <h3
-                        className="text-lg font-bold uppercase text-[#F5F5F5] group-hover:text-[#E58A32] transition-colors line-clamp-2"
-                        style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                      >
-                        {plan.name}
-                      </h3>
-                    </div>
-
-                    {/* Pricing Block */}
-                    <div className="py-2">
-                      <div className="flex items-baseline gap-2">
-                        <span
-                          className="text-3xl sm:text-4xl font-bold text-[#F5F5F5] tracking-tight"
-                          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                        >
-                          ₹{(plan.finalPrice ?? plan.basePrice).toLocaleString('en-IN')}
-                        </span>
-                        <span className="text-xs text-[#A3A3A3] font-mono">
-                          / {durationLabel.toLowerCase()}
-                        </span>
-                      </div>
-
-                      {/* Struck-through base price & discount badge if applicable */}
-                      {hasDiscount && (
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <span className="text-xs text-[#737373] line-through font-mono">
-                            ₹{plan.basePrice.toLocaleString('en-IN')}
-                          </span>
-                          <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
-                            SAVE ₹{plan.discountValue.toLocaleString('en-IN')}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Joining Fee Note */}
-                      <div className="mt-1 text-[11px] text-[#A3A3A3]">
-                        {plan.joiningFee === 0 ? (
-                          <span className="text-emerald-400 font-medium">✓ Zero Joining Fee</span>
-                        ) : (
-                          <span>+ ₹{plan.joiningFee} joining fee</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Benefits Preview */}
-                    <div className="space-y-2 pt-2 border-t border-[#252525]">
-                      <span className="text-[10px] font-mono uppercase text-[#A3A3A3] tracking-wider block">
-                        WHAT'S INCLUDED:
-                      </span>
-                      <ul className="space-y-1.5 text-xs text-[#CCCCCC]">
-                        {benefitsList.slice(0, 4).map((b, idx) => (
-                          <li key={idx} className="flex items-start gap-2">
-                            <Check className="w-3.5 h-3.5 text-[#E58A32] shrink-0 mt-0.5" />
-                            <span className="line-clamp-1">{b}</span>
-                          </li>
-                        ))}
-                        {benefitsList.length > 4 && (
-                          <li className="text-[11px] text-[#A3A3A3] italic pl-5">
-                            + {benefitsList.length - 4} more privileges
-                          </li>
-                        )}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* Actions: VIEW DETAILS & CHOOSE PLAN */}
-                  <div className="space-y-2.5 pt-6 mt-4 border-t border-[#252525]">
-                    <button
-                      type="button"
-                      onClick={() => setDetailsModalPlan(plan)}
-                      className="w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#292929] text-[#CCCCCC] hover:text-white border border-[#2e2e2e] transition-colors cursor-pointer text-center"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                    >
-                      VIEW DETAILS
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleChoosePlan(plan)}
-                      className={`w-full py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_4px_15px_rgba(0,0,0,0.3)] ${
-                        isFeatured
-                          ? 'bg-[#E58A32] hover:bg-[#F09A43] text-black shadow-[0_0_20px_rgba(229,138,50,0.3)] font-black'
-                          : 'bg-[#E58A32] hover:bg-[#F09A43] text-white hover:text-white'
+                  <div className="flex flex-col items-start gap-5">
+                    {/* Top Eyebrow */}
+                    <p
+                      className={`font-editorial-label ${
+                        isFeatured ? 'text-[#EB3E2E]' : 'text-[#B8B8B8]'
                       }`}
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                     >
-                      <span>CHOOSE PLAN</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                      {eyebrow}
+                    </p>
+
+                    {/* Tier / Plan Name */}
+                    <h3 className="font-editorial-display font-semibold uppercase text-[#F5F5F5] text-[30px] sm:text-[32px] leading-[1.08] tracking-[-0.025em]">
+                      {plan.name}
+                    </h3>
+
+                    {/* Short Description */}
+                    <p className="font-editorial-body text-[#B8B8B8] text-[15px] leading-relaxed min-h-[44px]">
+                      {plan.description ||
+                        'Structured training floor access built for measurable consistency.'}
+                    </p>
+
+                    {/* Duration */}
+                    <div className="pt-2 border-t border-[#303030] w-full flex flex-col gap-2.5">
+                      <span className="font-editorial-label text-[#F5F5F5]">
+                        {formatDurationLabel(plan)}
+                      </span>
+                      <p className="font-editorial-body text-[#B8B8B8] text-sm">
+                        {benefitsText}
+                      </p>
+                    </div>
                   </div>
-                </div>
+
+                  {/* Price & Action */}
+                  <div className="flex flex-col items-start gap-5 w-full pt-2">
+                    <div className="flex flex-col items-start gap-1">
+                      {formattedPrice ? (
+                        <div className="flex items-baseline gap-2.5">
+                          <span className="font-editorial-display font-semibold text-2xl sm:text-[28px] text-[#F5F5F5]">
+                            {formattedPrice}
+                          </span>
+                          {hasDiscount && formattedBase && (
+                            <span className="font-editorial-body text-sm text-[#B8B8B8] line-through">
+                              {formattedBase}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="font-editorial-label text-[#F5F5F5]">
+                          PRICE TO BE CONFIRMED
+                        </span>
+                      )}
+                      {plan.joiningFee > 0 && (
+                        <span className="font-editorial-label text-[#B8B8B8] text-[10px]">
+                          + ₹{Number(plan.joiningFee).toLocaleString('en-IN')} ONE-TIME JOINING FEE
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row gap-3 w-full">
+                      <button
+                        type="button"
+                        onClick={() => handlePlanCTA(plan)}
+                        className="btn-editorial-primary w-full"
+                      >
+                        <span>VIEW MEMBERSHIPS</span>
+                      </button>
+
+                      {plan.benefits && plan.benefits.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => setDetailsModalPlan(plan)}
+                          className="btn-editorial-secondary !px-4 shrink-0"
+                        >
+                          DETAILS
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </Reveal>
               );
             })}
           </div>
         )}
 
-        {/* ── 6. VIEW ALL MEMBERSHIP PLANS CTA ── */}
-        <div className="mt-14 sm:mt-16 text-center">
-          <button
-            type="button"
-            onClick={handleViewAllPlans}
-            className="inline-flex items-center gap-2.5 text-xs sm:text-sm font-bold uppercase tracking-wider text-[#E58A32] hover:text-[#F09A43] group transition-all cursor-pointer py-2 px-4 rounded-xl border border-transparent hover:border-[#E58A32]/30 bg-[#141416]/50"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-          >
-            <span>VIEW ALL MEMBERSHIP PLANS</span>
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </button>
-        </div>
+        {/* Footnote Disclaimer */}
+        <Reveal delay={180}>
+          <p className="font-editorial-body text-[#B8B8B8] text-sm">
+            {usingFallback
+              ? 'Membership details are indicative. Contact the team for confirmed plans, benefits and pricing.'
+              : 'Live membership pricing displayed for the selected branch. Proceed to sign up or log in to enroll.'}
+          </p>
+        </Reveal>
       </div>
 
-      {/* ── 7. DETAILED PLAN SPECIFICATION MODAL ── */}
+      {/* Plan Details Modal */}
       {detailsModalPlan && (
         <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in"
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setDetailsModalPlan(null)}
         >
-          <div className="bg-[#181818] border border-[#2E2E2E] rounded-2xl w-full max-w-lg p-6 sm:p-7 relative max-h-[90vh] overflow-y-auto shadow-2xl">
-            {/* Close Button */}
-            <button
-              type="button"
-              onClick={() => setDetailsModalPlan(null)}
-              className="absolute top-5 right-5 p-1.5 rounded-lg bg-[#222222] hover:bg-[#2b2b2b] text-[#A3A3A3] hover:text-white transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            {/* Modal Header */}
-            <div className="space-y-1 mb-5">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-[#E58A32] font-bold">
-                  {detailsModalPlan.planType || 'PLAN SPECIFICATIONS'}
-                </span>
-                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-[#252525] text-[#A3A3A3]">
-                  {formatDurationText(detailsModalPlan)}
-                </span>
+          <div
+            className="w-full max-w-lg bg-[#181818] border border-[#303030] p-8 flex flex-col gap-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[#303030] pb-4">
+              <div>
+                <p className="font-editorial-label text-[#EB3E2E] mb-2">
+                  {formatDurationLabel(detailsModalPlan)}
+                </p>
+                <h3 className="font-editorial-display text-3xl font-semibold uppercase text-[#F5F5F5]">
+                  {detailsModalPlan.name}
+                </h3>
               </div>
-              <h3
-                className="text-xl sm:text-2xl font-bold uppercase text-[#F5F5F5]"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                {detailsModalPlan.name}
-              </h3>
-              {detailsModalPlan.description && (
-                <p className="text-xs text-[#A3A3A3] pt-1">{detailsModalPlan.description}</p>
-              )}
-            </div>
-
-            {/* Branch Association */}
-            <div className="p-3 rounded-xl bg-[#141416] border border-[#252528] flex items-center gap-2.5 text-xs text-[#A3A3A3] mb-5">
-              <Building className="w-4 h-4 text-[#E58A32] shrink-0" />
-              <span>
-                Facility Access Pass valid at{' '}
-                <strong className="text-[#F5F5F5]">
-                  {currentBranch?.name || 'Man & Machine Fitness'} ({currentBranch?.city || 'Selected Location'})
-                </strong>
-              </span>
-            </div>
-
-            {/* Itemized Pricing Breakdown */}
-            <div className="p-4 rounded-xl bg-[#1C1C1F] border border-[#2E2E2E] space-y-2 mb-6">
-              <span className="text-[10px] font-mono uppercase text-[#A3A3A3] tracking-wider block mb-1 font-bold">
-                PRICING BREAKDOWN
-              </span>
-              <div className="flex justify-between text-xs text-[#CCCCCC]">
-                <span>Base Membership Fee</span>
-                <span className="font-mono">₹{detailsModalPlan.basePrice.toLocaleString('en-IN')}</span>
-              </div>
-              <div className="flex justify-between text-xs text-[#CCCCCC]">
-                <span>Registration / Joining Fee</span>
-                <span className="font-mono">
-                  {detailsModalPlan.joiningFee === 0 ? (
-                    <span className="text-emerald-400 font-semibold">Waived (₹0)</span>
-                  ) : (
-                    `₹${detailsModalPlan.joiningFee.toLocaleString('en-IN')}`
-                  )}
-                </span>
-              </div>
-              {detailsModalPlan.discountValue > 0 && (
-                <div className="flex justify-between text-xs text-emerald-400 font-semibold">
-                  <span>Branch Discount Savings</span>
-                  <span className="font-mono">- ₹{detailsModalPlan.discountValue.toLocaleString('en-IN')}</span>
-                </div>
-              )}
-              <div className="pt-2 border-t border-[#292929] flex justify-between items-baseline">
-                <span className="text-xs uppercase font-bold text-[#F5F5F5]">Total Payable Amount</span>
-                <span
-                  className="text-xl font-bold text-[#E58A32]"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                >
-                  ₹{(detailsModalPlan.finalPrice ?? detailsModalPlan.basePrice).toLocaleString('en-IN')}
-                </span>
-              </div>
-            </div>
-
-            {/* All Benefits List */}
-            <div className="space-y-3 mb-6">
-              <span className="text-[10px] font-mono uppercase text-[#A3A3A3] tracking-wider block font-bold">
-                COMPREHENSIVE PRIVILEGES:
-              </span>
-              <ul className="space-y-2 text-xs text-[#F5F5F5]">
-                {(detailsModalPlan.benefits || []).map((b, i) => (
-                  <li key={i} className="flex items-start gap-2.5">
-                    <Check className="w-4 h-4 text-[#E58A32] shrink-0 mt-0.5" />
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center gap-3 pt-4 border-t border-[#292929]">
               <button
                 type="button"
                 onClick={() => setDetailsModalPlan(null)}
-                className="flex-1 py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] hover:bg-[#2b2b2b] text-[#CCCCCC] transition-colors cursor-pointer text-center"
+                className="text-[#B8B8B8] hover:text-[#F5F5F5] p-1 cursor-pointer"
+                aria-label="Close plan details"
               >
-                CLOSE
+                <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {detailsModalPlan.description && (
+              <p className="font-editorial-body text-[#B8B8B8] text-sm">
+                {detailsModalPlan.description}
+              </p>
+            )}
+
+            <ul className="flex flex-col gap-3">
+              {(detailsModalPlan.benefits || []).map((benefit, bIdx) => (
+                <li key={bIdx} className="flex items-start gap-3 text-sm text-[#F5F5F5]">
+                  <Check className="w-4 h-4 text-[#EB3E2E] shrink-0 mt-0.5" />
+                  <span>{benefit}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="pt-4 border-t border-[#303030] flex items-center justify-between gap-4">
+              <div>
+                <span className="font-editorial-label text-[#B8B8B8] block">TOTAL</span>
+                <span className="font-editorial-display text-2xl font-semibold text-[#F5F5F5]">
+                  {formatCurrency(detailsModalPlan.finalPrice) || 'PRICE TO BE CONFIRMED'}
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => {
-                  const targetPlan = detailsModalPlan;
+                  const chosen = detailsModalPlan;
                   setDetailsModalPlan(null);
-                  handleChoosePlan(targetPlan);
+                  handlePlanCTA(chosen);
                 }}
-                className="flex-1 py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black font-black transition-all shadow-[0_0_20px_rgba(229,138,50,0.3)] flex items-center justify-center gap-1.5 cursor-pointer"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                className="btn-editorial-primary"
               >
-                <span>CHOOSE THIS PLAN</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <span>SELECT PLAN</span>
               </button>
             </div>
           </div>

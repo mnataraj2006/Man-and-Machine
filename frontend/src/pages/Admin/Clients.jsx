@@ -284,11 +284,11 @@ export default function Clients() {
         <div>
           <h2
             className="text-xl sm:text-2xl font-bold uppercase tracking-tight text-[#F5F5F5]"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            style={{ fontFamily: "'Oswald', sans-serif" }}
           >
             CLIENT MANAGEMENT DIRECTORY
           </h2>
-          <p className="text-xs text-[#A3A3A3]">
+          <p className="text-xs text-[#B8B8B8]">
             Total {totalCount} registered athletes across Kovilpatti, Karur and Sivakasi.
           </p>
         </div>
@@ -297,9 +297,9 @@ export default function Clients() {
           <button
             type="button"
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#1F1F1F] hover:bg-[#252525] text-[#F5F5F5] border border-[#292929] hover:border-[#E58A32] transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#252525] text-[#F5F5F5] border border-[#303030] hover:border-[#EB3E2E] transition-colors cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-[#E58A32]" />
+            <Download className="w-3.5 h-3.5 text-[#EB3E2E]" />
             <span>Export CSV</span>
           </button>
 
@@ -321,8 +321,7 @@ export default function Clients() {
               });
               setIsAddModalOpen(true);
             }}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black transition-all cursor-pointer shadow-lg shadow-[#E58A32]/10"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white transition-all cursor-pointer shadow-lg shadow-[#EB3E2E]/10"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Client</span>
@@ -331,16 +330,16 @@ export default function Clients() {
       </div>
 
       {/* ── SEARCH & FILTERS BAR ── */}
-      <div className="bg-[#141414] border border-[#292929] rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <div className="bg-[#111111] border border-[#303030] rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Search */}
         <form onSubmit={handleSearchSubmit} className="flex-1 relative">
-          <Search className="w-4 h-4 text-[#A3A3A3] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-4 h-4 text-[#B8B8B8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, phone, or email..."
-            className="w-full pl-9 pr-4 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] placeholder-[#A3A3A3] focus:border-[#E58A32] focus:outline-none transition-colors"
+            className="w-full pl-9 pr-4 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] placeholder-[#B8B8B8] focus:border-[#EB3E2E] focus:outline-none transition-colors"
           />
         </form>
 
@@ -353,7 +352,7 @@ export default function Clients() {
               setBranchFilter(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none cursor-pointer"
+            className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none cursor-pointer"
           >
             <option value="ALL">All Branches</option>
             {branches.map((b) => (
@@ -370,7 +369,7 @@ export default function Clients() {
               setMembershipStatus(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none cursor-pointer"
+            className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none cursor-pointer"
           >
             <option value="ALL">All Memberships</option>
             <option value="ACTIVE">Active Pass</option>
@@ -385,7 +384,7 @@ export default function Clients() {
               setAccountStatus(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2 bg-[#121212] border border-[#292929] rounded-xl text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none cursor-pointer"
+            className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none cursor-pointer"
           >
             <option value="ALL">All Account Status</option>
             <option value="ACTIVE">Active</option>
@@ -415,11 +414,11 @@ export default function Clients() {
       )}
 
       {/* ── CLIENTS TABLE ── */}
-      <div className="bg-[#181818] border border-[#292929] rounded-2xl overflow-hidden shadow-xl">
+      <div className="bg-[#181818] border border-[#303030] rounded-2xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-[#292929] bg-[#141414] text-[11px] font-mono uppercase tracking-wider text-[#A3A3A3]">
+              <tr className="border-b border-[#303030] bg-[#111111] text-[11px] font-mono uppercase tracking-wider text-[#B8B8B8]">
                 <th className="py-3.5 px-4 font-semibold">Athlete</th>
                 <th className="py-3.5 px-4 font-semibold">Contact</th>
                 <th className="py-3.5 px-4 font-semibold">Branch</th>
@@ -429,31 +428,31 @@ export default function Clients() {
                 <th className="py-3.5 px-4 font-semibold text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#222222] text-xs">
+            <tbody className="divide-y divide-[#202020] text-xs">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-[#A3A3A3]">
+                  <td colSpan={7} className="py-12 text-center text-[#B8B8B8]">
                     Loading athletes database...
                   </td>
                 </tr>
               ) : clients.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-[#A3A3A3]">
+                  <td colSpan={7} className="py-12 text-center text-[#B8B8B8]">
                     No clients match the specified search or filter criteria.
                   </td>
                 </tr>
               ) : (
                 clients.map((c) => (
-                  <tr key={c.id || c._id} className="hover:bg-[#1E1E1E] transition-colors">
+                  <tr key={c.id || c._id} className="hover:bg-[#202020] transition-colors">
                     {/* Athlete info */}
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#E58A32]/10 border border-[#E58A32]/30 flex items-center justify-center text-[#E58A32] font-bold text-xs shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-[#EB3E2E]/10 border border-[#EB3E2E]/30 flex items-center justify-center text-[#EB3E2E] font-bold text-xs shrink-0">
                           {c.name ? c.name[0].toUpperCase() : 'U'}
                         </div>
                         <div className="flex flex-col">
                           <span className="font-bold text-[#F5F5F5]">{c.name}</span>
-                          <span className="text-[10px] text-[#A3A3A3] font-mono">
+                          <span className="text-[10px] text-[#B8B8B8] font-mono">
                             ID: {(c.id || c._id || '').toString().slice(-6)} • {c.fitnessGoal}
                           </span>
                         </div>
@@ -464,13 +463,13 @@ export default function Clients() {
                     <td className="py-3 px-4">
                       <div className="flex flex-col">
                         <span className="text-[#F5F5F5] font-mono">{c.phone}</span>
-                        <span className="text-[10px] text-[#A3A3A3]">{c.email}</span>
+                        <span className="text-[10px] text-[#B8B8B8]">{c.email}</span>
                       </div>
                     </td>
 
                     {/* Branch */}
                     <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded-md bg-[#252525] text-[#E58A32] font-bold text-[10px] font-mono">
+                      <span className="px-2 py-0.5 rounded-md bg-[#252525] text-[#EB3E2E] font-bold text-[10px] font-mono">
                         {c.branch?.city || 'HQ'}
                       </span>
                     </td>
@@ -499,7 +498,7 @@ export default function Clients() {
                           </span>
                         </div>
                       ) : (
-                        <span className="text-[11px] text-[#A3A3A3] italic">No Membership</span>
+                        <span className="text-[11px] text-[#B8B8B8] italic">No Membership</span>
                       )}
                     </td>
 
@@ -508,7 +507,7 @@ export default function Clients() {
                       {c.trainer ? (
                         <span className="text-xs font-medium text-[#F5F5F5]">{c.trainer.name}</span>
                       ) : (
-                        <span className="text-[11px] text-[#A3A3A3]">Self-Managed</span>
+                        <span className="text-[11px] text-[#B8B8B8]">Self-Managed</span>
                       )}
                     </td>
 
@@ -531,7 +530,7 @@ export default function Clients() {
                         <button
                           type="button"
                           onClick={() => handleOpenClientDetails(c.id || c._id)}
-                          className="px-2.5 py-1 rounded-lg bg-[#252525] hover:bg-[#E58A32] hover:text-black text-[#F5F5F5] font-semibold text-[11px] transition-colors cursor-pointer"
+                          className="px-2.5 py-1 rounded-lg bg-[#252525] hover:bg-[#EB3E2E] hover:text-white text-[#F5F5F5] font-semibold text-[11px] transition-colors cursor-pointer"
                         >
                           Dossier
                         </button>
@@ -540,7 +539,7 @@ export default function Clients() {
                           onClick={() => handleToggleStatus(c)}
                           className={`p-1 rounded-lg transition-colors cursor-pointer ${
                             c.status === 'ACTIVE'
-                              ? 'text-[#A3A3A3] hover:text-red-400'
+                              ? 'text-[#B8B8B8] hover:text-red-400'
                               : 'text-green-400 hover:text-green-300'
                           }`}
                           title={c.status === 'ACTIVE' ? 'Suspend Account' : 'Activate Account'}
@@ -557,7 +556,7 @@ export default function Clients() {
         </div>
 
         {/* Pagination Bar */}
-        <div className="p-4 border-t border-[#292929] bg-[#141414] flex items-center justify-between text-xs text-[#A3A3A3]">
+        <div className="p-4 border-t border-[#303030] bg-[#111111] flex items-center justify-between text-xs text-[#B8B8B8]">
           <span>
             Showing page <strong className="text-[#F5F5F5]">{page}</strong> of{' '}
             <strong className="text-[#F5F5F5]">{totalPages}</strong> ({totalCount} athletes)
@@ -568,7 +567,7 @@ export default function Clients() {
               type="button"
               disabled={page <= 1}
               onClick={() => setPage(page - 1)}
-              className="p-1.5 rounded-lg bg-[#1F1F1F] text-[#F5F5F5] border border-[#292929] hover:border-[#E58A32] disabled:opacity-40 cursor-pointer"
+              className="p-1.5 rounded-lg bg-[#202020] text-[#F5F5F5] border border-[#303030] hover:border-[#EB3E2E] disabled:opacity-40 cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -576,7 +575,7 @@ export default function Clients() {
               type="button"
               disabled={page >= totalPages}
               onClick={() => setPage(page + 1)}
-              className="p-1.5 rounded-lg bg-[#1F1F1F] text-[#F5F5F5] border border-[#292929] hover:border-[#E58A32] disabled:opacity-40 cursor-pointer"
+              className="p-1.5 rounded-lg bg-[#202020] text-[#F5F5F5] border border-[#303030] hover:border-[#EB3E2E] disabled:opacity-40 cursor-pointer"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -587,21 +586,21 @@ export default function Clients() {
       {/* ── CLIENT 360 DOSSIER DRAWER / MODAL ── */}
       {selectedClientId && clientDetailData && (
         <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-2xl bg-[#141414] border-l border-[#292929] h-full overflow-y-auto p-6 space-y-6 shadow-2xl">
+          <div className="w-full max-w-2xl bg-[#111111] border-l border-[#303030] h-full overflow-y-auto p-6 space-y-6 shadow-2xl">
             {/* Drawer Header */}
-            <div className="flex items-start justify-between border-b border-[#292929] pb-4">
+            <div className="flex items-start justify-between border-b border-[#303030] pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-[#E58A32]/20 border border-[#E58A32]/40 flex items-center justify-center text-[#E58A32] font-bold text-lg">
+                <div className="w-12 h-12 rounded-full bg-[#EB3E2E]/20 border border-[#EB3E2E]/40 flex items-center justify-center text-[#EB3E2E] font-bold text-lg">
                   {clientDetailData.client.name ? clientDetailData.client.name[0].toUpperCase() : 'U'}
                 </div>
                 <div className="flex flex-col">
                   <h3
                     className="text-lg font-bold uppercase text-[#F5F5F5]"
-                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                    style={{ fontFamily: "'Oswald', sans-serif" }}
                   >
                     {clientDetailData.client.name}
                   </h3>
-                  <span className="text-xs text-[#A3A3A3] font-mono">
+                  <span className="text-xs text-[#B8B8B8] font-mono">
                     ID: {clientDetailData.client.id} • Joined{' '}
                     {new Date(clientDetailData.client.createdAt).toLocaleDateString()}
                   </span>
@@ -614,7 +613,7 @@ export default function Clients() {
                   setSelectedClientId(null);
                   setClientDetailData(null);
                 }}
-                className="p-2 rounded-lg bg-[#1F1F1F] text-[#A3A3A3] hover:text-white border border-[#292929]"
+                className="p-2 rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030]"
               >
                 &times; Close
               </button>
@@ -625,7 +624,7 @@ export default function Clients() {
               <button
                 type="button"
                 onClick={() => handleOpenEdit(clientDetailData.client)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#222222] hover:bg-[#292929] text-xs font-semibold text-[#F5F5F5] border border-[#292929]"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#202020] hover:bg-[#303030] text-xs font-semibold text-[#F5F5F5] border border-[#303030]"
               >
                 <Edit className="w-3.5 h-3.5" />
                 <span>Edit Profile</span>
@@ -634,7 +633,7 @@ export default function Clients() {
               <button
                 type="button"
                 onClick={() => setIsPasswordModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#222222] hover:bg-[#292929] text-xs font-semibold text-[#F5F5F5] border border-[#292929]"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#202020] hover:bg-[#303030] text-xs font-semibold text-[#F5F5F5] border border-[#303030]"
               >
                 <KeyRound className="w-3.5 h-3.5" />
                 <span>Reset Password</span>
@@ -654,40 +653,40 @@ export default function Clients() {
             </div>
 
             {/* Client Key Overview Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-[#181818] p-4 rounded-xl border border-[#292929]">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-[#181818] p-4 rounded-xl border border-[#303030]">
               <div>
-                <span className="text-[10px] font-mono uppercase text-[#A3A3A3]">Mobile</span>
+                <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Mobile</span>
                 <p className="text-xs font-bold text-[#F5F5F5] mt-0.5">{clientDetailData.client.phone}</p>
               </div>
               <div>
-                <span className="text-[10px] font-mono uppercase text-[#A3A3A3]">Email</span>
+                <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Email</span>
                 <p className="text-xs font-bold text-[#F5F5F5] mt-0.5 truncate">{clientDetailData.client.email}</p>
               </div>
               <div>
-                <span className="text-[10px] font-mono uppercase text-[#A3A3A3]">Branch</span>
-                <p className="text-xs font-bold text-[#E58A32] mt-0.5">
+                <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Branch</span>
+                <p className="text-xs font-bold text-[#EB3E2E] mt-0.5">
                   {clientDetailData.client.branch?.city || 'Kovilpatti HQ'}
                 </p>
               </div>
               <div>
-                <span className="text-[10px] font-mono uppercase text-[#A3A3A3]">Fitness Goal</span>
+                <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Fitness Goal</span>
                 <p className="text-xs font-bold text-[#F5F5F5] mt-0.5">
                   {clientDetailData.profile?.fitnessGoal || 'General Fitness'}
                 </p>
               </div>
               <div>
-                <span className="text-[10px] font-mono uppercase text-[#A3A3A3]">Experience Level</span>
+                <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Experience Level</span>
                 <p className="text-xs font-bold text-[#F5F5F5] mt-0.5">
                   {clientDetailData.profile?.experienceLevel || 'Beginner'}
                 </p>
               </div>
               <div>
-                <span className="text-[10px] font-mono uppercase text-[#A3A3A3]">Assigned Coach</span>
+                <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Assigned Coach</span>
                 <div className="mt-0.5 flex items-center gap-1">
                   <select
                     value={clientDetailData.profile?.trainerId?._id || ''}
                     onChange={(e) => handleAssignTrainer(e.target.value)}
-                    className="bg-[#121212] border border-[#292929] rounded text-[11px] text-[#F5F5F5] px-1.5 py-0.5 focus:outline-none"
+                    className="bg-[#111111] border border-[#303030] rounded text-[11px] text-[#F5F5F5] px-1.5 py-0.5 focus:outline-none"
                   >
                     <option value="">No Coach (Self-Managed)</option>
                     {trainersList.map((t) => (
@@ -701,14 +700,14 @@ export default function Clients() {
             </div>
 
             {/* Active Membership Details */}
-            <div className="bg-[#181818] border border-[#292929] rounded-xl p-4 flex flex-col gap-3">
+            <div className="bg-[#181818] border border-[#303030] rounded-xl p-4 flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono uppercase text-[#E58A32] font-bold">MEMBERSHIP</span>
+                <span className="text-xs font-mono uppercase text-[#EB3E2E] font-bold">MEMBERSHIP</span>
                 <span
                   className={`text-[10px] font-bold px-2 py-0.5 rounded ${
                     clientDetailData.activeMembership
                       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                      : 'bg-[#252525] text-[#A3A3A3]'
+                      : 'bg-[#252525] text-[#B8B8B8]'
                   }`}
                 >
                   {clientDetailData.activeMembership ? 'ACTIVE' : 'NOT ENROLLED'}
@@ -718,24 +717,24 @@ export default function Clients() {
               {clientDetailData.activeMembership ? (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div>
-                    <span className="text-[10px] text-[#A3A3A3] block uppercase">Plan</span>
+                    <span className="text-[10px] text-[#B8B8B8] block uppercase">Plan</span>
                     <p className="font-bold text-[#F5F5F5]">{clientDetailData.activeMembership.planName}</p>
                   </div>
                   <div>
-                    <span className="text-[10px] text-[#A3A3A3] block uppercase">Start Date</span>
+                    <span className="text-[10px] text-[#B8B8B8] block uppercase">Start Date</span>
                     <p className="font-mono text-[#F5F5F5]">
                       {new Date(clientDetailData.activeMembership.startDate).toLocaleDateString()}
                     </p>
                   </div>
                   <div>
-                    <span className="text-[10px] text-[#A3A3A3] block uppercase">Expiry Date</span>
+                    <span className="text-[10px] text-[#B8B8B8] block uppercase">Expiry Date</span>
                     <p className="font-mono text-green-400 font-bold">
                       {new Date(clientDetailData.activeMembership.expiryDate).toLocaleDateString()}
                     </p>
                   </div>
                   <div>
-                    <span className="text-[10px] text-[#A3A3A3] block uppercase">Price</span>
-                    <p className="font-bold text-[#E58A32]">
+                    <span className="text-[10px] text-[#B8B8B8] block uppercase">Price</span>
+                    <p className="font-bold text-[#EB3E2E]">
                       ₹{clientDetailData.activeMembership.finalAmount || clientDetailData.activeMembership.amount || 0}
                     </p>
                   </div>
@@ -744,24 +743,24 @@ export default function Clients() {
                 <div className="flex flex-col gap-3">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs opacity-75">
                     <div>
-                      <span className="text-[10px] text-[#A3A3A3] block uppercase">Plan</span>
-                      <p className="font-bold text-[#737373]">—</p>
+                      <span className="text-[10px] text-[#B8B8B8] block uppercase">Plan</span>
+                      <p className="font-bold text-[#858585]">—</p>
                     </div>
                     <div>
-                      <span className="text-[10px] text-[#A3A3A3] block uppercase">Start Date</span>
-                      <p className="font-mono text-[#737373]">—</p>
+                      <span className="text-[10px] text-[#B8B8B8] block uppercase">Start Date</span>
+                      <p className="font-mono text-[#858585]">—</p>
                     </div>
                     <div>
-                      <span className="text-[10px] text-[#A3A3A3] block uppercase">Expiry Date</span>
-                      <p className="font-mono text-[#737373]">—</p>
+                      <span className="text-[10px] text-[#B8B8B8] block uppercase">Expiry Date</span>
+                      <p className="font-mono text-[#858585]">—</p>
                     </div>
                     <div>
-                      <span className="text-[10px] text-[#A3A3A3] block uppercase">Status</span>
-                      <p className="font-bold text-[#A3A3A3]">NOT ENROLLED</p>
+                      <span className="text-[10px] text-[#B8B8B8] block uppercase">Status</span>
+                      <p className="font-bold text-[#B8B8B8]">NOT ENROLLED</p>
                     </div>
                   </div>
                   <div className="pt-2 border-t border-[#252525] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <p className="text-xs text-[#A3A3A3] italic">
+                    <p className="text-xs text-[#B8B8B8] italic">
                       No membership has been purchased or assigned.
                     </p>
                     <button
@@ -775,7 +774,7 @@ export default function Clients() {
                         });
                         setIsAssignModalOpen(true);
                       }}
-                      className="px-3.5 py-1.5 rounded-lg bg-[#E58A32] hover:bg-[#F09A43] text-white text-xs font-bold uppercase transition-all shadow-[0_0_10px_rgba(229,138,50,0.2)] shrink-0 self-start sm:self-auto cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-lg bg-[#EB3E2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase transition-all shadow-[0_0_10px_rgba(235,62,46,0.2)] shrink-0 self-start sm:self-auto cursor-pointer"
                     >
                       Assign Membership
                     </button>
@@ -786,24 +785,24 @@ export default function Clients() {
 
             {/* Payments Ledger */}
             <div className="space-y-2">
-              <span className="text-xs font-mono uppercase text-[#A3A3A3]">PAYMENT TRANSACTIONS LEDGER</span>
-              <div className="bg-[#181818] border border-[#292929] rounded-xl overflow-hidden max-h-40 overflow-y-auto">
+              <span className="text-xs font-mono uppercase text-[#B8B8B8]">PAYMENT TRANSACTIONS LEDGER</span>
+              <div className="bg-[#181818] border border-[#303030] rounded-xl overflow-hidden max-h-40 overflow-y-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-[#292929] bg-[#121212] text-[10px] text-[#A3A3A3]">
+                    <tr className="border-b border-[#303030] bg-[#111111] text-[10px] text-[#B8B8B8]">
                       <th className="p-2 font-mono">Date</th>
                       <th className="p-2 font-mono">Tx ID</th>
                       <th className="p-2 font-mono">Amount</th>
                       <th className="p-2 font-mono">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#222222]">
+                  <tbody className="divide-y divide-[#202020]">
                     {clientDetailData.payments?.length > 0 ? (
                       clientDetailData.payments.map((p) => (
                         <tr key={p._id}>
                           <td className="p-2 font-mono">{new Date(p.date).toLocaleDateString()}</td>
                           <td className="p-2 font-mono truncate max-w-[100px]">{p.transactionId}</td>
-                          <td className="p-2 font-bold text-[#E58A32]">₹{p.amount}</td>
+                          <td className="p-2 font-bold text-[#EB3E2E]">₹{p.amount}</td>
                           <td className="p-2">
                             <span className="text-[10px] font-bold text-green-400">{p.status}</span>
                           </td>
@@ -811,7 +810,7 @@ export default function Clients() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={4} className="p-4 text-center text-[#A3A3A3]">
+                        <td colSpan={4} className="p-4 text-center text-[#B8B8B8]">
                           No payment transactions recorded.
                         </td>
                       </tr>
@@ -823,20 +822,20 @@ export default function Clients() {
 
             {/* Attendance History */}
             <div className="space-y-2">
-              <span className="text-xs font-mono uppercase text-[#A3A3A3]">RECENT ATTENDANCE VISITS</span>
-              <div className="bg-[#181818] border border-[#292929] rounded-xl p-3 flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+              <span className="text-xs font-mono uppercase text-[#B8B8B8]">RECENT ATTENDANCE VISITS</span>
+              <div className="bg-[#181818] border border-[#303030] rounded-xl p-3 flex flex-wrap gap-2 max-h-32 overflow-y-auto">
                 {clientDetailData.attendances?.length > 0 ? (
                   clientDetailData.attendances.map((a) => (
                     <span
                       key={a._id}
-                      className="px-2 py-1 bg-[#121212] border border-[#292929] rounded text-[11px] font-mono text-[#F5F5F5]"
+                      className="px-2 py-1 bg-[#111111] border border-[#303030] rounded text-[11px] font-mono text-[#F5F5F5]"
                     >
                       {new Date(a.date).toLocaleDateString()} •{' '}
                       {new Date(a.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   ))
                 ) : (
-                  <span className="text-xs text-[#A3A3A3] italic">No attendance visits recorded.</span>
+                  <span className="text-xs text-[#B8B8B8] italic">No attendance visits recorded.</span>
                 )}
               </div>
             </div>
@@ -847,47 +846,47 @@ export default function Clients() {
       {/* ── ADD CLIENT MODAL ── */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
             <h3
               className="text-lg font-bold uppercase tracking-tight text-[#F5F5F5] mb-4"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               Add New Client
             </h3>
 
             <form onSubmit={handleCreateClientSubmit} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Full Name</label>
+                <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Full Name</label>
                 <input
                   type="text"
                   required
                   value={addForm.name}
                   onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   placeholder="e.g. S. Karthik"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Email</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Email</label>
                   <input
                     type="email"
                     required
                     value={addForm.email}
                     onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                     placeholder="karthik@domain.com"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Phone</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone</label>
                   <input
                     type="text"
                     required
                     value={addForm.phone}
                     onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                     placeholder="9876543210"
                   />
                 </div>
@@ -895,11 +894,11 @@ export default function Clients() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Branch</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Branch</label>
                   <select
                     value={addForm.branchId}
                     onChange={(e) => setAddForm({ ...addForm, branchId: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   >
                     {branches.map((b) => (
                       <option key={b._id} value={b._id}>
@@ -909,23 +908,23 @@ export default function Clients() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Temporary Password</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Temporary Password</label>
                   <input
                     type="text"
                     value={addForm.password}
                     onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Fitness Goal</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Fitness Goal</label>
                   <select
                     value={addForm.fitnessGoal}
                     onChange={(e) => setAddForm({ ...addForm, fitnessGoal: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   >
                     <option value="Muscle Building">Muscle Building</option>
                     <option value="Weight Loss">Weight Loss</option>
@@ -934,13 +933,13 @@ export default function Clients() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">
                     Assign Coach (OPTIONAL)
                   </label>
                   <select
                     value={addForm.trainerId}
                     onChange={(e) => setAddForm({ ...addForm, trainerId: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   >
                     <option value="">None (Self-Managed Athlete)</option>
                     {trainersList.map((t) => (
@@ -953,13 +952,13 @@ export default function Clients() {
               </div>
 
               {/* Initial Membership Assignment */}
-              <div className="pt-2 border-t border-[#292929]">
-                <span className="text-[11px] font-mono uppercase text-[#E58A32] font-bold block mb-2">
+              <div className="pt-2 border-t border-[#303030]">
+                <span className="text-[11px] font-mono uppercase text-[#EB3E2E] font-bold block mb-2">
                   OPTIONAL INITIAL MEMBERSHIP PASS
                 </span>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] text-[#A3A3A3] mb-1">Select Membership Plan</label>
+                    <label className="block text-[10px] text-[#B8B8B8] mb-1">Select Membership Plan</label>
                     <select
                       value={addForm.planId || ''}
                       onChange={(e) => {
@@ -987,7 +986,7 @@ export default function Clients() {
                           membershipAmount: cost,
                         });
                       }}
-                      className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
+                      className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
                     >
                       <option value="">None (No initial pass)</option>
                       {plans.map((p) => {
@@ -1004,12 +1003,12 @@ export default function Clients() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] text-[#A3A3A3] mb-1">Fee Amount (₹)</label>
+                    <label className="block text-[10px] text-[#B8B8B8] mb-1">Fee Amount (₹)</label>
                     <input
                       type="number"
                       value={addForm.membershipAmount}
                       onChange={(e) => setAddForm({ ...addForm, membershipAmount: e.target.value })}
-                      className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5]"
+                      className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5]"
                     />
                   </div>
                 </div>
@@ -1019,13 +1018,13 @@ export default function Clients() {
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] hover:bg-[#292929] text-[#A3A3A3] cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black cursor-pointer"
+                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white cursor-pointer"
                 >
                   Create Client
                 </button>
@@ -1038,14 +1037,14 @@ export default function Clients() {
       {/* ── RESET PASSWORD MODAL ── */}
       {isPasswordModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-sm p-6 relative">
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-sm p-6 relative">
             <h3
               className="text-base font-bold uppercase tracking-tight text-[#F5F5F5] mb-3"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               Reset Client Password
             </h3>
-            <p className="text-xs text-[#A3A3A3] mb-4">
+            <p className="text-xs text-[#B8B8B8] mb-4">
               Enter a new secure password (minimum 8 characters) for this account.
             </p>
 
@@ -1057,7 +1056,7 @@ export default function Clients() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="New password (min 8 chars)"
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                 />
               </div>
 
@@ -1068,13 +1067,13 @@ export default function Clients() {
                     setIsPasswordModalOpen(false);
                     setNewPassword('');
                   }}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#222222] text-[#A3A3A3]"
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#202020] text-[#B8B8B8]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#E58A32] text-black"
+                  className="px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] text-white"
                 >
                   Update Password
                 </button>
@@ -1087,21 +1086,21 @@ export default function Clients() {
       {/* ── ASSIGN MEMBERSHIP MODAL ── */}
       {isAssignModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-md p-6 relative">
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-md p-6 relative">
             <h3
               className="text-base font-bold uppercase tracking-tight text-[#F5F5F5] mb-2"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               Assign Membership Pass
             </h3>
-            <p className="text-xs text-[#A3A3A3] mb-4">
+            <p className="text-xs text-[#B8B8B8] mb-4">
               Select an active membership plan to assign to{' '}
               <strong className="text-[#F5F5F5]">{clientDetailData?.client?.name || 'this client'}</strong>.
             </p>
 
             <form onSubmit={handleAssignMembership} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-mono text-[#A3A3A3] uppercase mb-1">
+                <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
                   Membership Plan
                 </label>
                 <select
@@ -1115,7 +1114,7 @@ export default function Clients() {
                       amount: chosen?.price || '',
                     });
                   }}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                 >
                   <option value="">Select a plan</option>
                   {plans.map((p) => (
@@ -1128,7 +1127,7 @@ export default function Clients() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono text-[#A3A3A3] uppercase mb-1">
+                  <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
                     Start Date
                   </label>
                   <input
@@ -1136,11 +1135,11 @@ export default function Clients() {
                     required
                     value={assignForm.startDate}
                     onChange={(e) => setAssignForm({ ...assignForm, startDate: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none font-mono"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-mono text-[#A3A3A3] uppercase mb-1">
+                  <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
                     Amount Paid (₹)
                   </label>
                   <input
@@ -1149,7 +1148,7 @@ export default function Clients() {
                     placeholder="Auto from plan"
                     value={assignForm.amount}
                     onChange={(e) => setAssignForm({ ...assignForm, amount: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none font-mono"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none font-mono"
                   />
                 </div>
               </div>
@@ -1159,14 +1158,14 @@ export default function Clients() {
                   type="button"
                   disabled={assignLoading}
                   onClick={() => setIsAssignModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] hover:bg-[#2c2c2c] text-[#A3A3A3] transition-colors"
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#2c2c2c] text-[#B8B8B8] transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={assignLoading}
-                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black font-semibold transition-all shadow-[0_0_15px_rgba(229,138,50,0.25)]"
+                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white font-semibold transition-all shadow-[0_0_15px_rgba(235,62,46,0.25)]"
                 >
                   {assignLoading ? 'Assigning...' : 'Confirm Assignment'}
                 </button>

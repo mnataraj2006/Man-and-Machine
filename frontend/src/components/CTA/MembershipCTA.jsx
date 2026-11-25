@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function MembershipCTA({ onOpenJoinModal, onNavigate }) {
   return (
-    <section className="w-full py-14 sm:py-20 bg-[#E58A32] text-white relative overflow-hidden" id="membership">
+    <section className="w-full py-14 sm:py-20 bg-[#EB3E2E] text-white relative overflow-hidden" id="membership">
       {/* Background ambient lighting */}
       <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-black/10 rounded-full blur-3xl pointer-events-none"></div>
 
@@ -11,7 +11,7 @@ export default function MembershipCTA({ onOpenJoinModal, onNavigate }) {
           <div className="flex flex-col gap-2.5 sm:gap-3 max-w-2xl">
             <span 
               className="text-[10px] sm:text-xs uppercase tracking-widest text-white/90 font-bold"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               START YOUR TRANSFORMATION
             </span>
@@ -19,7 +19,7 @@ export default function MembershipCTA({ onOpenJoinModal, onNavigate }) {
             <h2 
               className="uppercase tracking-tight text-white font-bold leading-tight"
               style={{
-                fontFamily: "'Space Grotesk', sans-serif",
+                fontFamily: "'Oswald', sans-serif",
                 fontSize: 'clamp(1.75rem, 4.5vw, 3.2rem)',
                 lineHeight: '1.05',
               }}
@@ -45,8 +45,7 @@ export default function MembershipCTA({ onOpenJoinModal, onNavigate }) {
                   window.dispatchEvent(new PopStateEvent('popstate'));
                 }
               }}
-              className="inline-flex items-center justify-center gap-2 bg-[#09090B] hover:bg-[#181822] text-[#F5F5F5] font-bold text-xs uppercase tracking-wider px-7 py-4 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.35)] transition-all duration-200 active:scale-95 text-center cursor-pointer min-h-[48px] w-full sm:w-auto"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              className="inline-flex items-center justify-center gap-2 bg-[#090909] hover:bg-[#202020] text-[#F5F5F5] font-bold text-xs uppercase tracking-wider px-7 py-4 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.35)] transition-all duration-200 active:scale-95 text-center cursor-pointer min-h-[48px] w-full sm:w-auto"
             >
               <span>JOIN NOW</span>
               <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
@@ -54,7 +53,6 @@ export default function MembershipCTA({ onOpenJoinModal, onNavigate }) {
             <a
               className="inline-flex items-center justify-center gap-2 bg-transparent hover:bg-black/15 text-white font-bold text-xs uppercase tracking-wider px-7 py-4 rounded-xl border-2 border-white transition-all duration-200 text-center min-h-[48px] w-full sm:w-auto"
               href="tel:+917598885566"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
             >
               <span>GET MEMBERSHIP DETAILS</span>
             </a>

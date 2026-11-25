@@ -1,252 +1,163 @@
 import React from 'react';
-import { branches } from '../../data/branches.js';
+import { Reveal } from '../Motion/ScrollMotion.jsx';
 
-export default function Footer({ onOpenJoinModal, onNavigate }) {
+export default function Footer({ onNavigate }) {
+  const navLinks = [
+    { name: 'HOME', href: '#home' },
+    { name: 'ABOUT', href: '#about' },
+    { name: 'MEMBERSHIPS', href: '#memberships' },
+    { name: 'TRAINERS', href: '#trainers' },
+    { name: 'FACILITIES', href: '#facilities' },
+    { name: 'CONTACT', href: '#contact' },
+  ];
+
+  const handleSmoothScroll = (e, href) => {
+    const id = href.replace('#', '');
+    const target = document.getElementById(id);
+    if (target) {
+      e.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleBackToTop = (e) => {
+    e.preventDefault();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
-    <footer className="w-full bg-[#040410] border-t border-[#292936] pt-10 sm:pt-16 pb-8 sm:pb-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-8 sm:gap-12">
-
-        {/* ── MOBILE MINIMAL COMPACT FOOTER (lg:hidden) ── */}
-        <div className="block lg:hidden flex flex-col gap-6">
-          {/* Brand Row */}
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white p-1 flex items-center justify-center shrink-0 border border-[#292936] shadow-[0_0_12px_rgba(229,138,50,0.20)]">
-              <img src="/logo.jpg" alt="Man & Machine Fitness Logo" className="w-full h-full object-contain" />
+    <footer className="w-full bg-[#090909] border-t border-[#303030]">
+      <div className="max-w-[1440px] mx-auto px-6 md:px-14 pt-16 sm:pt-[72px] pb-8 flex flex-col items-start gap-8">
+        {/* Brand Display Row */}
+        <Reveal className="flex flex-col items-start gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white p-1.5 border border-[#303030] flex items-center justify-center shrink-0">
+              <img
+                src="/logo.jpg"
+                alt="Man & Machine Fitness Centre Logo"
+                className="w-full h-full object-contain"
+              />
             </div>
-            <div className="flex flex-col">
-              <span 
-                className="text-base text-[#F5F5F5] font-bold uppercase tracking-tight"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                MAN &amp; MACHINE FITNESS
-              </span>
-              <span 
-                className="text-[10.5px] uppercase tracking-wider text-[#E58A32] font-semibold"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                THREE CITIES • ONE FITNESS CULTURE
-              </span>
-            </div>
-          </div>
-
-          {/* City Quick Navigation Pills */}
-          <div className="flex flex-wrap items-center gap-2">
-            {branches.map((b) => (
-              <a
-                key={b.id}
-                href="#branches"
-                className="inline-flex items-center px-3 py-1.5 rounded-lg bg-[#10102A] border border-[#292936] text-[11px] font-bold uppercase tracking-wider text-[#B8B8C7] hover:text-[#E58A32] hover:border-[#E58A32] transition-colors"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                <span>{b.city}</span>
-              </a>
-            ))}
-          </div>
-
-          {/* Compact Navigation Grid */}
-          <div className="grid grid-cols-2 gap-2 text-xs border-y border-[#292936]/60 py-4">
-            <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#home">Home</a>
-            <a className="text-[#E58A32] hover:underline font-semibold transition-colors py-1" href="#branches">Our Branches</a>
-            <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#facilities">Facilities &amp; Gear</a>
-            <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#reviews">Verified Reviews</a>
-            <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#contact">Contact &amp; Location</a>
-            <a
-              href="/login"
-              onClick={(e) => {
-                e.preventDefault();
-                if (onNavigate) {
-                  onNavigate('/login');
-                } else {
-                  window.history.pushState({}, '', '/login');
-                  window.dispatchEvent(new PopStateEvent('popstate'));
-                }
-              }}
-              className="text-left text-[#E58A32] hover:underline cursor-pointer py-1 font-semibold"
+            <h2
+              className="font-editorial-display font-semibold uppercase text-[#F5F5F5]"
+              style={{ fontSize: 'clamp(2.25rem, 5vw, 4.5rem)' }}
             >
-              Membership Plans
-            </a>
+              MAN &amp; MACHINE
+            </h2>
           </div>
-
-          {/* Rating Badge + Social Row */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#10102A] rounded-xl border border-[#292936]">
-              <span className="text-[#E58A32] text-xs font-bold">★ 4.9</span>
-              <span className="text-[#B8B8C7] text-[10.5px]">Across Branches</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <a
-                aria-label="Instagram"
-                className="w-10 h-10 rounded-xl bg-[#10102A] border border-[#292936] flex items-center justify-center text-[#B8B8C7] hover:text-[#E58A32] transition-all"
-                href="https://instagram.com" target="_blank" rel="noopener noreferrer"
-              >
-                <span className="material-symbols-outlined text-[18px]">photo_camera</span>
-              </a>
-              <a
-                aria-label="Facebook"
-                className="w-10 h-10 rounded-xl bg-[#10102A] border border-[#292936] flex items-center justify-center text-[#B8B8C7] hover:text-[#E58A32] transition-all"
-                href="https://facebook.com" target="_blank" rel="noopener noreferrer"
-              >
-                <span className="material-symbols-outlined text-[18px]">public</span>
-              </a>
-              <a
-                aria-label="Google Maps"
-                className="w-10 h-10 rounded-xl bg-[#10102A] border border-[#292936] flex items-center justify-center text-[#B8B8C7] hover:text-[#E58A32] transition-all"
-                href="#branches"
-              >
-                <span className="material-symbols-outlined text-[18px]">near_me</span>
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {/* ── DESKTOP FULL FOOTER (hidden lg:grid) — 100% PRESERVED ── */}
-        <div className="hidden lg:grid grid-cols-12 gap-12 pb-12">
-
-          {/* Brand Info */}
-          <div className="col-span-4 flex flex-col gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-white p-1.5 flex items-center justify-center shrink-0 border border-[#292936] shadow-[0_0_15px_rgba(229,138,50,0.20)]">
-                <img src="/logo.jpg" alt="Man & Machine Fitness Logo" className="w-full h-full object-contain" />
-              </div>
-              <div className="flex flex-col">
-                <span 
-                  className="text-base sm:text-lg text-[#F5F5F5] font-bold uppercase tracking-tight"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                >
-                  MAN &amp; MACHINE FITNESS
-                </span>
-                <span 
-                  className="text-[11px] uppercase tracking-wider text-[#E58A32] font-semibold"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                >
-                  Kovilpatti | Karur | Sivakasi
-                </span>
-              </div>
-            </div>
-
-            <p 
-              className="text-xs uppercase tracking-widest text-[#B8B8C7] font-semibold"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              THREE CITIES • ONE FITNESS CULTURE
-            </p>
-
-            {/* Branch-Specific Contact Details */}
-            <div className="flex flex-col gap-3 text-[#B8B8C7] text-xs pt-1 border-t border-[#292936]/60">
-              {branches.map((b) => (
-                <div key={b.id} className="flex flex-col gap-0.5">
-                  <div className="font-bold text-[#F5F5F5]">
-                    <span className="uppercase">{b.city} BRANCH</span>
-                  </div>
-                  <div className="pl-3 flex flex-col text-[11.5px] text-[#B8B8C7]">
-                    <span>{b.city === 'Kovilpatti' ? 'Ettayapuram Road, Thittankulam' : `${b.city}, Tamil Nadu`}</span>
-                    {b.phone ? (
-                      <a href={`tel:${b.phoneRaw}`} className="text-[#E58A32] hover:underline font-mono">
-                        {b.phone}
-                      </a>
-                    ) : (
-                      <span className="text-[#B8B8C7]/60 italic text-[11px]">{b.phoneDisplay}</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Navigation Links */}
-          <div className="col-span-5 flex flex-col gap-3">
-            <h3 
-              className="text-xs uppercase text-[#F5F5F5] tracking-wider font-bold"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              EXPLORE
-            </h3>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs sm:text-sm">
-              <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#home">Home</a>
-              <a className="text-[#E58A32] hover:underline font-semibold transition-colors py-1" href="#branches">Our Branches</a>
-              <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#facilities">Equipment &amp; Facilities</a>
-              <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#reviews">Member Reviews</a>
-              <a className="text-[#B8B8C7] hover:text-[#E58A32] transition-colors py-1" href="#contact">Contact &amp; Location</a>
-              <a
-                href="/login"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (onNavigate) {
-                    onNavigate('/login');
-                  } else {
-                    window.history.pushState({}, '', '/login');
-                    window.dispatchEvent(new PopStateEvent('popstate'));
-                  }
-                }}
-                className="text-left text-[#E58A32] hover:underline cursor-pointer py-1 font-semibold"
-              >
-                Membership Plans
-              </a>
-            </div>
-          </div>
-
-          {/* Community & Ratings */}
-          <div className="col-span-3 flex flex-col gap-3">
-            <h3 
-              className="text-xs uppercase text-[#F5F5F5] tracking-wider font-bold"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              COMMUNITY &amp; RATINGS
-            </h3>
-            <div className="flex flex-col gap-3">
-              <div className="bg-[#10102A] p-4 rounded-xl border border-[#292936] flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-[10px] sm:text-xs uppercase tracking-wider text-[#B8B8C7]">
-                    Google Rating Across Branches
-                  </span>
-                  <span 
-                    className="text-lg sm:text-xl text-[#F5F5F5] font-bold"
-                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                  >
-                    4.9 <span className="text-[#E58A32] text-xs font-semibold">/ 5.0</span>
-                  </span>
-                </div>
-                <span className="material-symbols-outlined text-[#E58A32] text-[26px]">verified</span>
-              </div>
-
-              {/* Social icons */}
-              <div className="flex items-center gap-3 pt-1">
-                <a
-                  aria-label="Instagram"
-                  className="w-11 h-11 rounded-xl bg-[#10102A] border border-[#292936] flex items-center justify-center text-[#B8B8C7] hover:border-[#E58A32] hover:text-[#E58A32] transition-all"
-                  href="https://instagram.com" target="_blank" rel="noopener noreferrer"
-                >
-                  <span className="material-symbols-outlined text-[20px]">photo_camera</span>
-                </a>
-                <a
-                  aria-label="Facebook"
-                  className="w-11 h-11 rounded-xl bg-[#10102A] border border-[#292936] flex items-center justify-center text-[#B8B8C7] hover:border-[#E58A32] hover:text-[#E58A32] transition-all"
-                  href="https://facebook.com" target="_blank" rel="noopener noreferrer"
-                >
-                  <span className="material-symbols-outlined text-[20px]">public</span>
-                </a>
-                <a
-                  aria-label="Google Maps"
-                  className="w-11 h-11 rounded-xl bg-[#10102A] border border-[#292936] flex items-center justify-center text-[#B8B8C7] hover:border-[#E58A32] hover:text-[#E58A32] transition-all"
-                  href="#branches"
-                >
-                  <span className="material-symbols-outlined text-[20px]">near_me</span>
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom copyright row */}
-        <div className="pt-6 border-t border-[#292936] flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left text-[#B8B8C7] text-xs">
-          <p>© 2026 MAN &amp; MACHINE FITNESS. All rights reserved.</p>
-          <p 
-            className="text-[10px] sm:text-xs uppercase tracking-wider text-[#B8B8C7]"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-          >
-            Kovilpatti • Karur • Sivakasi
+          <p className="font-editorial-body text-[#B8B8B8] text-[15px] md:text-[16px]">
+            Train Hard. Stay Consistent.
           </p>
+        </Reveal>
+
+        {/* Contact & Location 3-Column Strip */}
+        <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-8 py-8 border-y border-[#303030]">
+          {/* Column 1: Location */}
+          <div className="flex flex-col items-start gap-2.5">
+            <p className="font-editorial-label text-[#EB3E2E]">FIND YOUR STRONG</p>
+            <p className="font-editorial-body text-[#F5F5F5] text-[15px]">
+              Kovilpatti, Tamil Nadu, India
+            </p>
+            <p className="font-editorial-body text-[#B8B8B8] text-sm">
+              Balaji Complex, 580E/5, Ettayapuram Road • Also in Karur &amp; Sivakasi
+            </p>
+          </div>
+
+          {/* Column 2: Real Project Contact Info */}
+          <div className="flex flex-col items-start gap-2.5">
+            <p className="font-editorial-label text-[#EB3E2E]">CONTACT US</p>
+            <p className="font-editorial-body text-[#B8B8B8] text-[15px]">
+              Phone:{' '}
+              <a
+                href="tel:+917598885566"
+                className="text-[#F5F5F5] hover:text-[#EB3E2E] transition-colors"
+              >
+                +91 75988 85566
+              </a>
+            </p>
+            <p className="font-editorial-body text-[#B8B8B8] text-[15px]">
+              Email:{' '}
+              <a
+                href="mailto:admin@manandmachine.com"
+                className="text-[#F5F5F5] hover:text-[#EB3E2E] transition-colors"
+              >
+                admin@manandmachine.com
+              </a>
+            </p>
+          </div>
+
+          {/* Column 3: Social */}
+          <div className="flex flex-col items-start gap-2.5">
+            <p className="font-editorial-label text-[#EB3E2E]">FOLLOW THE WORK</p>
+            <div className="flex flex-wrap items-center gap-3 font-editorial-body text-[#F5F5F5] text-[15px]">
+              <a
+                href="https://instagram.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-[#EB3E2E] transition-colors"
+              >
+                Instagram
+              </a>
+              <span className="text-[#303030]">/</span>
+              <a
+                href="https://facebook.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-[#EB3E2E] transition-colors"
+              >
+                Facebook
+              </a>
+              <span className="text-[#303030]">/</span>
+              <a
+                href="https://youtube.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-[#EB3E2E] transition-colors"
+              >
+                YouTube
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Navigation Links */}
+        <nav className="flex flex-wrap items-center gap-x-7 gap-y-3" aria-label="Footer navigation">
+          {navLinks.map((link) => (
+            <a
+              key={link.name}
+              href={link.href}
+              onClick={(e) => handleSmoothScroll(e, link.href)}
+              className="font-editorial-label text-[#F5F5F5] hover:text-[#EB3E2E] transition-colors py-1"
+            >
+              {link.name}
+            </a>
+          ))}
+          <a
+            href="/login"
+            onClick={(e) => {
+              e.preventDefault();
+              if (onNavigate) onNavigate('/login');
+            }}
+            className="font-editorial-label text-[#B8B8B8] hover:text-[#EB3E2E] transition-colors py-1"
+          >
+            MEMBER LOGIN
+          </a>
+        </nav>
+
+        {/* Bottom Copyright & Back to Top */}
+        <div className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-[#303030]/60">
+          <p className="font-editorial-label text-[#B8B8B8]">
+            © 2026 MAN &amp; MACHINE. ALL RIGHTS RESERVED.
+          </p>
+
+          <a
+            href="#home"
+            onClick={handleBackToTop}
+            className="font-editorial-label text-[#F5F5F5] hover:text-[#EB3E2E] transition-colors inline-flex items-center gap-1.5 group w-fit"
+          >
+            <span>BACK TO TOP</span>
+            <span className="group-hover:-translate-y-0.5 transition-transform">↑</span>
+          </a>
         </div>
       </div>
     </footer>

@@ -141,6 +141,28 @@ export const clientService = {
     return res.json();
   },
 
+  /**
+   * Public trainers listing for website homepage showcase.
+   */
+  getPublicTrainers: async () => {
+    const res = await fetch(`${BASE_URL}/public/trainers`);
+    if (!res.ok) {
+      throw new Error('Unable to load trainers');
+    }
+    return res.json();
+  },
+
+  /**
+   * Public community statistics for website homepage.
+   */
+  getPublicStats: async () => {
+    const res = await fetch(`${BASE_URL}/public/stats`);
+    if (!res.ok) {
+      throw new Error('Unable to load community stats');
+    }
+    return res.json();
+  },
+
   getMembershipPlans: async () => {
     const res = await fetch(`${BASE_URL}/client/membership/plans`, {
       headers: getAuthHeaders(),

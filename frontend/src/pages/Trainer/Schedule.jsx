@@ -91,16 +91,16 @@ export default function Schedule({ onNavigate }) {
       {/* ── HEADER ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
+          <span className="text-[10px] font-mono text-[#EB3E2E] uppercase tracking-wider font-bold">
             FLOOR AGENDA & APPOINTMENTS
           </span>
           <h1
             className="text-2xl sm:text-3xl font-black uppercase text-white tracking-tight"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            style={{ fontFamily: "'Oswald', sans-serif" }}
           >
             TRAINING SCHEDULE.
           </h1>
-          <p className="text-xs text-[#A3A3A3]">
+          <p className="text-xs text-[#B8B8B8]">
             Plan, organize, and monitor floor coaching sessions and client bookings.
           </p>
         </div>
@@ -108,8 +108,7 @@ export default function Schedule({ onNavigate }) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#E58A32] hover:bg-[#F09A43] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(229,138,50,0.25)] shrink-0"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#EB3E2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(235,62,46,0.25)] shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span>Book Floor Session</span>
@@ -118,13 +117,13 @@ export default function Schedule({ onNavigate }) {
       </div>
 
       {/* ── TABS ── */}
-      <div className="flex items-center gap-2 border-b border-[#292929] pb-3">
+      <div className="flex items-center gap-2 border-b border-[#303030] pb-3">
         <button
           onClick={() => setActiveTab('appointments')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
             activeTab === 'appointments'
-              ? 'bg-[#E58A32] text-white shadow-[0_0_15px_rgba(229,138,50,0.25)]'
-              : 'bg-[#181818] text-[#A3A3A3] hover:text-white border border-[#292929]'
+              ? 'bg-[#EB3E2E] text-white shadow-[0_0_15px_rgba(235,62,46,0.25)]'
+              : 'bg-[#181818] text-[#B8B8B8] hover:text-white border border-[#303030]'
           }`}
         >
           <CalendarIcon className="w-3.5 h-3.5" />
@@ -138,8 +137,8 @@ export default function Schedule({ onNavigate }) {
           onClick={() => setActiveTab('bookings')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
             activeTab === 'bookings'
-              ? 'bg-[#E58A32] text-white shadow-[0_0_15px_rgba(229,138,50,0.25)]'
-              : 'bg-[#181818] text-[#A3A3A3] hover:text-white border border-[#292929]'
+              ? 'bg-[#EB3E2E] text-white shadow-[0_0_15px_rgba(235,62,46,0.25)]'
+              : 'bg-[#181818] text-[#B8B8B8] hover:text-white border border-[#303030]'
           }`}
         >
           <CreditCard className="w-3.5 h-3.5" />
@@ -156,16 +155,16 @@ export default function Schedule({ onNavigate }) {
           {loading ? (
             <div className="flex flex-col gap-3">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-24 bg-[#141414] rounded-2xl animate-pulse" />
+                <div key={i} className="h-24 bg-[#111111] rounded-2xl animate-pulse" />
               ))}
             </div>
           ) : appointments.length === 0 ? (
-            <div className="p-12 rounded-2xl bg-[#141414] border border-[#292929] text-center flex flex-col items-center justify-center gap-3">
-              <CalendarIcon className="w-10 h-10 text-[#292929]" />
-              <h3 className="text-sm font-bold uppercase text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <div className="p-12 rounded-2xl bg-[#111111] border border-[#303030] text-center flex flex-col items-center justify-center gap-3">
+              <CalendarIcon className="w-10 h-10 text-[#303030]" />
+              <h3 className="text-sm font-bold uppercase text-white" style={{ fontFamily: "'Oswald', sans-serif" }}>
                 NO SCHEDULED SESSIONS
               </h3>
-              <p className="text-xs text-[#A3A3A3] max-w-sm">
+              <p className="text-xs text-[#B8B8B8] max-w-sm">
                 Book 1-on-1 floor sessions or assessment reviews with your assigned athletes.
               </p>
             </div>
@@ -174,20 +173,20 @@ export default function Schedule({ onNavigate }) {
               {appointments.map((app) => (
                 <div
                   key={app._id}
-                  className="p-5 rounded-2xl bg-[#141414] border border-[#292929] hover:border-[#E58A32]/30 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  className="p-5 rounded-2xl bg-[#111111] border border-[#303030] hover:border-[#EB3E2E]/30 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-center text-[#E58A32] font-black text-sm shrink-0">
+                    <div className="w-12 h-12 rounded-xl bg-[#202020] border border-[#303030] flex items-center justify-center text-[#EB3E2E] font-black text-sm shrink-0">
                       {app.clientId?.name ? app.clientId.name.charAt(0).toUpperCase() : 'C'}
                     </div>
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold uppercase text-white">{app.clientId?.name || 'Athlete'}</span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-[#E58A32]/10 text-[#E58A32] border border-[#E58A32]/30">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-[#EB3E2E]/10 text-[#EB3E2E] border border-[#EB3E2E]/30">
                           {app.sessionType}
                         </span>
                       </div>
-                      <span className="text-xs text-[#A3A3A3]">
+                      <span className="text-xs text-[#B8B8B8]">
                         {new Date(app.scheduledAt).toLocaleDateString('en-US', {
                           weekday: 'long',
                           month: 'short',
@@ -199,7 +198,7 @@ export default function Schedule({ onNavigate }) {
                         </span>{' '}
                         ({app.durationMinutes} mins)
                       </span>
-                      {app.notes && <span className="text-[11px] text-[#737373] mt-1">{app.notes}</span>}
+                      {app.notes && <span className="text-[11px] text-[#858585] mt-1">{app.notes}</span>}
                     </div>
                   </div>
 
@@ -247,16 +246,16 @@ export default function Schedule({ onNavigate }) {
           {loading ? (
             <div className="flex flex-col gap-3">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-24 bg-[#141414] rounded-2xl animate-pulse" />
+                <div key={i} className="h-24 bg-[#111111] rounded-2xl animate-pulse" />
               ))}
             </div>
           ) : bookings.length === 0 ? (
-            <div className="p-12 rounded-2xl bg-[#141414] border border-[#292929] text-center flex flex-col items-center justify-center gap-3">
-              <UserCheck className="w-10 h-10 text-[#292929]" />
-              <h3 className="text-sm font-bold uppercase text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <div className="p-12 rounded-2xl bg-[#111111] border border-[#303030] text-center flex flex-col items-center justify-center gap-3">
+              <UserCheck className="w-10 h-10 text-[#303030]" />
+              <h3 className="text-sm font-bold uppercase text-white" style={{ fontFamily: "'Oswald', sans-serif" }}>
                 NO DIRECT CLIENT BOOKINGS
               </h3>
-              <p className="text-xs text-[#A3A3A3] max-w-sm">
+              <p className="text-xs text-[#B8B8B8] max-w-sm">
                 When athletes book training sessions through the "My Trainer" portal, they will appear here.
               </p>
             </div>
@@ -265,29 +264,29 @@ export default function Schedule({ onNavigate }) {
               {bookings.map((b) => (
                 <div
                   key={b._id}
-                  className="p-5 rounded-2xl bg-[#141414] border border-[#292929] hover:border-[#E58A32]/30 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  className="p-5 rounded-2xl bg-[#111111] border border-[#303030] hover:border-[#EB3E2E]/30 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-center text-[#E58A32] font-black text-sm shrink-0">
+                    <div className="w-12 h-12 rounded-xl bg-[#202020] border border-[#303030] flex items-center justify-center text-[#EB3E2E] font-black text-sm shrink-0">
                       {b.clientId?.name ? b.clientId.name.charAt(0).toUpperCase() : 'B'}
                     </div>
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold uppercase text-white">{b.clientId?.name || 'Athlete'}</span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-[#E58A32]/10 text-[#E58A32] border border-[#E58A32]/30">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-[#EB3E2E]/10 text-[#EB3E2E] border border-[#EB3E2E]/30">
                           {b.serviceType}
                         </span>
-                        <span className="text-[10px] font-mono text-[#737373]">
+                        <span className="text-[10px] font-mono text-[#858585]">
                           Ref: {b.bookingReference}
                         </span>
                       </div>
-                      <span className="text-xs text-[#A3A3A3]">
+                      <span className="text-xs text-[#B8B8B8]">
                         {b.date} at <span className="text-white font-bold">{b.startTime} - {b.endTime}</span>
                         {b.branchId?.name && ` • ${b.branchId.name}`}
                       </span>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[11px] font-mono font-bold text-white">₹{b.amount}</span>
-                        <span className="text-[10px] text-[#737373]">via {b.paymentMethod}</span>
+                        <span className="text-[10px] text-[#858585]">via {b.paymentMethod}</span>
                       </div>
                     </div>
                   </div>
@@ -309,7 +308,7 @@ export default function Schedule({ onNavigate }) {
                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                           : b.bookingStatus === 'CANCELLED'
                           ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                          : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                          : 'bg-[#202020] text-[#B8B8B8] border-[#303030]'
                       }`}
                     >
                       {b.bookingStatus}
@@ -325,10 +324,10 @@ export default function Schedule({ onNavigate }) {
       {/* ── MODAL: SCHEDULE SESSION ── */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-[#141414] border border-[#292929] rounded-2xl p-6 flex flex-col gap-4">
+          <div className="w-full max-w-lg bg-[#111111] border border-[#303030] rounded-2xl p-6 flex flex-col gap-4">
             <h3
               className="text-base font-bold uppercase text-white"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               BOOK FLOOR COACHING SESSION
             </h3>
@@ -342,12 +341,12 @@ export default function Schedule({ onNavigate }) {
 
             <form onSubmit={handleScheduleSubmit} className="flex flex-col gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-mono uppercase text-[#A3A3A3]">SELECT ASSIGNED ATHLETE</label>
+                <label className="text-[10px] font-mono uppercase text-[#B8B8B8]">SELECT ASSIGNED ATHLETE</label>
                 <select
                   required
                   value={form.clientId}
                   onChange={(e) => setForm({ ...form, clientId: e.target.value })}
-                  className="p-2.5 rounded-xl bg-[#181818] border border-[#292929] text-xs text-white"
+                  className="p-2.5 rounded-xl bg-[#181818] border border-[#303030] text-xs text-white"
                 >
                   <option value="">-- Choose Athlete --</option>
                   {clients.map((c) => (
@@ -360,22 +359,22 @@ export default function Schedule({ onNavigate }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-mono uppercase text-[#A3A3A3]">DATE & TIME</label>
+                  <label className="text-[10px] font-mono uppercase text-[#B8B8B8]">DATE & TIME</label>
                   <input
                     type="datetime-local"
                     required
                     value={form.scheduledAt}
                     onChange={(e) => setForm({ ...form, scheduledAt: e.target.value })}
-                    className="p-2.5 rounded-xl bg-[#181818] border border-[#292929] text-xs text-white"
+                    className="p-2.5 rounded-xl bg-[#181818] border border-[#303030] text-xs text-white"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-mono uppercase text-[#A3A3A3]">DURATION (MINS)</label>
+                  <label className="text-[10px] font-mono uppercase text-[#B8B8B8]">DURATION (MINS)</label>
                   <select
                     value={form.durationMinutes}
                     onChange={(e) => setForm({ ...form, durationMinutes: Number(e.target.value) })}
-                    className="p-2.5 rounded-xl bg-[#181818] border border-[#292929] text-xs text-white"
+                    className="p-2.5 rounded-xl bg-[#181818] border border-[#303030] text-xs text-white"
                   >
                     <option value="30">30 Minutes</option>
                     <option value="45">45 Minutes</option>
@@ -386,11 +385,11 @@ export default function Schedule({ onNavigate }) {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-mono uppercase text-[#A3A3A3]">SESSION TYPE</label>
+                <label className="text-[10px] font-mono uppercase text-[#B8B8B8]">SESSION TYPE</label>
                 <select
                   value={form.sessionType}
                   onChange={(e) => setForm({ ...form, sessionType: e.target.value })}
-                  className="p-2.5 rounded-xl bg-[#181818] border border-[#292929] text-xs text-white"
+                  className="p-2.5 rounded-xl bg-[#181818] border border-[#303030] text-xs text-white"
                 >
                   <option value="Personal Training">Personal Training Floor Session</option>
                   <option value="Strength Training">Strength & Powerlifting Calibration</option>
@@ -401,28 +400,28 @@ export default function Schedule({ onNavigate }) {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-mono uppercase text-[#A3A3A3]">COACHING PREP NOTES</label>
+                <label className="text-[10px] font-mono uppercase text-[#B8B8B8]">COACHING PREP NOTES</label>
                 <textarea
                   rows="2"
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   placeholder="Focus points or exercises planned for this floor session..."
-                  className="p-2.5 rounded-xl bg-[#181818] border border-[#292929] text-xs text-white"
+                  className="p-2.5 rounded-xl bg-[#181818] border border-[#303030] text-xs text-white"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#292929]">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#303030]">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 rounded-xl bg-[#1C1C1C] text-xs font-bold uppercase text-[#A3A3A3]"
+                  className="px-4 py-2 rounded-xl bg-[#202020] text-xs font-bold uppercase text-[#B8B8B8]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 rounded-xl bg-[#E58A32] hover:bg-[#F09A43] text-white text-xs font-bold uppercase"
+                  className="px-5 py-2 rounded-xl bg-[#EB3E2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase"
                 >
                   {submitting ? 'Confirming...' : 'Book Session'}
                 </button>

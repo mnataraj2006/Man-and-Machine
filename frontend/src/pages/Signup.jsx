@@ -93,7 +93,7 @@ export default function Signup({ onNavigate }) {
 
     if (score <= 1) return { score: 1, label: 'Weak (add numbers & symbols)', color: 'bg-red-500' };
     if (score === 2) return { score: 2, label: 'Fair (min 8 chars with letters & numbers)', color: 'bg-amber-500' };
-    if (score === 3) return { score: 3, label: 'Good (secure)', color: 'bg-[#E58A32]' };
+    if (score === 3) return { score: 3, label: 'Good (secure)', color: 'bg-[#EB3E2E]' };
     return { score: 4, label: 'Strong (high security)', color: 'bg-emerald-500' };
   };
 
@@ -228,21 +228,21 @@ export default function Signup({ onNavigate }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-[#F5F5F5] flex flex-col justify-between selection:bg-[#E58A32] selection:text-white">
+    <div className="min-h-screen bg-[#090909] text-[#F5F5F5] flex flex-col justify-between selection:bg-[#EB3E2E] selection:text-white">
       {/* ── MOBILE COMPACT HEADER (< 1024px) ── */}
-      <header className="lg:hidden h-14 sm:h-16 px-4 sm:px-6 bg-[#09090B]/95 backdrop-blur-md border-b border-[#292929] flex items-center justify-between sticky top-0 z-30">
+      <header className="lg:hidden h-14 sm:h-16 px-4 sm:px-6 bg-[#090909]/95 backdrop-blur-md border-b border-[#303030] flex items-center justify-between sticky top-0 z-30">
         <a href="/" onClick={handleBackToWebsite} className="flex items-center gap-2.5 group min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-white p-1 flex items-center justify-center shrink-0 border border-[#292929]">
+          <div className="w-8 h-8 rounded-lg bg-white p-1 flex items-center justify-center shrink-0 border border-[#303030]">
             <img src="/logo.jpg" alt="Man & Machine Logo" className="w-full h-full object-contain" />
           </div>
           <div className="flex flex-col min-w-0">
             <span
-              className="font-bold text-[13px] text-[#F5F5F5] uppercase tracking-tight truncate leading-tight group-hover:text-[#E58A32] transition-colors"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              className="font-bold text-[13px] text-[#F5F5F5] uppercase tracking-tight truncate leading-tight group-hover:text-[#EB3E2E] transition-colors"
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               MAN &amp; MACHINE
             </span>
-            <span className="text-[8px] uppercase tracking-widest text-[#A3A3A3] truncate">
+            <span className="text-[8px] uppercase tracking-widest text-[#B8B8B8] truncate">
               FITNESS CENTRE
             </span>
           </div>
@@ -251,8 +251,7 @@ export default function Signup({ onNavigate }) {
         <a
           href="/"
           onClick={handleBackToWebsite}
-          className="inline-flex items-center gap-1.5 text-xs text-[#A3A3A3] hover:text-[#E58A32] font-semibold transition-colors py-1.5 px-2.5 rounded-lg border border-[#292929] hover:border-[#E58A32]/60"
-          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+          className="inline-flex items-center gap-1.5 text-xs text-[#B8B8B8] hover:text-[#EB3E2E] font-semibold transition-colors py-1.5 px-2.5 rounded-lg border border-[#303030] hover:border-[#EB3E2E]/60"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>BACK</span>
@@ -264,7 +263,7 @@ export default function Signup({ onNavigate }) {
         {/* ════════════════════════════════════════════════
             LEFT: BRAND & VISUAL SIDE (~42% on desktop)
         ════════════════════════════════════════════════ */}
-        <section className="relative w-full lg:w-[42%] bg-[#0D0D12] border-b lg:border-b-0 lg:border-r border-[#292929] p-6 sm:p-10 lg:p-12 xl:p-16 flex flex-col justify-between overflow-hidden">
+        <section className="relative w-full lg:w-[42%] bg-[#090909] border-b lg:border-b-0 lg:border-r border-[#303030] p-6 sm:p-10 lg:p-12 xl:p-16 flex flex-col justify-between overflow-hidden">
           {/* Gym atmospheric background overlay */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             <img
@@ -272,23 +271,23 @@ export default function Signup({ onNavigate }) {
               alt="Man & Machine High Performance Training"
               className="w-full h-full object-cover object-center opacity-20 filter grayscale contrast-125 scale-105"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#09090B] via-[#09090B]/85 to-[#09090B]/90" />
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#09090B]/60 to-[#09090B]" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#090909] via-[#090909]/85 to-[#090909]/90" />
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#090909]/60 to-[#090909]" />
           </div>
 
           {/* Desktop Top Brand Emblem */}
           <div className="relative z-10 hidden lg:flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white p-1.5 flex items-center justify-center shrink-0 border border-[#292929] shadow-[0_0_15px_rgba(229,138,50,0.20)]">
+            <div className="w-11 h-11 rounded-xl bg-white p-1.5 flex items-center justify-center shrink-0 border border-[#303030] shadow-[0_0_15px_rgba(235,62,46,0.20)]">
               <img src="/logo.jpg" alt="Man & Machine Logo" className="w-full h-full object-contain" />
             </div>
             <div className="flex flex-col">
               <span
                 className="font-bold text-lg text-[#F5F5F5] uppercase tracking-tight leading-tight"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                style={{ fontFamily: "'Oswald', sans-serif" }}
               >
                 MAN &amp; MACHINE
               </span>
-              <span className="text-[10px] uppercase tracking-widest text-[#E58A32] font-semibold">
+              <span className="text-[10px] uppercase tracking-widest text-[#EB3E2E] font-semibold">
                 FITNESS CENTRE
               </span>
             </div>
@@ -297,8 +296,8 @@ export default function Signup({ onNavigate }) {
           {/* Statement & Highlights */}
           <div className="relative z-10 my-auto py-6 sm:py-8 lg:py-10 flex flex-col gap-5 max-w-lg">
             <div
-              className="inline-flex items-center px-3 py-1 rounded-full bg-[#141414] border border-[#292929] text-[9.5px] sm:text-[10.5px] uppercase font-bold tracking-widest text-[#E58A32] w-fit"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              className="inline-flex items-center px-3 py-1 rounded-full bg-[#111111] border border-[#303030] text-[9.5px] sm:text-[10.5px] uppercase font-bold tracking-widest text-[#EB3E2E] w-fit"
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               THREE CITIES • ONE FITNESS CULTURE
             </div>
@@ -306,66 +305,66 @@ export default function Signup({ onNavigate }) {
             <h1
               className="uppercase font-bold tracking-tight text-[#F5F5F5]"
               style={{
-                fontFamily: "'Space Grotesk', sans-serif",
+                fontFamily: "'Oswald', sans-serif",
                 fontSize: 'clamp(1.75rem, 3.5vw, 3rem)',
                 lineHeight: '1.05',
               }}
             >
-              JOIN THE <span className="text-[#E58A32]">MOVEMENT.</span>
+              JOIN THE <span className="text-[#EB3E2E]">MOVEMENT.</span>
             </h1>
 
-            <p className="text-xs sm:text-sm lg:text-base text-[#A3A3A3] leading-relaxed">
+            <p className="text-xs sm:text-sm lg:text-base text-[#B8B8B8] leading-relaxed">
               Your journey towards strength starts here. Create your account and become part of the Man &amp; Machine fitness community.
             </p>
 
             {/* Three Highlights */}
             <div className="flex flex-col gap-3 pt-2">
-              <div className="flex items-center gap-3 bg-[#141414]/90 border border-[#292929] rounded-xl px-4 py-3">
-                <div className="w-8 h-8 rounded-lg bg-[#E58A32]/10 border border-[#E58A32]/30 flex items-center justify-center shrink-0">
-                  <Target className="w-4 h-4 text-[#E58A32]" />
+              <div className="flex items-center gap-3 bg-[#111111]/90 border border-[#303030] rounded-xl px-4 py-3">
+                <div className="w-8 h-8 rounded-lg bg-[#EB3E2E]/10 border border-[#EB3E2E]/30 flex items-center justify-center shrink-0">
+                  <Target className="w-4 h-4 text-[#EB3E2E]" />
                 </div>
                 <div className="flex flex-col">
                   <span
                     className="text-xs font-bold uppercase tracking-wider text-[#F5F5F5]"
-                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                    style={{ fontFamily: "'Oswald', sans-serif" }}
                   >
                     TRAIN WITH PURPOSE.
                   </span>
-                  <span className="text-[11px] text-[#A3A3A3]">
+                  <span className="text-[11px] text-[#B8B8B8]">
                     Structured discipline and verified coaching standards.
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 bg-[#141414]/90 border border-[#292929] rounded-xl px-4 py-3">
-                <div className="w-8 h-8 rounded-lg bg-[#E58A32]/10 border border-[#E58A32]/30 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-4 h-4 text-[#E58A32]" />
+              <div className="flex items-center gap-3 bg-[#111111]/90 border border-[#303030] rounded-xl px-4 py-3">
+                <div className="w-8 h-8 rounded-lg bg-[#EB3E2E]/10 border border-[#EB3E2E]/30 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-4 h-4 text-[#EB3E2E]" />
                 </div>
                 <div className="flex flex-col">
                   <span
                     className="text-xs font-bold uppercase tracking-wider text-[#F5F5F5]"
-                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                    style={{ fontFamily: "'Oswald', sans-serif" }}
                   >
                     TRACK YOUR PROGRESS.
                   </span>
-                  <span className="text-[11px] text-[#A3A3A3]">
+                  <span className="text-[11px] text-[#B8B8B8]">
                     Access your member profile and cross-branch training.
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 bg-[#141414]/90 border border-[#292929] rounded-xl px-4 py-3">
-                <div className="w-8 h-8 rounded-lg bg-[#E58A32]/10 border border-[#E58A32]/30 flex items-center justify-center shrink-0">
-                  <Dumbbell className="w-4 h-4 text-[#E58A32]" />
+              <div className="flex items-center gap-3 bg-[#111111]/90 border border-[#303030] rounded-xl px-4 py-3">
+                <div className="w-8 h-8 rounded-lg bg-[#EB3E2E]/10 border border-[#EB3E2E]/30 flex items-center justify-center shrink-0">
+                  <Dumbbell className="w-4 h-4 text-[#EB3E2E]" />
                 </div>
                 <div className="flex flex-col">
                   <span
                     className="text-xs font-bold uppercase tracking-wider text-[#F5F5F5]"
-                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                    style={{ fontFamily: "'Oswald', sans-serif" }}
                   >
                     BUILD YOUR STRONGEST SELF.
                   </span>
-                  <span className="text-[11px] text-[#A3A3A3]">
+                  <span className="text-[11px] text-[#B8B8B8]">
                     High-performance equipment built for real results.
                   </span>
                 </div>
@@ -374,49 +373,48 @@ export default function Signup({ onNavigate }) {
           </div>
 
           {/* Bottom Telemetry Footer */}
-          <div className="relative z-10 hidden lg:flex items-center justify-between text-[11px] font-mono text-[#A3A3A3]/80 border-t border-[#292929]/70 pt-4">
+          <div className="relative z-10 hidden lg:flex items-center justify-between text-[11px] font-mono text-[#B8B8B8]/80 border-t border-[#303030]/70 pt-4">
             <span>CLIENT ENROLLMENT PORTAL</span>
-            <span className="text-[#E58A32]">DISCIPLINE OVER SHORTCUTS</span>
+            <span className="text-[#EB3E2E]">DISCIPLINE OVER SHORTCUTS</span>
           </div>
         </section>
 
         {/* ════════════════════════════════════════════════
             RIGHT: SIGNUP FORM CARD (~58% on desktop)
         ════════════════════════════════════════════════ */}
-        <section className="w-full lg:w-[58%] bg-[#09090B] p-4 sm:p-8 lg:p-10 xl:p-14 flex flex-col justify-center items-center">
+        <section className="w-full lg:w-[58%] bg-[#090909] p-4 sm:p-8 lg:p-10 xl:p-14 flex flex-col justify-center items-center">
           <div className="w-full max-w-xl flex flex-col gap-6">
             {/* Top Navigation Bar */}
             <div className="flex items-center justify-between w-full">
               <a
                 href="/"
                 onClick={handleBackToWebsite}
-                className="group inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#A3A3A3] hover:text-[#E58A32] transition-colors py-1.5"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                className="group inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B8B8B8] hover:text-[#EB3E2E] transition-colors py-1.5"
               >
                 <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                 <span>BACK TO WEBSITE</span>
               </a>
 
-              <span className="text-[10.5px] uppercase font-mono text-[#A3A3A3]/60 tracking-wider">
+              <span className="text-[10.5px] uppercase font-mono text-[#B8B8B8]/60 tracking-wider">
                 CLIENT SIGNUP // V2.0
               </span>
             </div>
 
             {/* Form Card Container */}
-            <div className="w-full bg-[#1C1C1C] border border-[#292929] rounded-2xl p-5 sm:p-8 shadow-[0_8px_40px_rgba(0,0,0,0.6)] flex flex-col gap-6">
+            <div className="w-full bg-[#202020] border border-[#303030] rounded-2xl p-5 sm:p-8 shadow-[0_8px_40px_rgba(0,0,0,0.6)] flex flex-col gap-6">
               {/* Header */}
               <div className="flex flex-col gap-1.5">
                 <h2
                   className="uppercase font-bold tracking-tight text-[#F5F5F5]"
                   style={{
-                    fontFamily: "'Space Grotesk', sans-serif",
+                    fontFamily: "'Oswald', sans-serif",
                     fontSize: 'clamp(1.5rem, 2.8vw, 2.25rem)',
                     lineHeight: '1.1',
                   }}
                 >
                   CREATE YOUR ACCOUNT.
                 </h2>
-                <p className="text-xs sm:text-sm text-[#A3A3A3]">
+                <p className="text-xs sm:text-sm text-[#B8B8B8]">
                   Become a registered athlete at Man &amp; Machine Fitness.
                 </p>
               </div>
@@ -425,17 +423,17 @@ export default function Signup({ onNavigate }) {
               {serverError && (
                 <div
                   role="alert"
-                  className="p-4 rounded-xl bg-[#141414] border border-[#E58A32] text-xs text-[#F5F5F5] flex items-start gap-3 animate-fadeInUp"
+                  className="p-4 rounded-xl bg-[#111111] border border-[#EB3E2E] text-xs text-[#F5F5F5] flex items-start gap-3 animate-fadeInUp"
                 >
-                  <AlertCircle className="w-5 h-5 text-[#E58A32] shrink-0 mt-0.5" />
+                  <AlertCircle className="w-5 h-5 text-[#EB3E2E] shrink-0 mt-0.5" />
                   <div className="flex flex-col gap-1">
                     <span
-                      className="font-bold text-[#E58A32] uppercase tracking-wider text-[11px]"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                      className="font-bold text-[#EB3E2E] uppercase tracking-wider text-[11px]"
+                      style={{ fontFamily: "'Oswald', sans-serif" }}
                     >
                       REGISTRATION NOTICE
                     </span>
-                    <p className="text-[#A3A3A3] leading-relaxed">{serverError}</p>
+                    <p className="text-[#B8B8B8] leading-relaxed">{serverError}</p>
                   </div>
                 </div>
               )}
@@ -444,17 +442,17 @@ export default function Signup({ onNavigate }) {
               {successMessage && (
                 <div
                   role="alert"
-                  className="p-4 rounded-xl bg-[#141414] border border-emerald-500/80 text-xs text-[#F5F5F5] flex items-start gap-3 animate-fadeInUp"
+                  className="p-4 rounded-xl bg-[#111111] border border-emerald-500/80 text-xs text-[#F5F5F5] flex items-start gap-3 animate-fadeInUp"
                 >
                   <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                   <div className="flex flex-col gap-1">
                     <span
                       className="font-bold text-emerald-400 uppercase tracking-wider text-[11px]"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                      style={{ fontFamily: "'Oswald', sans-serif" }}
                     >
                       SUCCESSFUL REGISTRATION
                     </span>
-                    <p className="text-[#A3A3A3] leading-relaxed">{successMessage}</p>
+                    <p className="text-[#B8B8B8] leading-relaxed">{successMessage}</p>
                   </div>
                 </div>
               )}
@@ -466,17 +464,16 @@ export default function Signup({ onNavigate }) {
                   <label
                     htmlFor="signup-name"
                     className="text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center justify-between"
-                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                   >
                     <span>
-                      FULL NAME <span className="text-[#E58A32]">*</span>
+                      FULL NAME <span className="text-[#EB3E2E]">*</span>
                     </span>
                     {errors.name && (
-                      <span className="text-[11px] text-[#E58A32] font-normal normal-case">{errors.name}</span>
+                      <span className="text-[11px] text-[#EB3E2E] font-normal normal-case">{errors.name}</span>
                     )}
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A3A3A3]">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#B8B8B8]">
                       <User className="w-4 h-4" />
                     </div>
                     <input
@@ -487,10 +484,10 @@ export default function Signup({ onNavigate }) {
                       value={formData.name}
                       onChange={handleChange}
                       placeholder="e.g. John Doe"
-                      className={`w-full bg-[#141414] border rounded-xl pl-10 pr-4 py-3 text-sm text-[#F5F5F5] placeholder-[#A3A3A3]/50 transition-all focus:outline-none ${
+                      className={`w-full bg-[#111111] border rounded-xl pl-10 pr-4 py-3 text-sm text-[#F5F5F5] placeholder-[#B8B8B8]/50 transition-all focus:outline-none ${
                         errors.name
-                          ? 'border-[#E58A32] focus:border-[#E58A32] focus:ring-1 focus:ring-[#E58A32]'
-                          : 'border-[#292929] focus:border-[#E58A32] focus:shadow-[0_0_15px_rgba(229,138,50,0.20)]'
+                          ? 'border-[#EB3E2E] focus:border-[#EB3E2E] focus:ring-1 focus:ring-[#EB3E2E]'
+                          : 'border-[#303030] focus:border-[#EB3E2E] focus:shadow-[0_0_15px_rgba(235,62,46,0.20)]'
                       }`}
                     />
                   </div>
@@ -503,14 +500,13 @@ export default function Signup({ onNavigate }) {
                     <label
                       htmlFor="signup-email"
                       className="text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center justify-between"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                     >
                       <span>
-                        EMAIL ADDRESS <span className="text-[#E58A32]">*</span>
+                        EMAIL ADDRESS <span className="text-[#EB3E2E]">*</span>
                       </span>
                     </label>
                     <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A3A3A3]">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#B8B8B8]">
                         <Mail className="w-4 h-4" />
                       </div>
                       <input
@@ -521,14 +517,14 @@ export default function Signup({ onNavigate }) {
                         value={formData.email}
                         onChange={handleChange}
                         placeholder="athlete@example.com"
-                        className={`w-full bg-[#141414] border rounded-xl pl-10 pr-4 py-3 text-sm text-[#F5F5F5] placeholder-[#A3A3A3]/50 transition-all focus:outline-none ${
+                        className={`w-full bg-[#111111] border rounded-xl pl-10 pr-4 py-3 text-sm text-[#F5F5F5] placeholder-[#B8B8B8]/50 transition-all focus:outline-none ${
                           errors.email
-                            ? 'border-[#E58A32] focus:border-[#E58A32]'
-                            : 'border-[#292929] focus:border-[#E58A32]'
+                            ? 'border-[#EB3E2E] focus:border-[#EB3E2E]'
+                            : 'border-[#303030] focus:border-[#EB3E2E]'
                         }`}
                       />
                     </div>
-                    {errors.email && <span className="text-[11px] text-[#E58A32]">{errors.email}</span>}
+                    {errors.email && <span className="text-[11px] text-[#EB3E2E]">{errors.email}</span>}
                   </div>
 
                   {/* Mobile Number */}
@@ -536,14 +532,13 @@ export default function Signup({ onNavigate }) {
                     <label
                       htmlFor="signup-phone"
                       className="text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center justify-between"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                     >
                       <span>
-                        MOBILE NUMBER <span className="text-[#E58A32]">*</span>
+                        MOBILE NUMBER <span className="text-[#EB3E2E]">*</span>
                       </span>
                     </label>
                     <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A3A3A3]">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#B8B8B8]">
                         <Phone className="w-4 h-4" />
                       </div>
                       <input
@@ -554,14 +549,14 @@ export default function Signup({ onNavigate }) {
                         value={formData.phone}
                         onChange={handleChange}
                         placeholder="98765 43210"
-                        className={`w-full bg-[#141414] border rounded-xl pl-10 pr-4 py-3 text-sm text-[#F5F5F5] placeholder-[#A3A3A3]/50 transition-all focus:outline-none ${
+                        className={`w-full bg-[#111111] border rounded-xl pl-10 pr-4 py-3 text-sm text-[#F5F5F5] placeholder-[#B8B8B8]/50 transition-all focus:outline-none ${
                           errors.phone
-                            ? 'border-[#E58A32] focus:border-[#E58A32]'
-                            : 'border-[#292929] focus:border-[#E58A32]'
+                            ? 'border-[#EB3E2E] focus:border-[#EB3E2E]'
+                            : 'border-[#303030] focus:border-[#EB3E2E]'
                         }`}
                       />
                     </div>
-                    {errors.phone && <span className="text-[11px] text-[#E58A32]">{errors.phone}</span>}
+                    {errors.phone && <span className="text-[11px] text-[#EB3E2E]">{errors.phone}</span>}
                   </div>
                 </div>
 
@@ -570,17 +565,16 @@ export default function Signup({ onNavigate }) {
                   <div className="flex items-center justify-between">
                     <label
                       className="text-xs font-bold uppercase tracking-wider text-[#F5F5F5]"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                     >
-                      SELECT YOUR HOME BRANCH <span className="text-[#E58A32]">*</span>
+                      SELECT YOUR HOME BRANCH <span className="text-[#EB3E2E]">*</span>
                     </label>
-                    <span className="text-[10px] text-[#A3A3A3]">Cross-facility privileges included</span>
+                    <span className="text-[10px] text-[#B8B8B8]">Cross-facility privileges included</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     {loadingBranches ? (
-                      <div className="col-span-3 py-4 text-center text-xs text-[#A3A3A3] flex items-center justify-center gap-2">
-                        <span className="w-3.5 h-3.5 border-2 border-white/20 border-t-[#E58A32] rounded-full animate-spin" />
+                      <div className="col-span-3 py-4 text-center text-xs text-[#B8B8B8] flex items-center justify-center gap-2">
+                        <span className="w-3.5 h-3.5 border-2 border-white/20 border-t-[#EB3E2E] rounded-full animate-spin" />
                         <span>Loading branches...</span>
                       </div>
                     ) : (
@@ -597,34 +591,34 @@ export default function Signup({ onNavigate }) {
                             }}
                             className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer relative ${
                               isSelected
-                                ? 'bg-[#E58A32]/10 border-[#E58A32] shadow-[0_0_15px_rgba(229,138,50,0.20)]'
-                                : 'bg-[#141414] border-[#292929] hover:border-[#A3A3A3]/40'
+                                ? 'bg-[#EB3E2E]/10 border-[#EB3E2E] shadow-[0_0_15px_rgba(235,62,46,0.20)]'
+                                : 'bg-[#111111] border-[#303030] hover:border-[#B8B8B8]/40'
                             }`}
                           >
                             <div className="flex items-center justify-between w-full mb-1">
                               <span
                                 className={`text-xs font-bold uppercase tracking-wider ${
-                                  isSelected ? 'text-[#E58A32]' : 'text-[#F5F5F5]'
+                                  isSelected ? 'text-[#EB3E2E]' : 'text-[#F5F5F5]'
                                 }`}
-                                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                                style={{ fontFamily: "'Oswald', sans-serif" }}
                               >
                                 {b.city}
                               </span>
                               <div
                                 className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
-                                  isSelected ? 'border-[#E58A32] bg-[#E58A32]' : 'border-[#444]'
+                                  isSelected ? 'border-[#EB3E2E] bg-[#EB3E2E]' : 'border-[#444]'
                                 }`}
                               >
                                 {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                               </div>
                             </div>
-                            <span className="text-[10px] text-[#A3A3A3] line-clamp-1">{b.name}</span>
+                            <span className="text-[10px] text-[#B8B8B8] line-clamp-1">{b.name}</span>
                           </button>
                         );
                       })
                     )}
                   </div>
-                  {errors.branchId && <span className="text-[11px] text-[#E58A32]">{errors.branchId}</span>}
+                  {errors.branchId && <span className="text-[11px] text-[#EB3E2E]">{errors.branchId}</span>}
                 </div>
 
                 {/* 5. Fitness Information (Optional Goal & Experience) */}
@@ -633,8 +627,7 @@ export default function Signup({ onNavigate }) {
                   <div className="flex flex-col gap-1.5">
                     <label
                       htmlFor="signup-goal"
-                      className="text-xs font-bold uppercase tracking-wider text-[#A3A3A3]"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                      className="text-xs font-bold uppercase tracking-wider text-[#B8B8B8]"
                     >
                       PRIMARY FITNESS GOAL <span className="text-[10px] lowercase font-normal">(optional)</span>
                     </label>
@@ -643,7 +636,7 @@ export default function Signup({ onNavigate }) {
                       name="fitnessGoal"
                       value={formData.fitnessGoal}
                       onChange={handleChange}
-                      className="w-full bg-[#141414] border border-[#292929] rounded-xl px-3.5 py-3 text-sm text-[#F5F5F5] focus:outline-none focus:border-[#E58A32] transition-colors cursor-pointer"
+                      className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-3 text-sm text-[#F5F5F5] focus:outline-none focus:border-[#EB3E2E] transition-colors cursor-pointer"
                     >
                       <option value="Muscle Building">Muscle Building / Hypertrophy</option>
                       <option value="Weight Loss">Fat Loss &amp; Lean Toning</option>
@@ -657,8 +650,7 @@ export default function Signup({ onNavigate }) {
                   <div className="flex flex-col gap-1.5">
                     <label
                       htmlFor="signup-experience"
-                      className="text-xs font-bold uppercase tracking-wider text-[#A3A3A3]"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                      className="text-xs font-bold uppercase tracking-wider text-[#B8B8B8]"
                     >
                       TRAINING EXPERIENCE <span className="text-[10px] lowercase font-normal">(optional)</span>
                     </label>
@@ -667,7 +659,7 @@ export default function Signup({ onNavigate }) {
                       name="experienceLevel"
                       value={formData.experienceLevel}
                       onChange={handleChange}
-                      className="w-full bg-[#141414] border border-[#292929] rounded-xl px-3.5 py-3 text-sm text-[#F5F5F5] focus:outline-none focus:border-[#E58A32] transition-colors cursor-pointer"
+                      className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-3 text-sm text-[#F5F5F5] focus:outline-none focus:border-[#EB3E2E] transition-colors cursor-pointer"
                     >
                       <option value="Beginner">Beginner (0 — 6 months)</option>
                       <option value="Intermediate">Intermediate (6 months — 2 years)</option>
@@ -683,12 +675,11 @@ export default function Signup({ onNavigate }) {
                     <label
                       htmlFor="signup-password"
                       className="text-xs font-bold uppercase tracking-wider text-[#F5F5F5]"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                     >
-                      PASSWORD <span className="text-[#E58A32]">*</span>
+                      PASSWORD <span className="text-[#EB3E2E]">*</span>
                     </label>
                     <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A3A3A3]">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#B8B8B8]">
                         <Lock className="w-4 h-4" />
                       </div>
                       <input
@@ -699,17 +690,17 @@ export default function Signup({ onNavigate }) {
                         value={formData.password}
                         onChange={handleChange}
                         placeholder="Min 8 characters"
-                        className={`w-full bg-[#141414] border rounded-xl pl-10 pr-10 py-3 text-sm text-[#F5F5F5] placeholder-[#A3A3A3]/50 transition-all focus:outline-none ${
+                        className={`w-full bg-[#111111] border rounded-xl pl-10 pr-10 py-3 text-sm text-[#F5F5F5] placeholder-[#B8B8B8]/50 transition-all focus:outline-none ${
                           errors.password
-                            ? 'border-[#E58A32] focus:border-[#E58A32]'
-                            : 'border-[#292929] focus:border-[#E58A32]'
+                            ? 'border-[#EB3E2E] focus:border-[#EB3E2E]'
+                            : 'border-[#303030] focus:border-[#EB3E2E]'
                         }`}
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#A3A3A3] hover:text-[#F5F5F5] transition-colors cursor-pointer"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#B8B8B8] hover:text-[#F5F5F5] transition-colors cursor-pointer"
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -718,7 +709,7 @@ export default function Signup({ onNavigate }) {
                     {/* Password Strength Meter */}
                     {formData.password && (
                       <div className="flex flex-col gap-1 mt-1">
-                        <div className="h-1 w-full bg-[#292929] rounded-full overflow-hidden flex gap-1">
+                        <div className="h-1 w-full bg-[#303030] rounded-full overflow-hidden flex gap-1">
                           <div
                             className={`h-full transition-all duration-300 ${
                               passwordStrength.score >= 1 ? passwordStrength.color : 'bg-transparent'
@@ -744,10 +735,10 @@ export default function Signup({ onNavigate }) {
                             style={{ width: '25%' }}
                           />
                         </div>
-                        <span className="text-[10px] text-[#A3A3A3]">{passwordStrength.label}</span>
+                        <span className="text-[10px] text-[#B8B8B8]">{passwordStrength.label}</span>
                       </div>
                     )}
-                    {errors.password && <span className="text-[11px] text-[#E58A32]">{errors.password}</span>}
+                    {errors.password && <span className="text-[11px] text-[#EB3E2E]">{errors.password}</span>}
                   </div>
 
                   {/* Confirm Password */}
@@ -755,12 +746,11 @@ export default function Signup({ onNavigate }) {
                     <label
                       htmlFor="signup-confirmPassword"
                       className="text-xs font-bold uppercase tracking-wider text-[#F5F5F5]"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                     >
-                      CONFIRM PASSWORD <span className="text-[#E58A32]">*</span>
+                      CONFIRM PASSWORD <span className="text-[#EB3E2E]">*</span>
                     </label>
                     <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#A3A3A3]">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#B8B8B8]">
                         <Lock className="w-4 h-4" />
                       </div>
                       <input
@@ -771,17 +761,17 @@ export default function Signup({ onNavigate }) {
                         value={formData.confirmPassword}
                         onChange={handleChange}
                         placeholder="Repeat password"
-                        className={`w-full bg-[#141414] border rounded-xl pl-10 pr-10 py-3 text-sm text-[#F5F5F5] placeholder-[#A3A3A3]/50 transition-all focus:outline-none ${
+                        className={`w-full bg-[#111111] border rounded-xl pl-10 pr-10 py-3 text-sm text-[#F5F5F5] placeholder-[#B8B8B8]/50 transition-all focus:outline-none ${
                           errors.confirmPassword
-                            ? 'border-[#E58A32] focus:border-[#E58A32]'
-                            : 'border-[#292929] focus:border-[#E58A32]'
+                            ? 'border-[#EB3E2E] focus:border-[#EB3E2E]'
+                            : 'border-[#303030] focus:border-[#EB3E2E]'
                         }`}
                       />
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                         aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#A3A3A3] hover:text-[#F5F5F5] transition-colors cursor-pointer"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#B8B8B8] hover:text-[#F5F5F5] transition-colors cursor-pointer"
                       >
                         {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -790,49 +780,48 @@ export default function Signup({ onNavigate }) {
                     {formData.confirmPassword && (
                       <span
                         className={`text-[10px] flex items-center gap-1 mt-1 ${
-                          formData.password === formData.confirmPassword ? 'text-emerald-400' : 'text-[#E58A32]'
+                          formData.password === formData.confirmPassword ? 'text-emerald-400' : 'text-[#EB3E2E]'
                         }`}
                       >
                         {formData.password === formData.confirmPassword ? '✓ Passwords match' : '✕ Passwords do not match'}
                       </span>
                     )}
                     {errors.confirmPassword && (
-                      <span className="text-[11px] text-[#E58A32]">{errors.confirmPassword}</span>
+                      <span className="text-[11px] text-[#EB3E2E]">{errors.confirmPassword}</span>
                     )}
                   </div>
                 </div>
 
                 {/* 8. Terms and Conditions Checkbox */}
                 <div className="flex flex-col gap-1 pt-1">
-                  <label className="flex items-start gap-2.5 cursor-pointer select-none text-xs text-[#A3A3A3]">
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none text-xs text-[#B8B8B8]">
                     <input
                       type="checkbox"
                       name="agreeTerms"
                       checked={formData.agreeTerms}
                       onChange={handleChange}
-                      className="mt-0.5 rounded border-[#292929] bg-[#141414] text-[#E58A32] focus:ring-[#E58A32] focus:ring-offset-0 transition-colors cursor-pointer w-4 h-4"
+                      className="mt-0.5 rounded border-[#303030] bg-[#111111] text-[#EB3E2E] focus:ring-[#EB3E2E] focus:ring-offset-0 transition-colors cursor-pointer w-4 h-4"
                     />
                     <span>
                       I agree to the{' '}
-                      <span className="text-[#F5F5F5] hover:text-[#E58A32] underline underline-offset-2">
+                      <span className="text-[#F5F5F5] hover:text-[#EB3E2E] underline underline-offset-2">
                         Terms of Service
                       </span>{' '}
                       and{' '}
-                      <span className="text-[#F5F5F5] hover:text-[#E58A32] underline underline-offset-2">
+                      <span className="text-[#F5F5F5] hover:text-[#EB3E2E] underline underline-offset-2">
                         Privacy Policy
                       </span>
                       .
                     </span>
                   </label>
-                  {errors.agreeTerms && <span className="text-[11px] text-[#E58A32]">{errors.agreeTerms}</span>}
+                  {errors.agreeTerms && <span className="text-[11px] text-[#EB3E2E]">{errors.agreeTerms}</span>}
                 </div>
 
                 {/* 9. Primary Submit CTA Button */}
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full mt-2 inline-flex items-center justify-center gap-2 bg-[#E58A32] hover:bg-[#F09A43] text-white font-bold text-xs uppercase tracking-wider py-4 px-6 rounded-xl shadow-[0_0_20px_rgba(229,138,50,0.30)] hover:shadow-[0_0_28px_rgba(229,138,50,0.45)] transition-all duration-200 active:scale-[0.99] cursor-pointer min-h-[48px] disabled:opacity-60 disabled:cursor-not-allowed"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  className="w-full mt-2 inline-flex items-center justify-center gap-2 bg-[#EB3E2E] hover:bg-[#FF493B] text-white font-bold text-xs uppercase tracking-wider py-4 px-6 rounded-xl shadow-[0_0_20px_rgba(235,62,46,0.30)] hover:shadow-[0_0_28px_rgba(235,62,46,0.45)] transition-all duration-200 active:scale-[0.99] cursor-pointer min-h-[48px] disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <span className="flex items-center gap-2">
@@ -849,13 +838,12 @@ export default function Signup({ onNavigate }) {
               </form>
 
               {/* 10. Existing Account Link */}
-              <div className="pt-4 border-t border-[#292929] flex flex-col sm:flex-row items-center justify-center gap-2 text-center text-xs text-[#A3A3A3]">
+              <div className="pt-4 border-t border-[#303030] flex flex-col sm:flex-row items-center justify-center gap-2 text-center text-xs text-[#B8B8B8]">
                 <span>Already a member?</span>
                 <button
                   type="button"
                   onClick={handleGoToLogin}
-                  className="text-[#E58A32] hover:text-[#F09A43] font-bold uppercase tracking-wider transition-colors cursor-pointer underline underline-offset-2"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  className="text-[#EB3E2E] hover:text-[#FF493B] font-bold uppercase tracking-wider transition-colors cursor-pointer underline underline-offset-2"
                 >
                   Log in
                 </button>
@@ -866,10 +854,10 @@ export default function Signup({ onNavigate }) {
       </main>
 
       {/* ── MINIMAL FOOTER ── */}
-      <footer className="w-full bg-[#09090B] border-t border-[#292929] py-4 px-6 text-center text-xs text-[#A3A3A3]">
+      <footer className="w-full bg-[#090909] border-t border-[#303030] py-4 px-6 text-center text-xs text-[#B8B8B8]">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>© 2026 MAN &amp; MACHINE FITNESS. All rights reserved.</span>
-          <span className="uppercase tracking-wider text-[11px]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+          <span className="uppercase tracking-wider text-[11px]" style={{ fontFamily: "'Oswald', sans-serif" }}>
             Kovilpatti • Karur • Sivakasi
           </span>
         </div>

@@ -1,64 +1,37 @@
 import React, { useState, useEffect } from 'react';
+import authService from '../../services/auth.js';
 
-export default function Header({ onOpenJoinModal, onNavigate }) {
+export default function Header({ onNavigate }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
+  const isAuthed = authService.isAuthenticated();
+  const userRole = authService.getRole();
 
   const navLinks = [
     { name: 'HOME', href: '#home' },
+    { name: 'ABOUT', href: '#about' },
+    { name: 'MEMBERSHIPS', href: '#memberships' },
+    { name: 'TRAINERS', href: '#trainers' },
     { name: 'FACILITIES', href: '#facilities' },
-    { name: 'MEMBERSHIP', href: '#membership-plans' },
-    { name: 'REVIEWS', href: '#reviews' },
-    { name: 'OUR BRANCHES', href: '#branches' },
     { name: 'CONTACT', href: '#contact' },
   ];
 
-  // Smart floating scroll behavior
   useEffect(() => {
-    let lastY = window.scrollY;
-
     const handleScroll = () => {
-      const currentY = window.scrollY;
-      setIsScrolled(currentY > 20);
-
-      // Never hide if mobile menu is open
-      if (mobileMenuOpen) {
-        setIsVisible(true);
-        return;
-      }
-
-      if (currentY > 80) {
-        if (currentY > lastY + 6) {
-          // Scrolling down
-          setIsVisible(false);
-        } else if (currentY < lastY - 6) {
-          // Scrolling up
-          setIsVisible(true);
-        }
-      } else {
-        setIsVisible(true);
-      }
-      lastY = currentY;
+      setIsScrolled(window.scrollY > 24);
     };
-
+    handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [mobileMenuOpen]);
+  }, []);
 
-  // Prevent background scrolling ONLY while mobile menu is actively open
   useEffect(() => {
-    if (mobileMenuOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    document.body.style.overflow = mobileMenuOpen ? 'hidden' : '';
     return () => {
       document.body.style.overflow = '';
     };
   }, [mobileMenuOpen]);
 
-  // Close on Escape key
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') setMobileMenuOpen(false);
@@ -67,183 +40,171 @@ export default function Header({ onOpenJoinModal, onNavigate }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleLinkClick = () => {
+  const navigateToRoute = (path) => {
     setMobileMenuOpen(false);
+    if (onNavigate) {
+      onNavigate(path);
+    } else {
+      window.history.pushState({}, '', path);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+  };
+
+  const handleJoinClick = (e) => {
+    e.preventDefault();
+    if (isAuthed) {
+      navigateToRoute(authService.getDashboardRoute(userRole));
+    } else {
+      navigateToRoute('/signup');
+    }
+  };
+
+  const handleLoginClick = (e) => {
+    e.preventDefault();
+    if (isAuthed) {
+      navigateToRoute(authService.getDashboardRoute(userRole));
+    } else {
+      navigateToRoute('/login');
+    }
+  };
+
+  const handleSectionClick = (e, href) => {
+    setMobileMenuOpen(false);
+    const id = href.replace('#', '');
+    const el = document.getElementById(id);
+    if (el) {
+      e.preventDefault();
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   return (
-    <header 
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isVisible ? 'translate-y-0' : '-translate-y-full'
-      } ${
+    <header
+      className={`animate-hero-nav fixed top-0 left-0 right-0 z-50 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
         isScrolled || mobileMenuOpen
-          ? 'bg-[#09090B]/95 backdrop-blur-md border-b border-[#292929] shadow-2xl' 
-          : 'bg-transparent border-b border-transparent shadow-none'
+          ? 'bg-[#090909]/92 backdrop-blur-md border-b border-[#303030]'
+          : 'bg-transparent border-b border-transparent'
       }`}
     >
-      <div className="h-14 sm:h-16 lg:h-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-2 sm:gap-4">
-        {/* Brand Logo & Title */}
-        <a 
-          className="flex items-center gap-2 sm:gap-3 group text-left min-w-0 shrink"
+      <div
+        className={`max-w-[1440px] mx-auto px-6 md:px-14 flex items-center justify-between transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          isScrolled ? 'h-16 md:h-[70px]' : 'h-[72px] md:h-20'
+        }`}
+      >
+        {/* Brand Logo & Wordmark */}
+        <a
           href="#home"
-          onClick={handleLinkClick}
+          onClick={(e) => handleSectionClick(e, '#home')}
+          className="group flex items-center gap-3 shrink-0"
         >
-          <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-11 lg:h-11 rounded-lg sm:rounded-xl bg-white p-1 flex items-center justify-center shrink-0 border border-[#292929] group-hover:border-[#E58A32] group-hover:shadow-[0_0_15px_rgba(229,138,50,0.3)] transition-all">
-            <img src="/logo.jpg" alt="Man & Machine Fitness Logo" className="w-full h-full object-contain" />
+          <div className="w-9 h-9 md:w-10 md:h-10 bg-white p-1 border border-[#303030] group-hover:border-[#EB3E2E] transition-colors duration-300 flex items-center justify-center shrink-0">
+            <img
+              src="/logo.jpg"
+              alt="Man & Machine Fitness Centre Logo"
+              className="w-full h-full object-contain"
+            />
           </div>
-          <div className="flex flex-col min-w-0">
-            <span 
-              className="font-bold text-[13px] sm:text-[15px] lg:text-[18px] text-[#F5F5F5] uppercase tracking-tight truncate group-hover:text-[#E58A32] transition-colors leading-tight"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              MAN &amp; MACHINE
-            </span>
-            <span className="text-[8px] sm:text-[9.5px] uppercase tracking-widest text-[#A3A3A3] truncate">
-              FITNESS CENTRE
-            </span>
-          </div>
+          <span
+            className="font-editorial-label text-[#F5F5F5] group-hover:text-[#EB3E2E] transition-colors duration-300 tracking-[0.14em] whitespace-nowrap"
+            style={{ fontSize: '12px', fontWeight: 700 }}
+          >
+            MAN &amp; MACHINE
+          </span>
         </a>
 
-        {/* Desktop Navigation Links */}
-        <nav className="hidden xl:flex items-center gap-6 lg:gap-8">
-          {navLinks.map((link, idx) => (
+        {/* Desktop Links */}
+        <nav className="hidden lg:flex items-center gap-[22px]" aria-label="Main navigation">
+          {navLinks.map((link) => (
             <a
               key={link.name}
               href={link.href}
-              className={`text-xs uppercase tracking-wider font-semibold transition-colors py-2 ${
-                idx === 0
-                  ? 'text-[#E58A32]'
-                  : 'text-[#A3A3A3] hover:text-[#F5F5F5]'
-              }`}
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              onClick={(e) => handleSectionClick(e, link.href)}
+              className="font-editorial-label text-[#F5F5F5]/90 hover:text-[#EB3E2E] transition-colors duration-300 py-2 whitespace-nowrap"
             >
               {link.name}
             </a>
           ))}
         </nav>
 
-        {/* Header Right Actions */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Desktop Actions */}
+        <div className="hidden lg:flex items-center gap-5 shrink-0">
           <a
-            href="/login"
-            onClick={(e) => {
-              e.preventDefault();
-              if (onNavigate) {
-                onNavigate('/login');
-              } else {
-                window.history.pushState({}, '', '/login');
-                window.dispatchEvent(new PopStateEvent('popstate'));
-              }
-            }}
-            className="hidden sm:inline-flex items-center justify-center bg-[#E58A32] hover:bg-[#F09A43] text-white font-bold text-xs uppercase tracking-wider px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg shadow-[0_0_15px_rgba(229,138,50,0.30)] transition-all duration-200 active:scale-95 cursor-pointer whitespace-nowrap min-h-[36px]"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            href={isAuthed ? '/account' : '/login'}
+            onClick={handleLoginClick}
+            className="font-editorial-label text-[#B8B8B8] hover:text-[#F5F5F5] transition-colors duration-300 whitespace-nowrap"
           >
-            JOIN NOW
+            {isAuthed ? 'DASHBOARD' : 'LOGIN'}
           </a>
-          
-          {/* Desktop-only user icon */}
-          <a 
-            href="/login"
-            onClick={(e) => {
-              e.preventDefault();
-              if (onNavigate) {
-                onNavigate('/login');
-              } else {
-                window.history.pushState({}, '', '/login');
-                window.dispatchEvent(new PopStateEvent('popstate'));
-              }
-            }}
-            title="Member Portal"
-            aria-label="Member Portal"
-            className="hidden sm:flex w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#141414] border border-[#292929] items-center justify-center shrink-0 cursor-pointer hover:border-[#E58A32] hover:text-[#E58A32] text-[#F5F5F5] transition-colors"
+          <a
+            href={isAuthed ? '/account' : '/signup'}
+            onClick={handleJoinClick}
+            className="btn-editorial-primary !py-[14px] !px-[22px]"
           >
-            <span className="material-symbols-outlined text-[18px] sm:text-[20px]">person</span>
+            <span>{isAuthed ? 'MY ACCOUNT' : 'JOIN NOW'}</span>
           </a>
-
-          {/* Mobile Menu Hamburger Button */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="xl:hidden w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-[#141414] border border-[#292929] text-[#F5F5F5] hover:text-[#E58A32] hover:border-[#E58A32] transition-colors focus:outline-none cursor-pointer"
-            aria-label="Toggle navigation menu"
-            aria-expanded={mobileMenuOpen}
-          >
-            <span className="material-symbols-outlined text-[22px] sm:text-[24px]">
-              {mobileMenuOpen ? 'close' : 'menu'}
-            </span>
-          </button>
         </div>
+
+        {/* Mobile MENU Button */}
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen((prev) => !prev)}
+          className="lg:hidden font-editorial-label text-[#F5F5F5] hover:text-[#EB3E2E] transition-colors py-2 px-1 cursor-pointer min-h-[44px] flex items-center"
+          aria-expanded={mobileMenuOpen}
+          aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        >
+          {mobileMenuOpen ? 'CLOSE' : 'MENU'}
+        </button>
       </div>
 
-      {/* Mobile Menu Slide-in Overlay */}
-      {mobileMenuOpen && (
-        <div 
-          className="fixed inset-0 top-14 sm:top-16 z-40 bg-black/80 backdrop-blur-md xl:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        >
-          <div 
-            className="w-full max-w-sm ml-auto h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] bg-[#09090B] border-l border-[#292929] p-6 flex flex-col justify-between overflow-y-auto shadow-2xl animate-fadeInUp"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Navigation Items */}
-            <div className="flex flex-col gap-1.5 pt-2">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-[#A3A3A3]/70 mb-2 px-3">
-                NAVIGATION
-              </span>
-              {navLinks.map((link, idx) => (
-                <a
-                  key={link.name}
-                  href={link.href}
-                  onClick={handleLinkClick}
-                  className={`flex items-center justify-between px-3.5 py-3 rounded-xl text-sm sm:text-base font-bold uppercase tracking-wider transition-colors min-h-[48px] active:bg-[#141414] ${
-                    idx === 0 
-                      ? 'text-[#E58A32] bg-[#E58A32]/10' 
-                      : 'text-[#F5F5F5] hover:text-[#E58A32] hover:bg-[#141414]'
-                  }`}
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                >
-                  <span>{link.name}</span>
-                  <span className="material-symbols-outlined text-[18px] opacity-60">arrow_forward</span>
-                </a>
-              ))}
-            </div>
-
-            {/* Drawer Bottom Actions */}
-            <div className="pt-6 border-t border-[#292929] flex flex-col gap-3">
+      {/* Full-Screen Animated Mobile Menu */}
+      <div
+        className={`lg:hidden fixed inset-0 top-[72px] z-40 bg-[#090909] border-t border-[#303030] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          mobileMenuOpen
+            ? 'opacity-100 translate-y-0 pointer-events-auto'
+            : 'opacity-0 -translate-y-4 pointer-events-none'
+        }`}
+      >
+        <div className="h-full max-w-[1440px] mx-auto px-6 py-8 flex flex-col justify-between overflow-y-auto">
+          <nav className="flex flex-col gap-4" aria-label="Mobile navigation">
+            {navLinks.map((link, idx) => (
               <a
-                href="/login"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setMobileMenuOpen(false);
-                  if (onNavigate) {
-                    onNavigate('/login');
-                  } else {
-                    window.history.pushState({}, '', '/login');
-                    window.dispatchEvent(new PopStateEvent('popstate'));
-                  }
+                key={link.name}
+                href={link.href}
+                onClick={(e) => handleSectionClick(e, link.href)}
+                className="font-editorial-display text-3xl sm:text-4xl font-semibold uppercase text-[#F5F5F5] hover:text-[#EB3E2E] transition-all duration-300 py-1 border-b border-[#303030]/50 flex items-center justify-between"
+                style={{
+                  transitionDelay: mobileMenuOpen ? `${idx * 45}ms` : '0ms',
+                  opacity: mobileMenuOpen ? 1 : 0,
+                  transform: mobileMenuOpen ? 'translateY(0)' : 'translateY(12px)',
                 }}
-                className="w-full bg-[#E58A32] text-white font-bold text-xs uppercase tracking-wider py-3.5 rounded-xl text-center shadow-[0_0_20px_rgba(229,138,50,0.30)] hover:bg-[#F09A43] active:scale-95 transition-all min-h-[48px] flex items-center justify-center gap-2 cursor-pointer"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
-                <span>JOIN MAN &amp; MACHINE</span>
-                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                <span>{link.name}</span>
+                <span className="font-editorial-label text-[#B8B8B8]">0{idx + 1}</span>
               </a>
+            ))}
+          </nav>
 
-              <a
-                href="tel:+917598885566"
-                className="w-full bg-[#141414] text-[#F5F5F5] border border-[#292929] hover:border-[#E58A32] text-xs font-semibold uppercase tracking-wider py-3 rounded-xl text-center transition-colors min-h-[44px] flex items-center justify-center gap-2"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                <span className="material-symbols-outlined text-[#E58A32] text-[18px]">call</span>
-                <span>+91 75988 85566</span>
-              </a>
-
-              <div className="text-center text-[10px] text-[#A3A3A3] uppercase tracking-wider pt-1">
-                Kovilpatti • Karur • Sivakasi
-              </div>
-            </div>
+          <div className="pt-8 flex flex-col gap-3">
+            <a
+              href={isAuthed ? '/account' : '/signup'}
+              onClick={handleJoinClick}
+              className="btn-editorial-primary w-full text-center"
+            >
+              {isAuthed ? 'GO TO DASHBOARD' : 'JOIN MAN & MACHINE'}
+            </a>
+            <a
+              href={isAuthed ? '/account' : '/login'}
+              onClick={handleLoginClick}
+              className="btn-editorial-secondary w-full text-center"
+            >
+              {isAuthed ? 'MY ACCOUNT' : 'MEMBER LOGIN'}
+            </a>
+            <p className="font-editorial-label text-[#B8B8B8] text-center pt-2">
+              KOVILPATTI • KARUR • SIVAKASI
+            </p>
           </div>
         </div>
-      )}
+      </div>
     </header>
   );
 }

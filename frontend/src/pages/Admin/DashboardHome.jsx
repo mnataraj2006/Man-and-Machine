@@ -209,22 +209,22 @@ export default function DashboardHome({ onNavigate }) {
   return (
     <div className="space-y-6">
       {/* ── TOP SECTION: WELCOME & QUICK ACTIONS ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#141414] border border-[#292929] rounded-2xl p-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#111111] border border-[#303030] rounded-2xl p-5">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono uppercase text-[#E58A32] tracking-wider">
+            <span className="text-xs font-mono uppercase text-[#EB3E2E] tracking-wider">
               COMMAND CENTER OVERVIEW
             </span>
-            <span className="text-[#292929]">•</span>
-            <span className="text-xs text-[#A3A3A3] font-mono">{todayFormatted}</span>
+            <span className="text-[#303030]">•</span>
+            <span className="text-xs text-[#B8B8B8] font-mono">{todayFormatted}</span>
           </div>
           <h2
             className="text-xl sm:text-2xl font-bold uppercase tracking-tight text-[#F5F5F5]"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            style={{ fontFamily: "'Oswald', sans-serif" }}
           >
             GYM BUSINESS OVERVIEW
           </h2>
-          <p className="text-xs text-[#A3A3A3]">
+          <p className="text-xs text-[#B8B8B8]">
             Managing{' '}
             <strong className="text-[#F5F5F5]">
               {selectedBranch === 'ALL'
@@ -239,8 +239,7 @@ export default function DashboardHome({ onNavigate }) {
           <button
             type="button"
             onClick={() => setQuickAction('ADD_CLIENT')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black transition-all cursor-pointer shadow-lg shadow-[#E58A32]/10"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white transition-all cursor-pointer shadow-lg shadow-[#EB3E2E]/10"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Client</span>
@@ -249,8 +248,7 @@ export default function DashboardHome({ onNavigate }) {
           <button
             type="button"
             onClick={() => setQuickAction('ADD_TRAINER')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#1F1F1F] hover:bg-[#252525] text-[#F5F5F5] border border-[#292929] hover:border-[#E58A32] transition-all cursor-pointer"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#252525] text-[#F5F5F5] border border-[#303030] hover:border-[#EB3E2E] transition-all cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Trainer</span>
@@ -259,8 +257,7 @@ export default function DashboardHome({ onNavigate }) {
           <button
             type="button"
             onClick={() => setQuickAction('CREATE_MEMBERSHIP')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#1F1F1F] hover:bg-[#252525] text-[#F5F5F5] border border-[#292929] hover:border-[#E58A32] transition-all cursor-pointer"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#252525] text-[#F5F5F5] border border-[#303030] hover:border-[#EB3E2E] transition-all cursor-pointer"
           >
             <CreditCard className="w-3.5 h-3.5" />
             <span>Membership</span>
@@ -269,8 +266,7 @@ export default function DashboardHome({ onNavigate }) {
           <button
             type="button"
             onClick={() => setQuickAction('RECORD_PAYMENT')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#1F1F1F] hover:bg-[#252525] text-[#F5F5F5] border border-[#292929] hover:border-[#E58A32] transition-all cursor-pointer"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#252525] text-[#F5F5F5] border border-[#303030] hover:border-[#EB3E2E] transition-all cursor-pointer"
           >
             <TrendingUp className="w-3.5 h-3.5 text-green-400" />
             <span>Record Payment</span>
@@ -279,7 +275,7 @@ export default function DashboardHome({ onNavigate }) {
           <button
             type="button"
             onClick={fetchData}
-            className="p-2 rounded-xl bg-[#1F1F1F] hover:bg-[#252525] text-[#A3A3A3] hover:text-white border border-[#292929] cursor-pointer"
+            className="p-2 rounded-xl bg-[#202020] hover:bg-[#252525] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer"
             title="Refresh Metrics"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -310,7 +306,7 @@ export default function DashboardHome({ onNavigate }) {
 
       {/* ── TIME RANGE FILTER ── */}
       <div className="flex items-center justify-between gap-4 overflow-x-auto pb-1">
-        <span className="text-xs uppercase font-mono text-[#A3A3A3] shrink-0">Filter Analytics Period:</span>
+        <span className="text-xs uppercase font-mono text-[#B8B8B8] shrink-0">Filter Analytics Period:</span>
         <div className="flex items-center gap-1.5 shrink-0">
           {[
             { id: 'today', label: 'Today' },
@@ -325,8 +321,8 @@ export default function DashboardHome({ onNavigate }) {
               onClick={() => setRange(btn.id)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
                 range === btn.id
-                  ? 'bg-[#E58A32] text-black'
-                  : 'bg-[#181818] text-[#A3A3A3] hover:text-[#F5F5F5] border border-[#292929]'
+                  ? 'bg-[#EB3E2E] text-white'
+                  : 'bg-[#181818] text-[#B8B8B8] hover:text-[#F5F5F5] border border-[#303030]'
               }`}
             >
               {btn.label}
@@ -338,30 +334,30 @@ export default function DashboardHome({ onNavigate }) {
       {/* ── 8 KPI CARDS ── */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
         {/* 1. Total Clients */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#A3A3A3]">TOTAL CLIENTS</span>
-            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">TOTAL CLIENTS</span>
+            <div className="w-8 h-8 rounded-lg bg-[#202020] border border-[#303030] flex items-center justify-center text-[#F5F5F5]">
               <Users className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex flex-col">
             <span
               className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               {data?.kpis?.totalClients ?? 0}
             </span>
-            <span className="text-[11px] text-[#A3A3A3] mt-0.5">
+            <span className="text-[11px] text-[#B8B8B8] mt-0.5">
               {data?.kpis?.activeClients !== undefined ? `${data.kpis.activeClients} Active Athletes` : 'Registered Athletes'}
             </span>
           </div>
         </div>
 
         {/* 2. Active Members */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#A3A3A3]">ACTIVE MEMBERS</span>
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">ACTIVE MEMBERS</span>
             <div className="w-8 h-8 rounded-lg bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-400">
               <CheckCircle2 className="w-4 h-4" />
             </div>
@@ -369,7 +365,7 @@ export default function DashboardHome({ onNavigate }) {
           <div className="mt-3 flex flex-col">
             <span
               className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               {data?.kpis?.activeMembers ?? 0}
             </span>
@@ -378,9 +374,9 @@ export default function DashboardHome({ onNavigate }) {
         </div>
 
         {/* 3. Expired Memberships */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#A3A3A3]">EXPIRED MEMBERS</span>
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">EXPIRED MEMBERS</span>
             <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
               <AlertTriangle className="w-4 h-4" />
             </div>
@@ -388,7 +384,7 @@ export default function DashboardHome({ onNavigate }) {
           <div className="mt-3 flex flex-col">
             <span
               className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               {data?.kpis?.expiredMemberships ?? 0}
             </span>
@@ -397,49 +393,49 @@ export default function DashboardHome({ onNavigate }) {
         </div>
 
         {/* 4. Total Trainers */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#A3A3A3]">TOTAL TRAINERS</span>
-            <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">TOTAL TRAINERS</span>
+            <div className="w-8 h-8 rounded-lg bg-[#EB3E2E]/10 border border-[#EB3E2E]/30 flex items-center justify-center text-[#EB3E2E]">
               <Dumbbell className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex flex-col">
             <span
               className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               {data?.kpis?.totalTrainers ?? 0}
             </span>
-            <span className="text-[11px] text-[#A3A3A3] mt-0.5">
+            <span className="text-[11px] text-[#B8B8B8] mt-0.5">
               {data?.kpis?.activeTrainers !== undefined ? `${data.kpis.activeTrainers} Active Coaches` : 'Certified Strength Coaches'}
             </span>
           </div>
         </div>
 
         {/* 5. Today's Attendance */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#A3A3A3]">TODAY'S ATTENDANCE</span>
-            <div className="w-8 h-8 rounded-lg bg-[#E58A32]/10 border border-[#E58A32]/20 flex items-center justify-center text-[#E58A32]">
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">TODAY'S ATTENDANCE</span>
+            <div className="w-8 h-8 rounded-lg bg-[#EB3E2E]/10 border border-[#EB3E2E]/20 flex items-center justify-center text-[#EB3E2E]">
               <CalendarCheck className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex flex-col">
             <span
               className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               {data?.kpis?.todayAttendance ?? 0}
             </span>
-            <span className="text-[11px] text-[#A3A3A3] mt-0.5">Check-ins recorded today</span>
+            <span className="text-[11px] text-[#B8B8B8] mt-0.5">Check-ins recorded today</span>
           </div>
         </div>
 
         {/* 6. Monthly Revenue */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#A3A3A3]">MONTHLY REVENUE</span>
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">MONTHLY REVENUE</span>
             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
               <TrendingUp className="w-4 h-4" />
             </div>
@@ -447,32 +443,32 @@ export default function DashboardHome({ onNavigate }) {
           <div className="mt-3 flex flex-col">
             <span
               className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               ₹{(data?.kpis?.monthlyRevenue ?? 0).toLocaleString()}
             </span>
-            <span className="text-[11px] text-[#A3A3A3] mt-0.5">
+            <span className="text-[11px] text-[#B8B8B8] mt-0.5">
               Prev month: ₹{(data?.kpis?.prevMonthlyRevenue ?? 0).toLocaleString()}
             </span>
           </div>
         </div>
 
         {/* 7. Pending Payments */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#E58A32]/40 transition-colors">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#A3A3A3]">PENDING PAYMENTS</span>
-            <div className="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400">
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">PENDING PAYMENTS</span>
+            <div className="w-8 h-8 rounded-lg bg-[#EB3E2E]/10 border border-[#EB3E2E]/30 flex items-center justify-center text-[#EB3E2E]">
               <Clock className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex flex-col">
             <span
               className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               {data?.kpis?.pendingPayments ?? 0}
             </span>
-            <span className="text-[11px] text-orange-400/90 mt-0.5">
+            <span className="text-[11px] text-[#EB3E2E] mt-0.5">
               Outstanding: ₹{(data?.kpis?.pendingPaymentsTotal ?? 0).toLocaleString()}
             </span>
           </div>
@@ -481,22 +477,22 @@ export default function DashboardHome({ onNavigate }) {
         {/* 8. Active Membership Plans */}
         <div
           onClick={() => onNavigate && onNavigate('/admin/membership-plans')}
-          className="bg-[#181818] border border-[#292929] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#E58A32]/60 transition-all cursor-pointer"
+          className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/60 transition-all cursor-pointer"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#A3A3A3]">ACTIVE PLANS</span>
-            <div className="w-8 h-8 rounded-lg bg-[#E58A32]/10 border border-[#E58A32]/20 flex items-center justify-center text-[#E58A32]">
+            <span className="text-xs font-mono uppercase text-[#B8B8B8]">ACTIVE PLANS</span>
+            <div className="w-8 h-8 rounded-lg bg-[#EB3E2E]/10 border border-[#EB3E2E]/20 flex items-center justify-center text-[#EB3E2E]">
               <ClipboardList className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex flex-col">
             <span
               className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               {plans?.filter((p) => p.isActive).length || plans?.length || 4}
             </span>
-            <span className="text-[11px] text-[#E58A32]/90 mt-0.5">Configured in catalog &rarr;</span>
+            <span className="text-[11px] text-[#EB3E2E]/90 mt-0.5">Configured in catalog &rarr;</span>
           </div>
         </div>
       </div>
@@ -504,22 +500,22 @@ export default function DashboardHome({ onNavigate }) {
       {/* ── CHARTS & ANALYTICS SECTION ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart 1: Monthly Revenue Trend */}
-        <div className="lg:col-span-2 bg-[#181818] border border-[#292929] rounded-2xl p-5 flex flex-col justify-between">
+        <div className="lg:col-span-2 bg-[#181818] border border-[#303030] rounded-2xl p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3
                 className="text-sm font-bold uppercase tracking-wider text-[#F5F5F5]"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                style={{ fontFamily: "'Oswald', sans-serif" }}
               >
                 Monthly Revenue Performance (Confirmed Paid)
               </h3>
-              <p className="text-[11px] text-[#A3A3A3]">Confirmed revenue collections across past 6 months</p>
+              <p className="text-[11px] text-[#B8B8B8]">Confirmed revenue collections across past 6 months</p>
             </div>
-            <span className="text-xs font-mono text-[#E58A32]">INR (₹)</span>
+            <span className="text-xs font-mono text-[#EB3E2E]">INR (₹)</span>
           </div>
 
           {/* SVG Visual Bar Chart */}
-          <div className="h-48 flex items-end justify-between gap-3 pt-6 border-b border-[#292929] pb-3">
+          <div className="h-48 flex items-end justify-between gap-3 pt-6 border-b border-[#303030] pb-3">
             {data?.charts?.revenueChart?.map((item, idx) => {
               const maxRev = Math.max(...data.charts.revenueChart.map((c) => c.revenue), 10000);
               const heightPercent = Math.max((item.revenue / maxRev) * 100, 6);
@@ -527,17 +523,17 @@ export default function DashboardHome({ onNavigate }) {
               return (
                 <div key={idx} className="flex-1 flex flex-col items-center gap-2 group relative">
                   {/* Tooltip */}
-                  <div className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-opacity bg-black text-[#E58A32] text-[10px] font-bold py-1 px-2 rounded border border-[#292929] pointer-events-none whitespace-nowrap z-10">
+                  <div className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-opacity bg-black text-[#EB3E2E] text-[10px] font-bold py-1 px-2 rounded border border-[#303030] pointer-events-none whitespace-nowrap z-10">
                     ₹{item.revenue.toLocaleString()}
                   </div>
 
-                  <div className="w-full max-w-[40px] bg-[#222222] rounded-t-md relative flex items-end h-36 overflow-hidden">
+                  <div className="w-full max-w-[40px] bg-[#202020] rounded-t-md relative flex items-end h-36 overflow-hidden">
                     <div
-                      className="w-full bg-gradient-to-t from-[#E58A32]/60 to-[#E58A32] rounded-t-md transition-all duration-500 group-hover:brightness-110"
+                      className="w-full bg-gradient-to-t from-[#EB3E2E]/60 to-[#EB3E2E] rounded-t-md transition-all duration-500 group-hover:brightness-110"
                       style={{ height: `${heightPercent}%` }}
                     />
                   </div>
-                  <span className="text-[10px] font-mono text-[#A3A3A3] uppercase">{item.month}</span>
+                  <span className="text-[10px] font-mono text-[#B8B8B8] uppercase">{item.month}</span>
                 </div>
               );
             })}
@@ -545,15 +541,15 @@ export default function DashboardHome({ onNavigate }) {
         </div>
 
         {/* Chart 2: Branch-wise Active Memberships */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-5 flex flex-col justify-between">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-5 flex flex-col justify-between">
           <div className="mb-4">
             <h3
               className="text-sm font-bold uppercase tracking-wider text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               Branch Comparison
             </h3>
-            <p className="text-[11px] text-[#A3A3A3]">Active athletes across operational hubs</p>
+            <p className="text-[11px] text-[#B8B8B8]">Active athletes across operational hubs</p>
           </div>
 
           <div className="space-y-4 my-auto">
@@ -566,15 +562,15 @@ export default function DashboardHome({ onNavigate }) {
                 <div key={idx} className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-[#F5F5F5]">{b.city} Branch</span>
-                    <span className="font-mono text-[#E58A32]">{b.activeCount} active</span>
+                    <span className="font-mono text-[#EB3E2E]">{b.activeCount} active</span>
                   </div>
                   <div className="w-full h-2.5 bg-[#252525] rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-[#E58A32] rounded-full transition-all duration-700"
+                      className="h-full bg-[#EB3E2E] rounded-full transition-all duration-700"
                       style={{ width: `${percent}%` }}
                     />
                   </div>
-                  <div className="flex justify-between text-[10px] text-[#A3A3A3]">
+                  <div className="flex justify-between text-[10px] text-[#B8B8B8]">
                     <span>Total registered: {b.clientCount}</span>
                     <span>Monthly: ₹{b.monthlyRevenue.toLocaleString()}</span>
                   </div>
@@ -586,7 +582,7 @@ export default function DashboardHome({ onNavigate }) {
           <button
             type="button"
             onClick={() => onNavigate && onNavigate('/admin/branches')}
-            className="w-full mt-4 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] hover:bg-[#292929] text-[#F5F5F5] transition-colors cursor-pointer"
+            className="w-full mt-4 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#F5F5F5] transition-colors cursor-pointer"
           >
             <span>View Branch Specifications</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -597,18 +593,18 @@ export default function DashboardHome({ onNavigate }) {
       {/* ── SECONDARY VISUALIZATIONS ROW ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Daily Attendance (Last 7 Days) */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-5">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3
                 className="text-sm font-bold uppercase tracking-wider text-[#F5F5F5]"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                style={{ fontFamily: "'Oswald', sans-serif" }}
               >
                 Daily Attendance Trend
               </h3>
-              <p className="text-[11px] text-[#A3A3A3]">Gym visits recorded in the last 7 days</p>
+              <p className="text-[11px] text-[#B8B8B8]">Gym visits recorded in the last 7 days</p>
             </div>
-            <CalendarCheck className="w-4 h-4 text-[#E58A32]" />
+            <CalendarCheck className="w-4 h-4 text-[#EB3E2E]" />
           </div>
 
           <div className="h-32 flex items-end justify-between gap-2 pt-2">
@@ -618,13 +614,13 @@ export default function DashboardHome({ onNavigate }) {
 
               return (
                 <div key={idx} className="flex-1 flex flex-col items-center gap-2">
-                  <div className="w-full max-w-[32px] bg-[#222222] rounded-t relative flex items-end h-24 overflow-hidden">
+                  <div className="w-full max-w-[32px] bg-[#202020] rounded-t relative flex items-end h-24 overflow-hidden">
                     <div
-                      className="w-full bg-[#E58A32] rounded-t transition-all duration-500"
+                      className="w-full bg-[#EB3E2E] rounded-t transition-all duration-500"
                       style={{ height: `${height}%` }}
                     />
                   </div>
-                  <span className="text-[9px] font-mono text-[#A3A3A3]">{day.day}</span>
+                  <span className="text-[9px] font-mono text-[#B8B8B8]">{day.day}</span>
                 </div>
               );
             })}
@@ -632,27 +628,27 @@ export default function DashboardHome({ onNavigate }) {
         </div>
 
         {/* Membership Status Distribution */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-5">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3
                 className="text-sm font-bold uppercase tracking-wider text-[#F5F5F5]"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                style={{ fontFamily: "'Oswald', sans-serif" }}
               >
                 Membership Portfolio Breakdown
               </h3>
-              <p className="text-[11px] text-[#A3A3A3]">Client status ratio across database</p>
+              <p className="text-[11px] text-[#B8B8B8]">Client status ratio across database</p>
             </div>
-            <CreditCard className="w-4 h-4 text-[#E58A32]" />
+            <CreditCard className="w-4 h-4 text-[#EB3E2E]" />
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {data?.charts?.membershipDistribution?.map((item, idx) => (
-              <div key={idx} className="bg-[#1F1F1F] border border-[#292929] rounded-xl p-3 flex flex-col">
-                <span className="text-[10px] font-mono text-[#A3A3A3] uppercase">{item.status}</span>
+              <div key={idx} className="bg-[#202020] border border-[#303030] rounded-xl p-3 flex flex-col">
+                <span className="text-[10px] font-mono text-[#B8B8B8] uppercase">{item.status}</span>
                 <span
                   className="text-lg font-bold text-[#F5F5F5] mt-1"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  style={{ fontFamily: "'Oswald', sans-serif" }}
                 >
                   {item.count}
                 </span>
@@ -665,18 +661,18 @@ export default function DashboardHome({ onNavigate }) {
       {/* ── ALERTS & RECENT ACTIVITY DUAL GRID ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Alerts & Action Reminders (2 cols) */}
-        <div className="lg:col-span-2 bg-[#181818] border border-[#292929] rounded-2xl p-5">
+        <div className="lg:col-span-2 bg-[#181818] border border-[#303030] rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-amber-400" />
               <h3
                 className="text-sm font-bold uppercase tracking-wider text-[#F5F5F5]"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                style={{ fontFamily: "'Oswald', sans-serif" }}
               >
                 Critical Action Alerts &amp; Expirations
               </h3>
             </div>
-            <span className="text-xs text-[#A3A3A3] font-mono">Real-time DB Monitor</span>
+            <span className="text-xs text-[#B8B8B8] font-mono">Real-time DB Monitor</span>
           </div>
 
           <div className="space-y-3">
@@ -698,7 +694,7 @@ export default function DashboardHome({ onNavigate }) {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
                   {data.alerts.expiringIn7Days.slice(0, 4).map((m, i) => (
-                    <div key={i} className="text-xs bg-[#121212] p-2 rounded-lg border border-amber-500/20 flex justify-between">
+                    <div key={i} className="text-xs bg-[#111111] p-2 rounded-lg border border-amber-500/20 flex justify-between">
                       <span className="font-semibold text-[#F5F5F5] truncate">{m.userId?.name || 'Athlete'}</span>
                       <span className="text-amber-400 font-mono text-[11px]">
                         {new Date(m.expiryDate).toLocaleDateString()}
@@ -711,25 +707,25 @@ export default function DashboardHome({ onNavigate }) {
 
             {/* 2. Pending Payments */}
             {data?.alerts?.pendingPayments?.length > 0 && (
-              <div className="p-3.5 rounded-xl bg-orange-500/10 border border-orange-500/30 flex flex-col gap-2">
+              <div className="p-3.5 rounded-xl bg-[#EB3E2E]/10 border border-[#EB3E2E]/30 flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-orange-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-[#EB3E2E] uppercase tracking-wider flex items-center gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5" />
                     {data.alerts.pendingPayments.length} Pending Payments Awaiting Clearance
                   </span>
                   <button
                     type="button"
                     onClick={() => onNavigate && onNavigate('/admin/payments')}
-                    className="text-[11px] font-bold text-orange-300 hover:underline cursor-pointer"
+                    className="text-[11px] font-bold text-[#EB3E2E] hover:underline cursor-pointer"
                   >
                     Resolve &rarr;
                   </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
                   {data.alerts.pendingPayments.slice(0, 4).map((p, i) => (
-                    <div key={i} className="text-xs bg-[#121212] p-2 rounded-lg border border-orange-500/20 flex justify-between">
+                    <div key={i} className="text-xs bg-[#111111] p-2 rounded-lg border border-[#EB3E2E]/30 flex justify-between">
                       <span className="font-semibold text-[#F5F5F5] truncate">{p.userId?.name || 'Client'}</span>
-                      <span className="text-orange-400 font-mono font-bold">₹{p.amount.toLocaleString()}</span>
+                      <span className="text-[#EB3E2E] font-mono font-bold">₹{p.amount.toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
@@ -744,7 +740,7 @@ export default function DashboardHome({ onNavigate }) {
                 <span className="text-xs font-bold uppercase tracking-wider text-[#F5F5F5]">
                   All Operational Records Current
                 </span>
-                <span className="text-[11px] text-[#A3A3A3]">
+                <span className="text-[11px] text-[#B8B8B8]">
                   No urgent expirations or pending payments require attention right now.
                 </span>
               </div>
@@ -753,25 +749,25 @@ export default function DashboardHome({ onNavigate }) {
         </div>
 
         {/* Right: Recent Activity Timeline (1 col) */}
-        <div className="bg-[#181818] border border-[#292929] rounded-2xl p-5">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h3
               className="text-sm font-bold uppercase tracking-wider text-[#F5F5F5]"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               Recent Gym Events
             </h3>
-            <span className="text-[10px] font-mono text-[#E58A32] uppercase">Live Feed</span>
+            <span className="text-[10px] font-mono text-[#EB3E2E] uppercase">Live Feed</span>
           </div>
 
           <div className="space-y-3.5">
             {data?.activities?.length > 0 ? (
               data.activities.map((act) => (
-                <div key={act.id} className="flex items-start gap-3 border-l-2 border-[#292929] pl-3 py-0.5">
+                <div key={act.id} className="flex items-start gap-3 border-l-2 border-[#303030] pl-3 py-0.5">
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-[#F5F5F5]">{act.title}</span>
-                    <span className="text-[11px] text-[#A3A3A3] mt-0.5">{act.description}</span>
-                    <span className="text-[9px] font-mono text-[#E58A32] mt-1">
+                    <span className="text-[11px] text-[#B8B8B8] mt-0.5">{act.description}</span>
+                    <span className="text-[9px] font-mono text-[#EB3E2E] mt-1">
                       {new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} •{' '}
                       {new Date(act.timestamp).toLocaleDateString()}
                     </span>
@@ -779,7 +775,7 @@ export default function DashboardHome({ onNavigate }) {
                 </div>
               ))
             ) : (
-              <div className="py-8 text-center text-xs text-[#A3A3A3]">No recent events recorded.</div>
+              <div className="py-8 text-center text-xs text-[#B8B8B8]">No recent events recorded.</div>
             )}
           </div>
         </div>
@@ -790,10 +786,10 @@ export default function DashboardHome({ onNavigate }) {
       {/* Modal 1: Add Client */}
       {quickAction === 'ADD_CLIENT' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-md p-6 relative">
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-md p-6 relative">
             <h3
               className="text-lg font-bold uppercase tracking-tight text-[#F5F5F5] mb-4"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               Quick Register Athlete
             </h3>
@@ -803,48 +799,48 @@ export default function DashboardHome({ onNavigate }) {
 
             <form onSubmit={handleQuickClientSubmit} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Full Name</label>
+                <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Full Name</label>
                 <input
                   type="text"
                   required
                   value={clientForm.name}
                   onChange={(e) => setClientForm({ ...clientForm, name: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   placeholder="e.g. Arun Vijay"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Email</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Email</label>
                   <input
                     type="email"
                     required
                     value={clientForm.email}
                     onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                     placeholder="athlete@domain.com"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Phone</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone</label>
                   <input
                     type="text"
                     required
                     value={clientForm.phone}
                     onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                     placeholder="9876543210"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Assigned Branch</label>
+                <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Assigned Branch</label>
                 <select
                   value={clientForm.branchId}
                   onChange={(e) => setClientForm({ ...clientForm, branchId: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                 >
                   {branches.map((b) => (
                     <option key={b._id} value={b._id}>
@@ -856,11 +852,11 @@ export default function DashboardHome({ onNavigate }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Fitness Goal</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Fitness Goal</label>
                   <select
                     value={clientForm.fitnessGoal}
                     onChange={(e) => setClientForm({ ...clientForm, fitnessGoal: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   >
                     <option value="Muscle Building">Muscle Building</option>
                     <option value="Weight Loss">Weight Loss</option>
@@ -869,12 +865,12 @@ export default function DashboardHome({ onNavigate }) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Password</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Password</label>
                   <input
                     type="text"
                     value={clientForm.password}
                     onChange={(e) => setClientForm({ ...clientForm, password: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   />
                 </div>
               </div>
@@ -883,14 +879,14 @@ export default function DashboardHome({ onNavigate }) {
                 <button
                   type="button"
                   onClick={() => setQuickAction(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] hover:bg-[#292929] text-[#A3A3A3] cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={modalLoading}
-                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white cursor-pointer disabled:opacity-50"
                 >
                   {modalLoading ? 'Saving...' : 'Register Client'}
                 </button>
@@ -903,10 +899,10 @@ export default function DashboardHome({ onNavigate }) {
       {/* Modal 2: Add Trainer */}
       {quickAction === 'ADD_TRAINER' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-md p-6 relative">
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-md p-6 relative">
             <h3
               className="text-lg font-bold uppercase tracking-tight text-[#F5F5F5] mb-4"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               Onboard Coach / Trainer
             </h3>
@@ -916,37 +912,37 @@ export default function DashboardHome({ onNavigate }) {
 
             <form onSubmit={handleQuickTrainerSubmit} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Coach Name</label>
+                <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Coach Name</label>
                 <input
                   type="text"
                   required
                   value={trainerForm.name}
                   onChange={(e) => setTrainerForm({ ...trainerForm, name: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   placeholder="e.g. Master Trainer Vignesh"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Email</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Email</label>
                   <input
                     type="email"
                     required
                     value={trainerForm.email}
                     onChange={(e) => setTrainerForm({ ...trainerForm, email: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                     placeholder="coach@manandmachine.com"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Phone</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone</label>
                   <input
                     type="text"
                     required
                     value={trainerForm.phone}
                     onChange={(e) => setTrainerForm({ ...trainerForm, phone: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                     placeholder="9842100000"
                   />
                 </div>
@@ -954,11 +950,11 @@ export default function DashboardHome({ onNavigate }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Branch</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Branch</label>
                   <select
                     value={trainerForm.branchId}
                     onChange={(e) => setTrainerForm({ ...trainerForm, branchId: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   >
                     {branches.map((b) => (
                       <option key={b._id} value={b._id}>
@@ -968,24 +964,24 @@ export default function DashboardHome({ onNavigate }) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Experience (Years)</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Experience (Years)</label>
                   <input
                     type="number"
                     min="1"
                     value={trainerForm.experienceYears}
                     onChange={(e) => setTrainerForm({ ...trainerForm, experienceYears: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Specialization</label>
+                <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Specialization</label>
                 <input
                   type="text"
                   value={trainerForm.specialization}
                   onChange={(e) => setTrainerForm({ ...trainerForm, specialization: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   placeholder="e.g. Strength & Conditioning, Powerlifting"
                 />
               </div>
@@ -994,14 +990,14 @@ export default function DashboardHome({ onNavigate }) {
                 <button
                   type="button"
                   onClick={() => setQuickAction(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] hover:bg-[#292929] text-[#A3A3A3] cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={modalLoading}
-                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white cursor-pointer disabled:opacity-50"
                 >
                   {modalLoading ? 'Creating...' : 'Onboard Trainer'}
                 </button>
@@ -1014,10 +1010,10 @@ export default function DashboardHome({ onNavigate }) {
       {/* Modal 3: Create Membership */}
       {quickAction === 'CREATE_MEMBERSHIP' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-md p-6 relative">
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-md p-6 relative">
             <h3
               className="text-lg font-bold uppercase tracking-tight text-[#F5F5F5] mb-4"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               Assign Client Membership
             </h3>
@@ -1027,7 +1023,7 @@ export default function DashboardHome({ onNavigate }) {
 
             <form onSubmit={handleQuickMembershipSubmit} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Select Athlete *</label>
+                <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Select Athlete *</label>
                 <select
                   required
                   value={membershipForm.userId}
@@ -1047,7 +1043,7 @@ export default function DashboardHome({ onNavigate }) {
                       isAvailable: bp ? bp.isAvailable : true,
                     }));
                   }}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                 >
                   <option value="">-- Choose Client --</option>
                   {allClientsList.map((c) => (
@@ -1060,7 +1056,7 @@ export default function DashboardHome({ onNavigate }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Branch *</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Branch *</label>
                   <select
                     value={membershipForm.branchId}
                     onChange={(e) => {
@@ -1076,7 +1072,7 @@ export default function DashboardHome({ onNavigate }) {
                         isAvailable: bp ? bp.isAvailable : true,
                       }));
                     }}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   >
                     {branches.map((b) => (
                       <option key={b._id} value={b._id}>
@@ -1087,7 +1083,7 @@ export default function DashboardHome({ onNavigate }) {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Plan *</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Plan *</label>
                   <select
                     value={membershipForm.planId}
                     onChange={(e) => {
@@ -1106,7 +1102,7 @@ export default function DashboardHome({ onNavigate }) {
                         isAvailable: bp ? bp.isAvailable : true,
                       }));
                     }}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   >
                     {plans.map((p) => (
                       <option key={p._id} value={p._id}>
@@ -1124,13 +1120,13 @@ export default function DashboardHome({ onNavigate }) {
               )}
 
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Confirmed Amount (₹) *</label>
+                <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Confirmed Amount (₹) *</label>
                 <input
                   type="number"
                   required
                   value={membershipForm.amount}
                   onChange={(e) => setMembershipForm({ ...membershipForm, amount: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                 />
               </div>
 
@@ -1138,14 +1134,14 @@ export default function DashboardHome({ onNavigate }) {
                 <button
                   type="button"
                   onClick={() => setQuickAction(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] hover:bg-[#292929] text-[#A3A3A3] cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={modalLoading || !membershipForm.isAvailable}
-                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white cursor-pointer disabled:opacity-50"
                 >
                   {modalLoading ? 'Assigning...' : 'Assign Membership'}
                 </button>
@@ -1158,10 +1154,10 @@ export default function DashboardHome({ onNavigate }) {
       {/* Modal 4: Record Payment */}
       {quickAction === 'RECORD_PAYMENT' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#292929] rounded-2xl w-full max-w-md p-6 relative">
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-md p-6 relative">
             <h3
               className="text-lg font-bold uppercase tracking-tight text-[#F5F5F5] mb-4"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "'Oswald', sans-serif" }}
             >
               Record Offline Gym Payment
             </h3>
@@ -1171,12 +1167,12 @@ export default function DashboardHome({ onNavigate }) {
 
             <form onSubmit={handleQuickPaymentSubmit} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Select Athlete</label>
+                <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Select Athlete</label>
                 <select
                   required
                   value={paymentForm.userId}
                   onChange={(e) => setPaymentForm({ ...paymentForm, userId: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                 >
                   <option value="">-- Choose Client --</option>
                   {allClientsList.map((c) => (
@@ -1189,22 +1185,22 @@ export default function DashboardHome({ onNavigate }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Amount Paid (₹)</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Amount Paid (₹)</label>
                   <input
                     type="number"
                     required
                     value={paymentForm.amount}
                     onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                     placeholder="e.g. 5000"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Payment Method</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Payment Method</label>
                   <select
                     value={paymentForm.paymentMethod}
                     onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
-                    className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   >
                     <option value="UPI">UPI (GPay / PhonePe)</option>
                     <option value="CASH">Cash at Desk</option>
@@ -1215,13 +1211,13 @@ export default function DashboardHome({ onNavigate }) {
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#A3A3A3] mb-1">Payment Description</label>
+                <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Payment Description</label>
                 <input
                   type="text"
                   required
                   value={paymentForm.description}
                   onChange={(e) => setPaymentForm({ ...paymentForm, description: e.target.value })}
-                  className="w-full bg-[#121212] border border-[#292929] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#E58A32] focus:outline-none"
+                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
                   placeholder="e.g. Quarterly Gym Membership Renewal"
                 />
               </div>
@@ -1230,14 +1226,14 @@ export default function DashboardHome({ onNavigate }) {
                 <button
                   type="button"
                   onClick={() => setQuickAction(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#222222] hover:bg-[#292929] text-[#A3A3A3] cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={modalLoading}
-                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E58A32] hover:bg-[#F09A43] text-black cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white cursor-pointer disabled:opacity-50"
                 >
                   {modalLoading ? 'Recording...' : 'Record Payment'}
                 </button>

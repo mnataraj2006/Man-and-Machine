@@ -67,23 +67,23 @@ export default function Profile() {
   };
 
   if (loading) {
-    return <div className="h-96 bg-[#141414] rounded-2xl animate-pulse" />;
+    return <div className="h-96 bg-[#111111] rounded-2xl animate-pulse" />;
   }
 
   return (
     <div className="flex flex-col gap-6 sm:gap-8 max-w-4xl mx-auto">
       {/* ── HEADER ── */}
       <div className="flex flex-col gap-1">
-        <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
+        <span className="text-[10px] font-mono text-[#EB3E2E] uppercase tracking-wider font-bold">
           COACHING CREDENTIALS
         </span>
         <h1
           className="text-2xl sm:text-3xl font-black uppercase text-white tracking-tight"
-          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+          style={{ fontFamily: "'Oswald', sans-serif" }}
         >
           COACH PROFILE & SPECIALIZATION.
         </h1>
-        <p className="text-xs text-[#A3A3A3]">
+        <p className="text-xs text-[#B8B8B8]">
           Manage your floor bio, coaching methodology, and contact details visible to assigned athletes.
         </p>
       </div>
@@ -96,15 +96,15 @@ export default function Profile() {
       )}
 
       {/* ── FORM ── */}
-      <form onSubmit={handleSubmit} className="p-6 sm:p-8 rounded-2xl bg-[#141414] border border-[#292929] flex flex-col gap-6">
-        <div className="flex items-center gap-4 pb-6 border-b border-[#292929]">
-          <div className="w-16 h-16 rounded-2xl bg-[#1C1C1C] border border-[#292929] flex items-center justify-center text-[#E58A32] text-2xl font-black">
+      <form onSubmit={handleSubmit} className="p-6 sm:p-8 rounded-2xl bg-[#111111] border border-[#303030] flex flex-col gap-6">
+        <div className="flex items-center gap-4 pb-6 border-b border-[#303030]">
+          <div className="w-16 h-16 rounded-2xl bg-[#202020] border border-[#303030] flex items-center justify-center text-[#EB3E2E] text-2xl font-black">
             {form.name ? form.name.charAt(0).toUpperCase() : 'T'}
           </div>
           <div className="flex flex-col">
             <h2 className="text-lg font-bold uppercase text-white">{form.name || 'Coach'}</h2>
-            <span className="text-xs text-[#A3A3A3]">{user?.email}</span>
-            <span className="text-[10px] font-mono text-[#E58A32] uppercase mt-0.5">
+            <span className="text-xs text-[#B8B8B8]">{user?.email}</span>
+            <span className="text-[10px] font-mono text-[#EB3E2E] uppercase mt-0.5">
               {user?.branchId?.name || 'Kovilpatti'} Branch
             </span>
           </div>
@@ -112,65 +112,65 @@ export default function Profile() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-mono uppercase text-[#A3A3A3]">FULL NAME</label>
+            <label className="text-[10px] font-mono uppercase text-[#B8B8B8]">FULL NAME</label>
             <input
               type="text"
               required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="p-3 rounded-xl bg-[#181818] border border-[#292929] text-xs text-white"
+              className="p-3 rounded-xl bg-[#181818] border border-[#303030] text-xs text-white"
             />
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-mono uppercase text-[#A3A3A3]">PRIMARY SPECIALIZATION</label>
+            <label className="text-[10px] font-mono uppercase text-[#B8B8B8]">PRIMARY SPECIALIZATION</label>
             <input
               type="text"
               value={form.specialization}
               onChange={(e) => setForm({ ...form, specialization: e.target.value })}
-              className="p-3 rounded-xl bg-[#181818] border border-[#292929] text-xs text-white"
+              className="p-3 rounded-xl bg-[#181818] border border-[#303030] text-xs text-white"
             />
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-mono uppercase text-[#A3A3A3]">CONTACT PHONE</label>
+            <label className="text-[10px] font-mono uppercase text-[#B8B8B8]">CONTACT PHONE</label>
             <input
               type="text"
               value={form.contactPhone}
               onChange={(e) => setForm({ ...form, contactPhone: e.target.value })}
-              className="p-3 rounded-xl bg-[#181818] border border-[#292929] text-xs text-white"
+              className="p-3 rounded-xl bg-[#181818] border border-[#303030] text-xs text-white"
             />
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-mono uppercase text-[#A3A3A3]">COACHING EXPERIENCE (YEARS)</label>
+            <label className="text-[10px] font-mono uppercase text-[#B8B8B8]">COACHING EXPERIENCE (YEARS)</label>
             <input
               type="number"
               min="0"
               max="50"
               value={form.experienceYears}
               onChange={(e) => setForm({ ...form, experienceYears: Number(e.target.value) })}
-              className="p-3 rounded-xl bg-[#181818] border border-[#292929] text-xs text-white"
+              className="p-3 rounded-xl bg-[#181818] border border-[#303030] text-xs text-white"
             />
           </div>
 
           <div className="flex flex-col gap-1 sm:col-span-2">
-            <label className="text-[10px] font-mono uppercase text-[#A3A3A3]">COACHING PHILOSOPHY & BIO</label>
+            <label className="text-[10px] font-mono uppercase text-[#B8B8B8]">COACHING PHILOSOPHY & BIO</label>
             <textarea
               rows="4"
               value={form.bio}
               onChange={(e) => setForm({ ...form, bio: e.target.value })}
               placeholder="Detail your background, certifications, and biomechanical training principles..."
-              className="p-3 rounded-xl bg-[#181818] border border-[#292929] text-xs text-white"
+              className="p-3 rounded-xl bg-[#181818] border border-[#303030] text-xs text-white"
             />
           </div>
         </div>
 
-        <div className="flex items-center justify-end pt-4 border-t border-[#292929]">
+        <div className="flex items-center justify-end pt-4 border-t border-[#303030]">
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#E58A32] hover:bg-[#F09A43] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(229,138,50,0.25)]"
+            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#EB3E2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(235,62,46,0.25)]"
           >
             <Save className="w-4 h-4" />
             <span>{saving ? 'Updating...' : 'Save Profile'}</span>

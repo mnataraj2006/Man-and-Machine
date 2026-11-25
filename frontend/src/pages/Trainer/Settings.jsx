@@ -58,16 +58,16 @@ export default function Settings({ onLogout }) {
     <div className="flex flex-col gap-6 sm:gap-8 max-w-4xl mx-auto">
       {/* ── HEADER ── */}
       <div className="flex flex-col gap-1">
-        <span className="text-[10px] font-mono text-[#E58A32] uppercase tracking-wider font-bold">
+        <span className="text-[10px] font-mono text-[#EB3E2E] uppercase tracking-wider font-bold">
           ACCOUNT SECURITY
         </span>
         <h1
           className="text-2xl sm:text-3xl font-black uppercase text-white tracking-tight"
-          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+          style={{ fontFamily: "'Oswald', sans-serif" }}
         >
           TRAINER SETTINGS & SECURITY.
         </h1>
-        <p className="text-xs text-[#A3A3A3]">
+        <p className="text-xs text-[#B8B8B8]">
           Update your authentication password and configure your trainer account preferences.
         </p>
       </div>
@@ -90,12 +90,12 @@ export default function Settings({ onLogout }) {
       )}
 
       {/* ── PASSWORD CHANGE CARD ── */}
-      <div className="p-6 sm:p-8 rounded-2xl bg-[#141414] border border-[#292929] flex flex-col gap-6">
-        <div className="flex items-center gap-3 pb-4 border-b border-[#292929]">
-          <Lock className="w-5 h-5 text-[#E58A32]" />
+      <div className="p-6 sm:p-8 rounded-2xl bg-[#111111] border border-[#303030] flex flex-col gap-6">
+        <div className="flex items-center gap-3 pb-4 border-b border-[#303030]">
+          <Lock className="w-5 h-5 text-[#EB3E2E]" />
           <h2
             className="text-sm font-bold uppercase text-white"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            style={{ fontFamily: "'Oswald', sans-serif" }}
           >
             CHANGE PASSWORD
           </h2>
@@ -103,42 +103,42 @@ export default function Settings({ onLogout }) {
 
         <form onSubmit={handlePasswordChange} className="flex flex-col gap-4 max-w-md">
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-mono uppercase text-[#A3A3A3]">CURRENT PASSWORD</label>
+            <label className="text-[10px] font-mono uppercase text-[#B8B8B8]">CURRENT PASSWORD</label>
             <input
               type="password"
               required
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="p-3 rounded-xl bg-[#181818] border border-[#292929] text-xs text-white"
+              className="p-3 rounded-xl bg-[#181818] border border-[#303030] text-xs text-white"
             />
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-mono uppercase text-[#A3A3A3]">NEW PASSWORD</label>
+            <label className="text-[10px] font-mono uppercase text-[#B8B8B8]">NEW PASSWORD</label>
             <input
               type="password"
               required
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="p-3 rounded-xl bg-[#181818] border border-[#292929] text-xs text-white"
+              className="p-3 rounded-xl bg-[#181818] border border-[#303030] text-xs text-white"
             />
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-mono uppercase text-[#A3A3A3]">CONFIRM NEW PASSWORD</label>
+            <label className="text-[10px] font-mono uppercase text-[#B8B8B8]">CONFIRM NEW PASSWORD</label>
             <input
               type="password"
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="p-3 rounded-xl bg-[#181818] border border-[#292929] text-xs text-white"
+              className="p-3 rounded-xl bg-[#181818] border border-[#303030] text-xs text-white"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 py-3 rounded-xl bg-[#E58A32] hover:bg-[#F09A43] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(229,138,50,0.25)]"
+            className="mt-2 py-3 rounded-xl bg-[#EB3E2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(235,62,46,0.25)]"
           >
             {loading ? 'Updating...' : 'Update Password'}
           </button>
@@ -146,10 +146,10 @@ export default function Settings({ onLogout }) {
       </div>
 
       {/* ── SESSION LOGOUT CARD ── */}
-      <div className="p-6 rounded-2xl bg-[#141414] border border-[#292929] flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="p-6 rounded-2xl bg-[#111111] border border-[#303030] flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex flex-col">
           <span className="text-sm font-bold uppercase text-white">SIGN OUT OF TRAINER PORTAL</span>
-          <span className="text-xs text-[#A3A3A3]">Terminate your active coaching session on this terminal.</span>
+          <span className="text-xs text-[#B8B8B8]">Terminate your active coaching session on this terminal.</span>
         </div>
 
         <button

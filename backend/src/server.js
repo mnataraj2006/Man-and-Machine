@@ -129,6 +129,81 @@ app.get('/api/membership-plans/available', async (req, res, next) => {
   }
 });
 
+// Public Trainers endpoint for homepage showcase
+app.get('/api/public/trainers', async (req, res, next) => {
+  try {
+    const User = require('./models/User');
+    const TrainerProfile = require('./models/TrainerProfile');
+
+    const trainerUsers = await User.find({ role: 'TRAINER', status: 'ACTIVE' })
+      .select('name branchId')
+      .populate('branchId', 'name city')
+      .sort({ createdAt: 1 });
+
+    const trainerIds = trainerUsers.map((u) => u._id);
+    const profiles = await TrainerProfile.find({ userId: { $in: trainerIds } });
+    const profileMap = new Map();
+    profiles.forEach((p) => profileMap.set(p.userId.toString(), p));
+
+    const trainers = trainerUsers.map((u) => {
+      const prof = profileMap.get(u._id.toString());
+      return {
+        _id: u._id,
+        name: u.name,
+        branch: u.branchId,
+        specialization: prof?.specialization || 'STRENGTH & CONDITIONING',
+        experienceYears: prof?.experienceYears || 5,
+        bio:
+          prof?.bio ||
+          'Purposeful coaching built around your movement, consistency and long-term progress.',
+        rating: prof?.rating || 4.9,
+        acceptingClients: prof?.acceptingClients !== false,
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      count: trainers.length,
+      trainers,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Public Community Statistics endpoint
+app.get('/api/public/stats', async (req, res, next) => {
+  try {
+    const User = require('./models/User');
+    const Membership = require('./models/Membership');
+    const WorkoutSession = require('./models/WorkoutSession');
+    const Branch = require('./models/Branch');
+
+    const [clientCount, activeMembershipsCount, workoutSessionsCount, branchesCount] =
+      await Promise.all([
+        User.countDocuments({ role: 'CLIENT', status: 'ACTIVE' }),
+        Membership.countDocuments({ status: 'ACTIVE' }),
+        WorkoutSession.countDocuments(),
+        Branch.countDocuments({ isActive: true }),
+      ]);
+
+    const verifiedProductionScale = clientCount >= 50 || activeMembershipsCount >= 50;
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        activeMembersCount: Math.max(clientCount, activeMembershipsCount),
+        workoutSessionsCount,
+        branchesCount,
+        daysPerWeek: 7,
+        verifiedProductionScale,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/branches', branchRoutes);

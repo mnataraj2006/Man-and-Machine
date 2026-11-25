@@ -1,0 +1,199 @@
+/* ==========================================================================
+   MAN & MACHINE — CENTRALIZED COMPONENT STYLES
+   ========================================================================== */
+
+/* Primary Editorial & Portal Buttons */
+.mm-btn-primary,
+.btn-editorial-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background-color: var(--mm-red);
+  color: var(--mm-text-primary);
+  font-family: var(--mm-font-body);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  padding: 14px 22px;
+  border: 1px solid transparent;
+  transition: transform var(--mm-transition-fast),
+    background-color var(--mm-transition-fast),
+    box-shadow var(--mm-transition-fast);
+  cursor: pointer;
+}
+
+.btn-editorial-primary {
+  padding: 20px 26px;
+}
+
+.mm-btn-primary:hover:not(:disabled),
+.btn-editorial-primary:hover:not(:disabled) {
+  background-color: var(--mm-red-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--mm-shadow-red);
+}
+
+.mm-btn-primary:active:not(:disabled),
+.btn-editorial-primary:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.mm-btn-primary:disabled,
+.btn-editorial-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mm-btn-primary:focus-visible,
+.btn-editorial-primary:focus-visible {
+  outline: none;
+  box-shadow: var(--mm-focus-ring);
+}
+
+/* Secondary Outline Button */
+.mm-btn-secondary,
+.btn-editorial-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background-color: var(--mm-bg-card);
+  color: var(--mm-text-primary);
+  border: 1px solid var(--mm-border);
+  font-family: var(--mm-font-body);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  padding: 14px 22px;
+  transition: transform var(--mm-transition-fast),
+    border-color var(--mm-transition-fast),
+    background-color var(--mm-transition-fast);
+  cursor: pointer;
+}
+
+.btn-editorial-secondary {
+  padding: 20px 26px;
+  background-color: rgba(9, 9, 9, 0.78);
+  backdrop-filter: blur(8px);
+}
+
+.mm-btn-secondary:hover:not(:disabled),
+.btn-editorial-secondary:hover:not(:disabled) {
+  border-color: var(--mm-red);
+  background-color: var(--mm-bg-elevated);
+  transform: translateY(-1px);
+}
+
+.mm-btn-secondary:focus-visible,
+.btn-editorial-secondary:focus-visible {
+  outline: none;
+  box-shadow: var(--mm-focus-ring);
+}
+
+/* Cards */
+.mm-card {
+  background-color: var(--mm-bg-card);
+  border: 1px solid var(--mm-border);
+  border-radius: var(--mm-radius-lg);
+  transition: border-color var(--mm-transition-fast), transform var(--mm-transition-fast);
+}
+
+.mm-card-elevated {
+  background-color: var(--mm-bg-elevated);
+  border: 1px solid var(--mm-border);
+  border-radius: var(--mm-radius-lg);
+}
+
+/* Inputs & Selects */
+.mm-input,
+.mm-select,
+.mm-textarea {
+  width: 100%;
+  background-color: var(--mm-bg-secondary);
+  color: var(--mm-text-primary);
+  border: 1px solid var(--mm-border);
+  border-radius: var(--mm-radius-md);
+  padding: 0.65rem 0.9rem;
+  font-family: var(--mm-font-body);
+  font-size: 0.875rem;
+  transition: border-color var(--mm-transition-fast), box-shadow var(--mm-transition-fast);
+}
+
+.mm-input::placeholder,
+.mm-textarea::placeholder {
+  color: var(--mm-text-muted);
+}
+
+.mm-input:focus,
+.mm-select:focus,
+.mm-textarea:focus {
+  outline: none;
+  border-color: var(--mm-red);
+  box-shadow: var(--mm-focus-ring);
+}
+
+/* Tables */
+.mm-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.mm-table thead th {
+  font-family: var(--mm-font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mm-text-muted);
+  border-bottom: 1px solid var(--mm-border);
+  padding: 0.85rem 1rem;
+  background-color: var(--mm-bg-secondary);
+}
+
+.mm-table tbody td {
+  padding: 0.9rem 1rem;
+  font-size: 0.875rem;
+  color: var(--mm-text-primary);
+  border-bottom: 1px solid var(--mm-divider);
+}
+
+.mm-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.025);
+}
+
+/* Badges */
+.mm-badge-red {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.25rem 0.6rem;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background-color: var(--mm-red-tint);
+  color: var(--mm-red);
+  border: 1px solid var(--mm-red-border);
+  border-radius: 9999px;
+}
+
+.mm-badge-neutral {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.25rem 0.6rem;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background-color: var(--mm-bg-elevated);
+  color: var(--mm-text-secondary);
+  border: 1px solid var(--mm-border);
+  border-radius: 9999px;
+}
