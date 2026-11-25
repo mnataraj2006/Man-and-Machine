@@ -321,6 +321,7 @@ export default function App() {
       <Header 
         onOpenJoinModal={handleOpenJoin} 
         onNavigate={navigate}
+        currentPath={currentPath}
       />
 
       {/* Main Content Sections */}

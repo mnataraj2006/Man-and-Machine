@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -13,12 +13,11 @@ import {
   LogOut,
   Menu,
   X,
-  ChevronRight,
   ShieldCheck,
-  MapPin,
 } from 'lucide-react';
 import authService from '../../services/auth.js';
 import trainerService from '../../services/trainerService.js';
+import DashboardMobileDrawer from '../UI/DashboardMobileDrawer.jsx';
 
 export default function TrainerLayout({ children, currentPath, onNavigate, onLogout }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -57,6 +56,10 @@ export default function TrainerLayout({ children, currentPath, onNavigate, onLog
     };
   }, [currentPath]);
 
+  const closeMobileMenu = useCallback(() => {
+    setMobileMenuOpen(false);
+  }, []);
+
   const handleNav = (path) => {
     setMobileMenuOpen(false);
     if (onNavigate) {
@@ -84,9 +87,9 @@ export default function TrainerLayout({ children, currentPath, onNavigate, onLog
   };
 
   return (
-    <div className="min-h-screen bg-[#090909] text-[#F5F5F5] flex flex-col md:flex-row antialiased selection:bg-[#EB3E2E] selection:text-white">
-      {/* ── DESKTOP SIDEBAR ── */}
-      <aside className="hidden md:flex flex-col w-64 lg:w-72 bg-[#111111] border-r border-[#303030] shrink-0 sticky top-0 h-screen z-30 select-none">
+    <div className="min-h-screen bg-[#090909] text-[#F5F5F5] flex flex-col lg:flex-row antialiased selection:bg-[#EB3E2E] selection:text-white">
+      {/* ── DESKTOP SIDEBAR (>= 1024px) ── */}
+      <aside className="hidden lg:flex flex-col w-64 lg:w-72 bg-[#111111] border-r border-[#303030] shrink-0 sticky top-0 h-screen z-30 select-none">
         {/* Brand Header */}
         <div className="p-5 border-b border-[#252525] flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-white p-1.5 flex items-center justify-center shrink-0 border border-[#303030]">
@@ -104,14 +107,16 @@ export default function TrainerLayout({ children, currentPath, onNavigate, onLog
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-1.5">
+        <nav className="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-1.5" aria-label="Trainer navigation">
           {navItems.map((item) => {
             const active = isActive(item.path);
             const Icon = item.icon;
             return (
               <button
                 key={item.path}
+                type="button"
                 onClick={() => handleNav(item.path)}
+                aria-current={active ? 'page' : undefined}
                 className={`flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 group cursor-pointer ${
                   active
                     ? 'bg-[#EB3E2E] text-white font-bold shadow-sm'
@@ -153,6 +158,7 @@ export default function TrainerLayout({ children, currentPath, onNavigate, onLog
           </div>
 
           <button
+            type="button"
             onClick={handleLogout}
             className="flex items-center justify-center gap-2 w-full py-2 rounded-lg bg-[#181818] hover:bg-[#EB3E2E]/15 hover:text-[#FF493B] border border-[#303030] text-xs font-semibold uppercase tracking-wider text-[#B8B8B8] transition-colors cursor-pointer"
           >
@@ -162,99 +168,85 @@ export default function TrainerLayout({ children, currentPath, onNavigate, onLog
         </div>
       </aside>
 
-      {/* ── MOBILE TOP BAR & DRAWER ── */}
-      <header className="md:hidden sticky top-0 z-40 bg-[#111111] border-b border-[#252525] px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
+      {/* ── MOBILE & TABLET TOP BAR (< 1024px) ── */}
+      <header className="lg:hidden sticky top-0 z-30 bg-[#111111]/95 backdrop-blur-md border-b border-[#252525] px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg bg-[#181818] border border-[#303030] text-[#F5F5F5] hover:border-[#EB3E2E]"
-            aria-label="Toggle Navigation"
+            type="button"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#181818] border border-[#303030] text-[#F5F5F5] hover:border-[#F03B2E] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F03B2E] cursor-pointer shrink-0 transition-colors"
+            aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="trainer-mobile-drawer"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
-          <div className="w-7 h-7 rounded bg-white p-0.5 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-white p-1 flex items-center justify-center shrink-0 border border-[#303030]">
             <img src="/logo.jpg" alt="Man & Machine" className="w-full h-full object-contain" />
           </div>
-          <div className="flex flex-col">
-            <span className="font-display text-sm font-bold uppercase text-[#F5F5F5] tracking-tight leading-tight">
+          <div className="flex flex-col min-w-0">
+            <span className="font-display text-sm font-bold uppercase text-[#F5F5F5] tracking-tight leading-tight truncate">
               MAN &amp; MACHINE
             </span>
-            <span className="text-[9px] font-semibold tracking-widest text-[#EB3E2E] uppercase">TRAINER PORTAL</span>
+            <span className="text-[9px] font-semibold tracking-widest text-[#F03B2E] uppercase truncate">
+              TRAINER PORTAL
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 shrink-0">
           <button
+            type="button"
             onClick={() => handleNav('/trainer/notifications')}
-            className="relative p-2 rounded-lg bg-[#181818] border border-[#303030] text-[#B8B8B8]"
+            aria-label="Notifications"
+            className="relative min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#181818] border border-[#303030] text-[#B8B8B8] hover:text-[#F5F5F5] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F03B2E] cursor-pointer"
           >
             <Bell className="w-4 h-4" />
             {unreadNotifs > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#EB3E2E] text-white text-[9px] font-bold flex items-center justify-center">
+              <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[#F03B2E] text-white text-[9px] font-bold flex items-center justify-center">
                 {unreadNotifs}
               </span>
             )}
           </button>
-          <div className="w-8 h-8 rounded-lg bg-[#202020] border border-[#303030] flex items-center justify-center text-[#EB3E2E] font-bold text-xs">
+          <button
+            type="button"
+            onClick={() => handleNav('/trainer/profile')}
+            aria-label="Coach Profile"
+            className="min-w-[44px] min-h-[44px] rounded-lg bg-[#202020] border border-[#303030] hover:border-[#F03B2E] flex items-center justify-center text-[#F03B2E] font-bold text-xs cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F03B2E]"
+          >
             {user?.name ? user.name.charAt(0).toUpperCase() : 'T'}
-          </div>
+          </button>
         </div>
       </header>
 
-      {/* Mobile Drawer Menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex">
-          <div className="w-4/5 max-w-xs bg-[#111111] border-r border-[#303030] flex flex-col h-full">
-            <div className="p-4 border-b border-[#252525] flex items-center justify-between">
-              <span className="text-xs font-bold tracking-widest uppercase text-[#EB3E2E]">NAVIGATION</span>
-              <button
-                onClick={() => setMobileMenuOpen(false)}
-                className="p-1 rounded-lg bg-[#181818] border border-[#303030] text-[#B8B8B8]"
-              >
-                <X className="w-4 h-4" />
-              </button>
+      {/* Mobile & Tablet Slide-out Drawer */}
+      <DashboardMobileDrawer
+        id="trainer-mobile-drawer"
+        isOpen={mobileMenuOpen}
+        onClose={closeMobileMenu}
+        portalLabel="TRAINER PORTAL"
+        navLabel="Trainer mobile navigation"
+        navItems={navItems}
+        isItemActive={(item) => isActive(item.path)}
+        onNavigate={handleNav}
+        onLogout={handleLogout}
+        logoutLabel="Sign Out"
+        currentPath={currentPath}
+        userSummary={
+          <div className="flex items-center gap-3 pb-1 overflow-hidden">
+            <div className="w-9 h-9 rounded-lg bg-[#202020] border border-[#303030] flex items-center justify-center text-[#F03B2E] font-bold text-sm shrink-0">
+              {user?.name ? user.name.charAt(0).toUpperCase() : 'T'}
             </div>
-            <nav className="flex-1 overflow-y-auto p-4 flex flex-col gap-1.5">
-              {navItems.map((item) => {
-                const active = isActive(item.path);
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.path}
-                    onClick={() => handleNav(item.path)}
-                    className={`flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider ${
-                      active ? 'bg-[#EB3E2E] text-white font-bold' : 'text-[#B8B8B8] hover:bg-[#181818] hover:text-[#F5F5F5]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon className="w-4 h-4" />
-                      <span>{item.label}</span>
-                    </div>
-                    {item.badge > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[#EB3E2E] text-white">
-                        {item.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </nav>
-            <div className="p-4 border-t border-[#252525]">
-              <button
-                onClick={handleLogout}
-                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-[#EB3E2E]/15 border border-[#EB3E2E]/35 text-[#FF493B] text-xs font-bold uppercase"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Sign Out</span>
-              </button>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-bold text-[#F5F5F5] truncate">{user?.name || 'Coach'}</span>
+              <span className="text-[10px] text-[#858585] truncate">{user?.email || 'Trainer Account'}</span>
             </div>
           </div>
-          <div className="flex-1" onClick={() => setMobileMenuOpen(false)} />
-        </div>
-      )}
+        }
+      />
 
       {/* ── MAIN CONTENT WORKSPACE ── */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto mm-page-enter">
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto overflow-x-hidden mm-page-enter">
         <div className="p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">{children}</div>
       </main>
     </div>
