@@ -17,7 +17,7 @@ const panels = [
   {
     id: 'community',
     label: '03 / COMMUNITY',
-    image: '/images/framer/community-together.png',
+    image: '/images/members/three members pic.jpeg',
     alt: 'Members training together inside Man & Machine',
   },
   {
