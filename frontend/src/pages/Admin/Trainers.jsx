@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Plus,
   Search,
@@ -17,6 +17,13 @@ import {
   Clock,
   X,
   Trash2,
+  MoreVertical,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  Users,
+  Calendar,
+  SlidersHorizontal,
 } from 'lucide-react';
 import adminService from '../../services/adminService.js';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
@@ -29,17 +36,33 @@ export default function Trainers() {
   const [confirmingId, setConfirmingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionFeedback, setActionFeedback] = useState(null); // { type: 'success'|'error', message }
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState(selectedBranch);
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 1,
+  });
 
   // Action busy state
   const [actionBusyId, setActionBusyId] = useState(null);
 
-  // Modals
+  // Modals & Mobile Bottom Sheets
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedTrainerDetails, setSelectedTrainerDetails] = useState(null);
   const [editingTrainer, setEditingTrainer] = useState(null);
+  const [editError, setEditError] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [invitationModal, setInvitationModal] = useState(null);
+  const [actionSheetTrainer, setActionSheetTrainer] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [addError, setAddError] = useState(null);
   const [submittingAdd, setSubmittingAdd] = useState(false);
@@ -71,16 +94,74 @@ export default function Trainers() {
 
   useEffect(() => {
     setBranchFilter(selectedBranch);
+    setPage(1);
   }, [selectedBranch]);
 
-  const fetchTrainers = async () => {
+  const anyOverlayOpen = Boolean(
+    isAddModalOpen ||
+      selectedTrainerDetails ||
+      editingTrainer ||
+      invitationModal ||
+      actionSheetTrainer ||
+      confirmDialog
+  );
+
+  // Lock background scroll whenever any modal or bottom sheet is open
+  useEffect(() => {
+    if (!anyOverlayOpen) return undefined;
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+    };
+  }, [anyOverlayOpen]);
+
+  // Close top-most modal / sheet on Escape key
+  useEffect(() => {
+    if (!anyOverlayOpen) return undefined;
+    const handleKeyDown = (e) => {
+      if (e.key !== 'Escape') return;
+      if (confirmDialog) {
+        setConfirmDialog(null);
+      } else if (actionSheetTrainer) {
+        setActionSheetTrainer(null);
+      } else if (invitationModal) {
+        setInvitationModal(null);
+      } else if (editingTrainer) {
+        setEditingTrainer(null);
+      } else if (selectedTrainerDetails) {
+        setSelectedTrainerDetails(null);
+      } else if (isAddModalOpen) {
+        setIsAddModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    anyOverlayOpen,
+    confirmDialog,
+    actionSheetTrainer,
+    invitationModal,
+    editingTrainer,
+    selectedTrainerDetails,
+    isAddModalOpen,
+  ]);
+
+  const fetchTrainers = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const [res, bRes] = await Promise.all([
         adminService.getTrainers({
           branchId: branchFilter,
-          search,
+          search: appliedSearch,
+          page,
+          limit: pageSize,
         }),
         adminService
           .getTrainerBookings({
@@ -88,26 +169,52 @@ export default function Trainers() {
           })
           .catch(() => ({ bookings: [] })),
       ]);
-      setTrainers(res.trainers || []);
+
+      const fetchedTrainers = res.trainers || [];
+      setTrainers(fetchedTrainers);
       setBookings(bRes.bookings || []);
+
+      if (res.pagination) {
+        setPagination({
+          total: res.pagination.total ?? fetchedTrainers.length,
+          page: res.pagination.page ?? page,
+          limit: res.pagination.limit ?? pageSize,
+          totalPages: Math.max(1, res.pagination.totalPages ?? 1),
+        });
+      } else {
+        setPagination({
+          total: fetchedTrainers.length,
+          page: 1,
+          limit: pageSize,
+          totalPages: 1,
+        });
+      }
     } catch (err) {
       setError(err.message || 'Failed to load trainers');
     } finally {
       setLoading(false);
     }
-  };
+  }, [branchFilter, appliedSearch, page, pageSize]);
 
   useEffect(() => {
     fetchTrainers();
-  }, [branchFilter]);
+  }, [fetchTrainers]);
+
+  const showFeedback = (type, message) => {
+    setActionFeedback({ type, message });
+    setTimeout(() => {
+      setActionFeedback((curr) => (curr?.message === message ? null : curr));
+    }, 4500);
+  };
 
   const handleConfirmBookingPayment = async (bookingId) => {
     try {
       setConfirmingId(bookingId);
       await adminService.confirmTrainerBookingPayment(bookingId, { paymentMethod: 'CASH' });
+      showFeedback('success', 'Booking payment confirmed and trainer assigned.');
       await fetchTrainers();
     } catch (err) {
-      alert(err.message || 'Failed to confirm booking payment');
+      showFeedback('error', err.message || 'Failed to confirm booking payment');
     } finally {
       setConfirmingId(null);
     }
@@ -115,7 +222,24 @@ export default function Trainers() {
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchTrainers();
+    setPage(1);
+    setAppliedSearch(search.trim());
+  };
+
+  const handleClearSearch = () => {
+    setSearch('');
+    setPage(1);
+    setAppliedSearch('');
+  };
+
+  const handleBranchFilterChange = (val) => {
+    setBranchFilter(val);
+    setPage(1);
+  };
+
+  const handlePageSizeChange = (newSize) => {
+    setPageSize(Number(newSize));
+    setPage(1);
   };
 
   const handleOpenAdd = () => {
@@ -149,13 +273,16 @@ export default function Trainers() {
     e.preventDefault();
     setAddError(null);
     if (!isValidIndianMobile(addForm.phone)) {
-      setAddError('Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9 (e.g. 9876543210 or +91 9876543210).');
+      setAddError(
+        'Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9 (e.g. 9876543210 or +91 9876543210).'
+      );
       return;
     }
     try {
       setSubmittingAdd(true);
       const res = await adminService.createTrainer(addForm);
       setIsAddModalOpen(false);
+      setPage(1);
       await fetchTrainers();
       setCopiedLink(false);
       setInvitationModal({
@@ -176,15 +303,18 @@ export default function Trainers() {
   };
 
   const handleOpenDetails = async (id) => {
+    setActionSheetTrainer(null);
     try {
       const res = await adminService.getTrainerDetails(id);
       setSelectedTrainerDetails(res);
     } catch (err) {
-      alert(err.message || 'Failed to load trainer dossier');
+      showFeedback('error', err.message || 'Failed to load trainer dossier');
     }
   };
 
   const handleOpenEdit = (t) => {
+    setActionSheetTrainer(null);
+    setEditError(null);
     setEditingTrainer(t);
     setEditForm({
       name: t.name || '',
@@ -201,101 +331,166 @@ export default function Trainers() {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
-    try {
-      await adminService.updateTrainer(editingTrainer.id, editForm);
-      setEditingTrainer(null);
-      await fetchTrainers();
-      if (selectedTrainerDetails) handleOpenDetails(editingTrainer.id);
-    } catch (err) {
-      alert(err.message || 'Failed to update trainer');
-    }
-  };
-
-  const handleStatusChange = async (t, targetStatus) => {
-    const labelMap = {
-      ACTIVE: 'activate',
-      SUSPENDED: 'suspend',
-      INACTIVE: 'deactivate',
-    };
-    if (!window.confirm(`Are you sure you want to ${labelMap[targetStatus] || 'update'} ${t.name}?`)) return;
-    try {
-      setActionBusyId(t.id);
-      await adminService.updateTrainerStatus(t.id, targetStatus);
-      await fetchTrainers();
-    } catch (err) {
-      alert(err.message || 'Failed to update trainer status');
-    } finally {
-      setActionBusyId(null);
-    }
-  };
-
-  const handleResendInvitation = async (t) => {
-    if (!window.confirm(`Generate and send a fresh 24-hour invitation for ${t.name}? Previous invitation links will be invalidated.`)) return;
-    try {
-      setActionBusyId(t.id);
-      const res = await adminService.resendTrainerInvitation(t.id);
-      await fetchTrainers();
-      setCopiedLink(false);
-      setInvitationModal({
-        title: 'Invitation Regenerated',
-        trainerName: t.name,
-        email: t.email,
-        emailConfigured: res.emailConfigured,
-        emailDelivered: res.emailDelivered,
-        emailNotice: res.emailNotice || res.message,
-        manualUrl: res.manualActivationUrl || null,
-        linkType: 'activation',
-      });
-    } catch (err) {
-      alert(err.message || 'Failed to resend invitation');
-    } finally {
-      setActionBusyId(null);
-    }
-  };
-
-  const handleAdminResetPassword = async (t) => {
-    if (!window.confirm(`Initiate a secure password reset for ${t.name}? Active trainer sessions will be invalidated immediately.`)) return;
-    try {
-      setActionBusyId(t.id);
-      const res = await adminService.resetTrainerPassword(t.id);
-      setCopiedLink(false);
-      setInvitationModal({
-        title: 'Password Reset Link Ready',
-        trainerName: t.name,
-        email: t.email,
-        emailConfigured: res.emailConfigured,
-        emailDelivered: res.emailDelivered,
-        emailNotice: res.emailNotice || res.message,
-        manualUrl: res.manualResetUrl || null,
-        linkType: 'reset',
-      });
-    } catch (err) {
-      alert(err.message || 'Failed to initiate password reset');
-    } finally {
-      setActionBusyId(null);
-    }
-  };
-
-  const handleDeleteTrainer = async (t) => {
-    if (
-      !window.confirm(
-        `Permanently delete trainer "${t.name}"? Any assigned clients will be unassigned and this action cannot be undone.`
-      )
-    ) {
+    setEditError(null);
+    if (!isValidIndianMobile(editForm.phone)) {
+      setEditError('Enter a valid 10-digit Indian mobile number starting with 6–9.');
       return;
     }
     try {
-      setActionBusyId(t.id);
-      await adminService.deleteTrainer(t.id);
-      if (selectedTrainerDetails?.trainer?.id === t.id) {
-        setSelectedTrainerDetails(null);
-      }
+      setSavingEdit(true);
+      await adminService.updateTrainer(editingTrainer.id, editForm);
+      const editedId = editingTrainer.id;
+      setEditingTrainer(null);
+      showFeedback('success', 'Trainer profile updated.');
       await fetchTrainers();
+      if (selectedTrainerDetails?.trainer?.id === editedId) {
+        handleOpenDetails(editedId);
+      }
     } catch (err) {
-      alert(err.message || 'Failed to delete trainer');
+      setEditError(err.message || 'Failed to update trainer');
     } finally {
-      setActionBusyId(null);
+      setSavingEdit(false);
     }
+  };
+
+  const requestStatusChange = (t, targetStatus) => {
+    setActionSheetTrainer(null);
+    const metaMap = {
+      ACTIVE: {
+        title: t.status === 'SUSPENDED' ? 'Reactivate Trainer' : 'Activate Trainer',
+        confirmLabel: t.status === 'SUSPENDED' ? 'Reactivate' : 'Activate',
+        tone: 'emerald',
+        description: `Restore Trainer Portal access for ${t.name}?`,
+      },
+      SUSPENDED: {
+        title: 'Suspend Trainer',
+        confirmLabel: 'Suspend Account',
+        tone: 'amber',
+        description: `Suspend ${t.name}? Active login sessions will be revoked immediately until reactivated.`,
+      },
+      INACTIVE: {
+        title: 'Deactivate Trainer',
+        confirmLabel: 'Deactivate Account',
+        tone: 'red',
+        description: `Deactivate ${t.name}? They will immediately lose access to protected Trainer Portal APIs.`,
+      },
+    };
+    const meta = metaMap[targetStatus];
+    setConfirmDialog({
+      ...meta,
+      onConfirm: async () => {
+        try {
+          setActionBusyId(t.id);
+          await adminService.updateTrainerStatus(t.id, targetStatus);
+          setConfirmDialog(null);
+          showFeedback('success', `${t.name} marked as ${targetStatus}.`);
+          await fetchTrainers();
+        } catch (err) {
+          setConfirmDialog(null);
+          showFeedback('error', err.message || 'Failed to update trainer status');
+        } finally {
+          setActionBusyId(null);
+        }
+      },
+    });
+  };
+
+  const requestResendInvitation = (t) => {
+    setActionSheetTrainer(null);
+    setConfirmDialog({
+      title: 'Resend Activation Invitation',
+      confirmLabel: 'Regenerate & Send',
+      tone: 'amber',
+      description: `Generate a fresh 24-hour invitation link for ${t.name}? Any previous invitation link will become invalid.`,
+      onConfirm: async () => {
+        try {
+          setActionBusyId(t.id);
+          const res = await adminService.resendTrainerInvitation(t.id);
+          setConfirmDialog(null);
+          await fetchTrainers();
+          setCopiedLink(false);
+          setInvitationModal({
+            title: 'Invitation Regenerated',
+            trainerName: t.name,
+            email: t.email,
+            emailConfigured: res.emailConfigured,
+            emailDelivered: res.emailDelivered,
+            emailNotice: res.emailNotice || res.message,
+            manualUrl: res.manualActivationUrl || null,
+            linkType: 'activation',
+          });
+        } catch (err) {
+          setConfirmDialog(null);
+          showFeedback('error', err.message || 'Failed to resend invitation');
+        } finally {
+          setActionBusyId(null);
+        }
+      },
+    });
+  };
+
+  const requestAdminResetPassword = (t) => {
+    setActionSheetTrainer(null);
+    setConfirmDialog({
+      title: 'Send Password Reset Link',
+      confirmLabel: 'Generate Reset Link',
+      tone: 'red',
+      description: `Initiate a secure password reset for ${t.name}? Their active trainer sessions will be invalidated immediately.`,
+      onConfirm: async () => {
+        try {
+          setActionBusyId(t.id);
+          const res = await adminService.resetTrainerPassword(t.id);
+          setConfirmDialog(null);
+          setCopiedLink(false);
+          setInvitationModal({
+            title: 'Password Reset Link Ready',
+            trainerName: t.name,
+            email: t.email,
+            emailConfigured: res.emailConfigured,
+            emailDelivered: res.emailDelivered,
+            emailNotice: res.emailNotice || res.message,
+            manualUrl: res.manualResetUrl || null,
+            linkType: 'reset',
+          });
+        } catch (err) {
+          setConfirmDialog(null);
+          showFeedback('error', err.message || 'Failed to initiate password reset');
+        } finally {
+          setActionBusyId(null);
+        }
+      },
+    });
+  };
+
+  const requestDeleteTrainer = (t) => {
+    setActionSheetTrainer(null);
+    setConfirmDialog({
+      title: 'Delete Trainer Permanently',
+      confirmLabel: 'Delete Permanently',
+      tone: 'red',
+      description: `Permanently delete trainer "${t.name}"? Any assigned clients will be unassigned and this action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          setActionBusyId(t.id);
+          await adminService.deleteTrainer(t.id);
+          setConfirmDialog(null);
+          if (selectedTrainerDetails?.trainer?.id === t.id) {
+            setSelectedTrainerDetails(null);
+          }
+          showFeedback('success', `Trainer "${t.name}" deleted permanently.`);
+          if (trainers.length === 1 && page > 1) {
+            setPage((p) => p - 1);
+          } else {
+            await fetchTrainers();
+          }
+        } catch (err) {
+          setConfirmDialog(null);
+          showFeedback('error', err.message || 'Failed to delete trainer');
+        } finally {
+          setActionBusyId(null);
+        }
+      },
+    });
   };
 
   const handleCopyManualUrl = async (url) => {
@@ -304,7 +499,7 @@ export default function Trainers() {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2500);
     } catch {
-      alert('Please copy the URL manually from the field.');
+      showFeedback('error', 'Clipboard unavailable. Please copy the URL from the text field.');
     }
   };
 
@@ -312,25 +507,25 @@ export default function Trainers() {
     switch (status) {
       case 'ACTIVE':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-            <CheckCircle2 className="w-3 h-3" /> ACTIVE
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">
+            <CheckCircle2 className="w-3 h-3 shrink-0" /> ACTIVE
           </span>
         );
       case 'PENDING_ACTIVATION':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/30">
-            <Clock className="w-3 h-3" /> PENDING_ACTIVATION
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/30 whitespace-nowrap">
+            <Clock className="w-3 h-3 shrink-0" /> PENDING
           </span>
         );
       case 'SUSPENDED':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#EB3E2E]/15 text-[#FF493B] border border-[#EB3E2E]/40">
-            <PauseCircle className="w-3 h-3" /> SUSPENDED
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#F03B2E]/15 text-[#FF493B] border border-[#F03B2E]/40 whitespace-nowrap">
+            <PauseCircle className="w-3 h-3 shrink-0" /> SUSPENDED
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#202020] text-[#858585] border border-[#303030]">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#202020] text-[#858585] border border-[#303030] whitespace-nowrap">
             INACTIVE
           </span>
         );
@@ -341,36 +536,39 @@ export default function Trainers() {
     switch (invStatus) {
       case 'ACTIVATED':
         return (
-          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 whitespace-nowrap">
             ACTIVATED
           </span>
         );
       case 'EXPIRED':
         return (
-          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-[#EB3E2E]/15 text-[#FF493B] border border-[#EB3E2E]/35">
+          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-[#F03B2E]/15 text-[#FF493B] border border-[#F03B2E]/35 whitespace-nowrap">
             EXPIRED
           </span>
         );
       case 'PENDING':
         return (
-          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/25">
+          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/25 whitespace-nowrap">
             INVITE PENDING
           </span>
         );
       default:
         return (
-          <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-[#202020] text-[#858585] border border-[#303030]">
+          <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-[#202020] text-[#858585] border border-[#303030] whitespace-nowrap">
             {invStatus || '—'}
           </span>
         );
     }
   };
 
+  const startIndex = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
+  const endIndex = Math.min(pagination.total, pagination.page * pagination.limit);
+
   return (
-    <div className="space-y-6">
-      {/* ── HEADER ── */}
+    <div className="space-y-5 sm:space-y-6 min-w-0">
+      {/* ── HEADER & PRIMARY CTA ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <h2 className="mm-page-title text-2xl sm:text-3xl">
             TRAINER ROSTER &amp; ONBOARDING
           </h2>
@@ -382,33 +580,33 @@ export default function Trainers() {
         <button
           type="button"
           onClick={handleOpenAdd}
-          className="mm-btn-primary rounded-lg shrink-0"
+          className="mm-btn-primary rounded-lg w-full sm:w-auto min-h-[44px] shrink-0"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4 shrink-0" />
           <span>Add Trainer</span>
         </button>
       </div>
 
-      {/* ── TABS ── */}
-      <div className="flex items-center gap-2 border-b border-[#252525] pb-3">
+      {/* ── TABS (Horizontal scroll-safe on narrow screens) ── */}
+      <div className="flex items-center gap-2 border-b border-[#252525] pb-3 overflow-x-auto no-scrollbar">
         <button
           type="button"
           onClick={() => setActiveTab('ROSTER')}
-          className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+          className={`min-h-[44px] px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === 'ROSTER'
-              ? 'bg-[#EB3E2E] text-white'
+              ? 'bg-[#F03B2E] text-white shadow-sm'
               : 'text-[#B8B8B8] hover:text-white bg-[#181818] border border-[#303030]'
           }`}
         >
-          Coaching Staff ({trainers.length})
+          Coaching Staff ({pagination.total || trainers.length})
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('BOOKINGS')}
-          className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+          className={`min-h-[44px] px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === 'BOOKINGS'
-              ? 'bg-[#EB3E2E] text-white'
+              ? 'bg-[#F03B2E] text-white shadow-sm'
               : 'text-[#B8B8B8] hover:text-white bg-[#181818] border border-[#303030]'
           }`}
         >
@@ -416,23 +614,65 @@ export default function Trainers() {
         </button>
       </div>
 
-      {/* ── SEARCH & FILTERS ── */}
-      <div className="bg-[#181818] border border-[#303030] rounded-xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        <form onSubmit={handleSearchSubmit} className="flex-1 relative">
-          <Search className="w-4 h-4 text-[#858585] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search trainers by name, phone, or email..."
-            className="mm-input pl-9 text-xs"
-          />
+      {/* ── ACTION FEEDBACK BANNER ── */}
+      {actionFeedback && (
+        <div
+          role="status"
+          className={`rounded-xl p-3.5 flex items-center justify-between gap-3 text-xs border ${
+            actionFeedback.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-200'
+              : 'bg-[#F03B2E]/10 border-[#F03B2E]/40 text-[#FF6A5E]'
+          }`}
+        >
+          <span className="min-w-0 break-words">{actionFeedback.message}</span>
+          <button
+            type="button"
+            onClick={() => setActionFeedback(null)}
+            aria-label="Dismiss notification"
+            className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-black/20 shrink-0 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ── SEARCH & BRANCH FILTERS ── */}
+      <div className="bg-[#181818] border border-[#303030] rounded-xl p-3.5 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <form onSubmit={handleSearchSubmit} className="flex-1 flex items-center gap-2 min-w-0">
+          <div className="relative flex-1 min-w-0">
+            <Search className="w-4 h-4 text-[#858585] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name, email, or phone..."
+              aria-label="Search trainers by name, email, or phone"
+              className="mm-input pl-10 pr-10 min-h-[44px] text-xs"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                aria-label="Clear search"
+                className="absolute right-1 top-1/2 -translate-y-1/2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-md text-[#858585] hover:text-[#F5F5F5] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <button
+            type="submit"
+            className="mm-btn-secondary !px-3.5 !py-2.5 min-h-[44px] rounded-lg shrink-0"
+          >
+            Search
+          </button>
         </form>
 
         <select
+          aria-label="Filter trainers by branch"
           value={branchFilter}
-          onChange={(e) => setBranchFilter(e.target.value)}
-          className="mm-select md:w-52 text-xs cursor-pointer"
+          onChange={(e) => handleBranchFilterChange(e.target.value)}
+          className="mm-select w-full md:w-56 min-h-[44px] text-xs cursor-pointer"
         >
           <option value="ALL">All Branches</option>
           {branches.map((b) => (
@@ -445,37 +685,55 @@ export default function Trainers() {
 
       {/* ── ERROR NOTICE ── */}
       {error && (
-        <div className="bg-[#EB3E2E]/10 border border-[#EB3E2E]/40 rounded-xl p-4 flex items-center justify-between gap-3 text-[#FF493B]">
-          <div className="flex items-center gap-2.5">
+        <div className="bg-[#F03B2E]/10 border border-[#F03B2E]/40 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[#FF493B]">
+          <div className="flex items-center gap-2.5 min-w-0">
             <ShieldAlert className="w-5 h-5 shrink-0" />
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-wider">Trainer Sync Error</p>
-              <p className="text-xs text-[#B8B8B8]">{error}</p>
+              <p className="text-xs text-[#B8B8B8] break-words">{error}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={fetchTrainers}
-            className="mm-btn-secondary !py-1.5 !px-3 text-xs"
+            className="mm-btn-secondary !py-2 !px-4 min-h-[44px] text-xs w-full sm:w-auto"
           >
             Retry
           </button>
         </div>
       )}
 
-      {/* ── ROSTER VIEW (TABLE ON DESKTOP, CARDS ON MOBILE) ── */}
+      {/* ── ROSTER VIEW (DESKTOP TABLE >= 1024px, CARDS < 1024px) ── */}
       {activeTab === 'ROSTER' ? (
         loading ? (
           <div className="py-12 text-center text-xs text-[#B8B8B8]">Loading coaching staff...</div>
         ) : trainers.length === 0 ? (
-          <div className="bg-[#181818] border border-[#303030] rounded-xl py-12 text-center space-y-2">
+          <div className="bg-[#181818] border border-[#303030] rounded-xl py-12 px-4 text-center space-y-3">
             <p className="text-sm font-bold text-[#F5F5F5]">No trainers found</p>
-            <p className="text-xs text-[#858585]">Click Add Trainer to invite a coach.</p>
+            <p className="text-xs text-[#858585]">
+              {appliedSearch || branchFilter !== 'ALL'
+                ? 'Try clearing your search or switching branch filters.'
+                : 'Click Add Trainer to invite a coach.'}
+            </p>
+            {(appliedSearch || branchFilter !== 'ALL') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  setAppliedSearch('');
+                  setBranchFilter('ALL');
+                  setPage(1);
+                }}
+                className="mm-btn-secondary min-h-[44px] rounded-lg mx-auto"
+              >
+                Reset Filters
+              </button>
+            )}
           </div>
         ) : (
           <>
-            {/* Desktop Table */}
-            <div className="hidden xl:block bg-[#181818] border border-[#303030] rounded-xl overflow-hidden">
+            {/* ── DESKTOP TABLE (>= 1024px, Preserved Design) ── */}
+            <div className="hidden lg:block bg-[#181818] border border-[#303030] rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="mm-table">
                   <thead>
@@ -504,7 +762,7 @@ export default function Trainers() {
                                   className="w-9 h-9 rounded-lg object-cover border border-[#303030] shrink-0"
                                 />
                               ) : (
-                                <div className="w-9 h-9 rounded-lg bg-[#202020] border border-[#303030] flex items-center justify-center text-[#EB3E2E] font-bold text-xs shrink-0">
+                                <div className="w-9 h-9 rounded-lg bg-[#202020] border border-[#303030] flex items-center justify-center text-[#F03B2E] font-bold text-xs shrink-0">
                                   {t.name ? t.name[0].toUpperCase() : 'T'}
                                 </div>
                               )}
@@ -526,7 +784,7 @@ export default function Trainers() {
                             </span>
                           </td>
                           <td>
-                            <div className="text-xs font-semibold text-[#EB3E2E]">
+                            <div className="text-xs font-semibold text-[#F03B2E]">
                               {t.specialization}
                             </div>
                             <div className="text-[10px] text-[#858585] uppercase">
@@ -546,6 +804,7 @@ export default function Trainers() {
                                 onClick={() => handleOpenDetails(t.id)}
                                 className="p-2 rounded-lg bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] hover:text-white cursor-pointer"
                                 title="View Trainer"
+                                aria-label={`View ${t.name}`}
                               >
                                 <Eye className="w-3.5 h-3.5" />
                               </button>
@@ -554,6 +813,7 @@ export default function Trainers() {
                                 onClick={() => handleOpenEdit(t)}
                                 className="p-2 rounded-lg bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] hover:text-white cursor-pointer"
                                 title="Edit Trainer"
+                                aria-label={`Edit ${t.name}`}
                               >
                                 <Edit className="w-3.5 h-3.5" />
                               </button>
@@ -562,7 +822,7 @@ export default function Trainers() {
                                 <button
                                   type="button"
                                   disabled={busy}
-                                  onClick={() => handleResendInvitation(t)}
+                                  onClick={() => requestResendInvitation(t)}
                                   className="px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer"
                                   title="Resend Invitation"
                                 >
@@ -574,9 +834,10 @@ export default function Trainers() {
                                   <button
                                     type="button"
                                     disabled={busy}
-                                    onClick={() => handleAdminResetPassword(t)}
-                                    className="p-2 rounded-lg bg-[#202020] hover:bg-[#EB3E2E]/20 text-[#B8B8B8] hover:text-[#EB3E2E] cursor-pointer"
+                                    onClick={() => requestAdminResetPassword(t)}
+                                    className="p-2 rounded-lg bg-[#202020] hover:bg-[#F03B2E]/20 text-[#B8B8B8] hover:text-[#F03B2E] cursor-pointer"
                                     title="Send Secure Password Reset Link"
+                                    aria-label={`Reset password for ${t.name}`}
                                   >
                                     <KeyRound className="w-3.5 h-3.5" />
                                   </button>
@@ -586,18 +847,20 @@ export default function Trainers() {
                                       <button
                                         type="button"
                                         disabled={busy}
-                                        onClick={() => handleStatusChange(t, 'SUSPENDED')}
+                                        onClick={() => requestStatusChange(t, 'SUSPENDED')}
                                         className="p-2 rounded-lg bg-[#202020] hover:bg-amber-500/20 text-[#B8B8B8] hover:text-amber-400 cursor-pointer"
                                         title="Suspend Trainer"
+                                        aria-label={`Suspend ${t.name}`}
                                       >
                                         <PauseCircle className="w-3.5 h-3.5" />
                                       </button>
                                       <button
                                         type="button"
                                         disabled={busy}
-                                        onClick={() => handleStatusChange(t, 'INACTIVE')}
-                                        className="p-2 rounded-lg bg-[#202020] hover:bg-[#EB3E2E]/20 text-[#B8B8B8] hover:text-[#FF493B] cursor-pointer"
+                                        onClick={() => requestStatusChange(t, 'INACTIVE')}
+                                        className="p-2 rounded-lg bg-[#202020] hover:bg-[#F03B2E]/20 text-[#B8B8B8] hover:text-[#FF493B] cursor-pointer"
                                         title="Deactivate Trainer"
+                                        aria-label={`Deactivate ${t.name}`}
                                       >
                                         <Power className="w-3.5 h-3.5" />
                                       </button>
@@ -606,11 +869,11 @@ export default function Trainers() {
                                     <button
                                       type="button"
                                       disabled={busy}
-                                      onClick={() => handleStatusChange(t, 'ACTIVE')}
+                                      onClick={() => requestStatusChange(t, 'ACTIVE')}
                                       className="px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider cursor-pointer"
                                       title="Activate Trainer"
                                     >
-                                      Activate
+                                      {t.status === 'SUSPENDED' ? 'Reactivate' : 'Activate'}
                                     </button>
                                   )}
                                 </>
@@ -619,8 +882,8 @@ export default function Trainers() {
                               <button
                                 type="button"
                                 disabled={busy}
-                                onClick={() => handleDeleteTrainer(t)}
-                                className="p-2 rounded-lg bg-[#202020] hover:bg-[#EB3E2E]/25 text-[#B8B8B8] hover:text-[#FF493B] border border-transparent hover:border-[#EB3E2E]/40 cursor-pointer disabled:opacity-50"
+                                onClick={() => requestDeleteTrainer(t)}
+                                className="p-2 rounded-lg bg-[#202020] hover:bg-[#F03B2E]/25 text-[#B8B8B8] hover:text-[#FF493B] border border-transparent hover:border-[#F03B2E]/40 cursor-pointer disabled:opacity-50"
                                 title="Delete Trainer"
                                 aria-label={`Delete ${t.name}`}
                               >
@@ -636,130 +899,171 @@ export default function Trainers() {
               </div>
             </div>
 
-            {/* Responsive Cards (< xl) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 xl:hidden">
+            {/* ── MOBILE & TABLET CARDS (< 1024px) ── */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 lg:hidden">
               {trainers.map((t) => {
                 const busy = actionBusyId === t.id;
                 return (
-                  <div
+                  <article
                     key={t.id}
-                    className="bg-[#181818] border border-[#303030] rounded-xl p-5 flex flex-col justify-between gap-4"
+                    className="bg-[#181818] border border-[#303030] rounded-xl p-4 flex flex-col justify-between gap-3.5 min-w-0"
                   >
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-[#202020] border border-[#303030] flex items-center justify-center text-[#EB3E2E] font-bold text-sm shrink-0">
+                    {/* Card Header: Name + Status + Three-dot Menu */}
+                    <div className="flex items-start justify-between gap-2 min-w-0">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        {t.profileImage ? (
+                          <img
+                            src={t.profileImage}
+                            alt={t.name}
+                            className="w-10 h-10 rounded-lg object-cover border border-[#303030] shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-[#202020] border border-[#303030] flex items-center justify-center text-[#F03B2E] font-bold text-sm shrink-0">
                             {t.name ? t.name[0].toUpperCase() : 'T'}
                           </div>
-                          <div>
-                            <h3 className="font-display text-lg font-bold uppercase text-[#F5F5F5]">
-                              {t.name}
-                            </h3>
-                            <span className="text-[11px] font-mono text-[#858585]">
-                              {t.branch?.city || 'HQ'} • {t.experienceYears} yrs exp
-                            </span>
+                        )}
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <h3 className="font-display text-base sm:text-lg font-bold uppercase text-[#F5F5F5] leading-tight truncate">
+                            {t.name}
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {renderStatusBadge(t.status)}
                           </div>
                         </div>
-                        {renderStatusBadge(t.status)}
                       </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                        <span className="text-xs font-semibold text-[#EB3E2E]">{t.specialization}</span>
-                        {renderInvitationBadge(t.invitationStatus)}
-                      </div>
-
-                      <div className="space-y-1 text-xs text-[#B8B8B8] border-t border-[#252525] pt-3">
-                        <div className="flex items-center gap-2">
-                          <Mail className="w-3.5 h-3.5 text-[#EB3E2E]" />
-                          <span className="truncate">{t.email}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Phone className="w-3.5 h-3.5 text-[#EB3E2E]" />
-                          <span className="font-mono">{t.phone}</span>
-                        </div>
-                        <div className="text-[10px] font-mono text-[#858585] pt-1">
-                          Added: {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#252525]">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenDetails(t.id)}
-                        className="flex-1 py-2 px-3 rounded-lg bg-[#202020] hover:bg-[#303030] text-xs font-bold uppercase text-[#F5F5F5]"
-                      >
-                        View
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(t)}
-                        className="py-2 px-3 rounded-lg bg-[#202020] hover:bg-[#303030] text-xs font-bold uppercase text-[#B8B8B8]"
-                      >
-                        Edit
-                      </button>
-                      {t.status === 'PENDING_ACTIVATION' ? (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => handleResendInvitation(t)}
-                          className="py-2 px-3 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold uppercase"
-                        >
-                          Resend Invite
-                        </button>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => handleAdminResetPassword(t)}
-                            className="py-2 px-3 rounded-lg bg-[#202020] text-xs font-bold uppercase text-[#B8B8B8]"
-                          >
-                            Reset PW
-                          </button>
-                          {t.status === 'ACTIVE' ? (
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => handleStatusChange(t, 'SUSPENDED')}
-                              className="py-2 px-3 rounded-lg bg-[#EB3E2E]/15 text-[#FF493B] text-xs font-bold uppercase"
-                            >
-                              Suspend
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => handleStatusChange(t, 'ACTIVE')}
-                              className="py-2 px-3 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-bold uppercase"
-                            >
-                              Activate
-                            </button>
-                          )}
-                        </>
-                      )}
 
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => handleDeleteTrainer(t)}
-                        className="py-2 px-3 rounded-lg bg-[#EB3E2E]/10 hover:bg-[#EB3E2E]/25 border border-[#EB3E2E]/30 text-[#FF493B] text-xs font-bold uppercase inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                        aria-label={`Delete ${t.name}`}
+                        onClick={() => setActionSheetTrainer(t)}
+                        aria-label={`Open actions for ${t.name}`}
+                        aria-haspopup="dialog"
+                        className="min-w-[44px] min-h-[44px] -mr-1.5 -mt-1 flex items-center justify-center rounded-lg bg-[#202020] hover:bg-[#303030] text-[#F5F5F5] border border-[#303030] hover:border-[#F03B2E] cursor-pointer shrink-0 transition-colors"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Delete</span>
+                        <MoreVertical className="w-4 h-4" />
                       </button>
                     </div>
-                  </div>
+
+                    {/* Primary Specialization & Invitation Row */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#252525]">
+                      <span className="text-xs font-semibold text-[#F03B2E] truncate max-w-full">
+                        {t.specialization}
+                      </span>
+                      {renderInvitationBadge(t.invitationStatus)}
+                    </div>
+
+                    {/* Structured Hierarchy Details */}
+                    <div className="space-y-2 text-xs text-[#B8B8B8] min-w-0">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <Mail className="w-3.5 h-3.5 text-[#F03B2E] shrink-0 mt-0.5" />
+                        <span className="break-all min-w-0 text-[#F5F5F5]">{t.email}</span>
+                      </div>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Phone className="w-3.5 h-3.5 text-[#F03B2E] shrink-0" />
+                        <span className="font-mono text-[#F5F5F5]">{t.phone}</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 pt-2 px-3 py-2.5 rounded-lg bg-[#111111] border border-[#252525] text-[11px]">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <MapPin className="w-3 h-3 text-[#858585] shrink-0" />
+                          <span className="truncate text-[#F5F5F5] font-medium">{t.branch?.city || 'HQ'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Users className="w-3 h-3 text-[#858585] shrink-0" />
+                          <span className="truncate">{t.assignedClientCount} clients</span>
+                        </div>
+                        <div className="truncate text-[#858585]">
+                          {t.experienceYears} yrs exp
+                        </div>
+                        <div className="flex items-center gap-1 text-[#858585] font-mono truncate">
+                          <Calendar className="w-3 h-3 shrink-0" />
+                          <span className="truncate">
+                            {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card Footer: Manage Trainer & Quick View */}
+                    <div className="flex items-center gap-2 pt-2 border-t border-[#252525]">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDetails(t.id)}
+                        className="min-h-[44px] px-3.5 py-2 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-[#B8B8B8]" />
+                        <span>View</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => setActionSheetTrainer(t)}
+                        className="flex-1 min-h-[44px] px-3.5 py-2 rounded-lg bg-[#F03B2E]/15 hover:bg-[#F03B2E]/25 border border-[#F03B2E]/40 text-xs font-bold uppercase tracking-wider text-[#F5F5F5] inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-[#F03B2E]" />
+                        <span>{busy ? 'Working...' : 'Manage Trainer'}</span>
+                      </button>
+                    </div>
+                  </article>
                 );
               })}
+            </div>
+
+            {/* ── PAGINATION CONTROLS ── */}
+            <div className="bg-[#181818] border border-[#303030] rounded-xl px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#B8B8B8]">
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                <span>
+                  Showing <strong className="text-[#F5F5F5]">{startIndex}–{endIndex}</strong> of{' '}
+                  <strong className="text-[#F5F5F5]">{pagination.total}</strong> trainers
+                </span>
+                <label className="inline-flex items-center gap-2">
+                  <span className="text-[11px] uppercase tracking-wider text-[#858585]">Per page</span>
+                  <select
+                    aria-label="Trainers per page"
+                    value={pageSize}
+                    onChange={(e) => handlePageSizeChange(e.target.value)}
+                    className="bg-[#111111] border border-[#303030] rounded-lg px-2.5 py-1.5 min-h-[36px] text-xs text-[#F5F5F5] cursor-pointer"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                <button
+                  type="button"
+                  disabled={pagination.page <= 1 || loading}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="min-h-[44px] px-3.5 py-2 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Previous</span>
+                </button>
+
+                <span className="font-mono text-xs text-[#F5F5F5] px-2 whitespace-nowrap">
+                  Page {pagination.page} / {pagination.totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={pagination.page >= pagination.totalPages || loading}
+                  onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                  className="min-h-[44px] px-3.5 py-2 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <span>Next</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </>
         )
       ) : (
-        /* ── BOOKINGS & PAYMENTS TABLE ── */
-        <div className="bg-[#181818] border border-[#303030] rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-[#252525] flex items-center justify-between">
+        /* ── BOOKINGS & PAYMENTS TAB (Desktop table + Mobile cards) ── */
+        <div className="space-y-4">
+          <div className="bg-[#181818] border border-[#303030] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
             <span className="font-display text-sm font-bold uppercase tracking-wider text-[#F5F5F5]">
               CLIENT-TO-COACH BOOKING LEDGER ({bookings.length})
             </span>
@@ -767,116 +1071,387 @@ export default function Trainers() {
           </div>
 
           {bookings.length === 0 ? (
-            <div className="p-12 text-center text-xs text-[#B8B8B8]">No trainer bookings recorded yet.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="mm-table">
-                <thead>
-                  <tr>
-                    <th>Ref Code</th>
-                    <th>Athlete Client</th>
-                    <th>Coach</th>
-                    <th>Schedule</th>
-                    <th>Pack</th>
-                    <th>Amount</th>
-                    <th>Payment</th>
-                    <th>Status</th>
-                    <th className="text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bookings.map((b) => {
-                    const isPending =
-                      b.bookingStatus === 'PENDING_PAYMENT' || b.paymentStatus === 'PENDING_PAYMENT';
-                    return (
-                      <tr key={b._id}>
-                        <td className="font-mono font-bold text-[#F5F5F5]">{b.bookingReference}</td>
-                        <td>
-                          <div className="font-bold text-[#F5F5F5]">{b.clientId?.name}</div>
-                          <div className="text-[11px] text-[#858585]">{b.clientId?.email}</div>
-                        </td>
-                        <td className="font-semibold text-[#EB3E2E]">{b.trainerId?.name}</td>
-                        <td className="font-mono text-xs">
-                          {new Date(b.date).toLocaleDateString()} @ {b.startTime}
-                        </td>
-                        <td className="uppercase text-xs">{b.serviceTitle}</td>
-                        <td className="font-mono font-bold text-white">₹{b.amount}</td>
-                        <td>
-                          <span
-                            className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
-                              b.paymentStatus === 'PAID'
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                                : 'bg-[#EB3E2E]/10 text-[#EB3E2E] border border-[#EB3E2E]/30'
-                            }`}
-                          >
-                            {b.paymentStatus}
-                          </span>
-                        </td>
-                        <td>
-                          <span
-                            className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
-                              b.bookingStatus === 'CONFIRMED'
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                                : 'bg-[#202020] text-[#B8B8B8] border border-[#303030]'
-                            }`}
-                          >
-                            {b.bookingStatus}
-                          </span>
-                        </td>
-                        <td className="text-right">
-                          {isPending ? (
-                            <button
-                              type="button"
-                              disabled={confirmingId === b._id}
-                              onClick={() => handleConfirmBookingPayment(b._id)}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold uppercase cursor-pointer"
-                            >
-                              {confirmingId === b._id ? 'Verifying...' : 'Confirm & Assign'}
-                            </button>
-                          ) : (
-                            <span className="text-[10px] text-emerald-400 font-bold uppercase">
-                              Active Coach
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="bg-[#181818] border border-[#303030] rounded-xl p-12 text-center text-xs text-[#B8B8B8]">
+              No trainer bookings recorded yet.
             </div>
+          ) : (
+            <>
+              {/* Desktop Bookings Table */}
+              <div className="hidden lg:block bg-[#181818] border border-[#303030] rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="mm-table">
+                    <thead>
+                      <tr>
+                        <th>Ref Code</th>
+                        <th>Athlete Client</th>
+                        <th>Coach</th>
+                        <th>Schedule</th>
+                        <th>Pack</th>
+                        <th>Amount</th>
+                        <th>Payment</th>
+                        <th>Status</th>
+                        <th className="text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bookings.map((b) => {
+                        const isPending =
+                          b.bookingStatus === 'PENDING_PAYMENT' || b.paymentStatus === 'PENDING_PAYMENT';
+                        return (
+                          <tr key={b._id}>
+                            <td className="font-mono font-bold text-[#F5F5F5]">{b.bookingReference}</td>
+                            <td>
+                              <div className="font-bold text-[#F5F5F5]">{b.clientId?.name}</div>
+                              <div className="text-[11px] text-[#858585]">{b.clientId?.email}</div>
+                            </td>
+                            <td className="font-semibold text-[#F03B2E]">{b.trainerId?.name}</td>
+                            <td className="font-mono text-xs">
+                              {new Date(b.date).toLocaleDateString()} @ {b.startTime}
+                            </td>
+                            <td className="uppercase text-xs">{b.serviceTitle}</td>
+                            <td className="font-mono font-bold text-white">₹{b.amount}</td>
+                            <td>
+                              <span
+                                className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                  b.paymentStatus === 'PAID'
+                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                                    : 'bg-[#F03B2E]/10 text-[#F03B2E] border border-[#F03B2E]/30'
+                                }`}
+                              >
+                                {b.paymentStatus}
+                              </span>
+                            </td>
+                            <td>
+                              <span
+                                className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                  b.bookingStatus === 'CONFIRMED'
+                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                                    : 'bg-[#202020] text-[#B8B8B8] border border-[#303030]'
+                                }`}
+                              >
+                                {b.bookingStatus}
+                              </span>
+                            </td>
+                            <td className="text-right">
+                              {isPending ? (
+                                <button
+                                  type="button"
+                                  disabled={confirmingId === b._id}
+                                  onClick={() => handleConfirmBookingPayment(b._id)}
+                                  className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold uppercase cursor-pointer"
+                                >
+                                  {confirmingId === b._id ? 'Verifying...' : 'Confirm & Assign'}
+                                </button>
+                              ) : (
+                                <span className="text-[10px] text-emerald-400 font-bold uppercase">
+                                  Active Coach
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Mobile & Tablet Bookings Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 lg:hidden">
+                {bookings.map((b) => {
+                  const isPending =
+                    b.bookingStatus === 'PENDING_PAYMENT' || b.paymentStatus === 'PENDING_PAYMENT';
+                  return (
+                    <div
+                      key={b._id}
+                      className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-3 min-w-0"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="font-mono text-xs font-bold text-[#F5F5F5] block truncate">
+                            {b.bookingReference}
+                          </span>
+                          <span className="text-xs font-bold text-[#F03B2E] truncate block">
+                            Coach: {b.trainerId?.name}
+                          </span>
+                        </div>
+                        <span className="font-mono font-bold text-sm text-[#F5F5F5] shrink-0">
+                          ₹{b.amount}
+                        </span>
+                      </div>
+
+                      <div className="text-xs space-y-1 border-t border-[#252525] pt-2.5">
+                        <div className="font-semibold text-[#F5F5F5] truncate">{b.clientId?.name}</div>
+                        <div className="text-[11px] text-[#858585] break-all">{b.clientId?.email}</div>
+                        <div className="text-[11px] font-mono text-[#B8B8B8] pt-1">
+                          {new Date(b.date).toLocaleDateString()} @ {b.startTime} • {b.serviceTitle}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                            b.paymentStatus === 'PAID'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-[#F03B2E]/10 text-[#F03B2E] border border-[#F03B2E]/30'
+                          }`}
+                        >
+                          Pay: {b.paymentStatus}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                            b.bookingStatus === 'CONFIRMED'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-[#202020] text-[#B8B8B8] border border-[#303030]'
+                          }`}
+                        >
+                          {b.bookingStatus}
+                        </span>
+                      </div>
+
+                      {isPending ? (
+                        <button
+                          type="button"
+                          disabled={confirmingId === b._id}
+                          onClick={() => handleConfirmBookingPayment(b._id)}
+                          className="w-full min-h-[44px] py-2.5 px-4 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase cursor-pointer"
+                        >
+                          {confirmingId === b._id ? 'Verifying...' : 'Confirm & Assign'}
+                        </button>
+                      ) : (
+                        <div className="text-[11px] text-emerald-400 font-bold uppercase pt-1">
+                          Active Coach Assigned
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
+        </div>
+      )}
+
+      {/* ── MOBILE TRAINER ACTION BOTTOM SHEET ── */}
+      {actionSheetTrainer && (
+        <div
+          id="trainer-action-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Manage ${actionSheetTrainer.name}`}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setActionSheetTrainer(null)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[88dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Sheet Drag Handle (Mobile) & Header */}
+            <div className="pt-2.5 sm:pt-4 px-5 pb-4 border-b border-[#252525] shrink-0">
+              <div className="w-10 h-1 bg-[#303030] rounded-full mx-auto mb-3 sm:hidden" />
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="font-label text-[#F03B2E] block mb-0.5">TRAINER ACTIONS</span>
+                  <h3 className="mm-page-title text-lg sm:text-xl truncate">
+                    {actionSheetTrainer.name}
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                    {renderStatusBadge(actionSheetTrainer.status)}
+                    {renderInvitationBadge(actionSheetTrainer.invitationStatus)}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActionSheetTrainer(null)}
+                  aria-label="Close action menu"
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Action Grid */}
+            <div className="p-4 sm:p-5 overflow-y-auto overscroll-contain space-y-3">
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleOpenDetails(actionSheetTrainer.id)}
+                  className="min-h-[48px] px-3.5 py-2.5 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center gap-2.5 cursor-pointer"
+                >
+                  <Eye className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                  <span className="truncate">View Trainer</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit(actionSheetTrainer)}
+                  className="min-h-[48px] px-3.5 py-2.5 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center gap-2.5 cursor-pointer"
+                >
+                  <Edit className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                  <span className="truncate">Edit Trainer</span>
+                </button>
+
+                {actionSheetTrainer.status === 'PENDING_ACTIVATION' ? (
+                  <button
+                    type="button"
+                    onClick={() => requestResendInvitation(actionSheetTrainer)}
+                    className="col-span-2 min-h-[48px] px-3.5 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center justify-center gap-2.5 cursor-pointer"
+                  >
+                    <Send className="w-4 h-4 shrink-0" />
+                    <span>Resend Invitation</span>
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => requestAdminResetPassword(actionSheetTrainer)}
+                      className="min-h-[48px] px-3.5 py-2.5 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <KeyRound className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                      <span className="truncate">Reset Password</span>
+                    </button>
+
+                    {actionSheetTrainer.status === 'ACTIVE' ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => requestStatusChange(actionSheetTrainer, 'SUSPENDED')}
+                          className="min-h-[48px] px-3.5 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-2.5 cursor-pointer"
+                        >
+                          <PauseCircle className="w-4 h-4 shrink-0" />
+                          <span className="truncate">Suspend</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => requestStatusChange(actionSheetTrainer, 'INACTIVE')}
+                          className="col-span-2 min-h-[48px] px-3.5 py-2.5 rounded-xl bg-[#202020] hover:bg-[#F03B2E]/20 border border-[#303030] hover:border-[#F03B2E]/40 text-xs font-bold uppercase tracking-wider text-[#B8B8B8] hover:text-[#FF493B] flex items-center justify-center gap-2.5 cursor-pointer"
+                        >
+                          <Power className="w-4 h-4 shrink-0" />
+                          <span>Deactivate Account</span>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => requestStatusChange(actionSheetTrainer, 'ACTIVE')}
+                        className="min-h-[48px] px-3.5 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/35 text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span className="truncate">
+                          {actionSheetTrainer.status === 'SUSPENDED' ? 'Reactivate' : 'Activate'}
+                        </span>
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-[#252525]">
+                <button
+                  type="button"
+                  onClick={() => requestDeleteTrainer(actionSheetTrainer)}
+                  className="w-full min-h-[48px] px-4 py-2.5 rounded-xl bg-[#F03B2E]/12 hover:bg-[#F03B2E]/25 border border-[#F03B2E]/40 text-xs font-bold uppercase tracking-wider text-[#FF493B] flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4 shrink-0" />
+                  <span>Delete Trainer</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CONFIRMATION DIALOG (Mobile & Desktop) ── */}
+      {confirmDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={confirmDialog.title}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setConfirmDialog(null)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-xl w-full sm:max-w-md p-5 sm:p-6 space-y-4 shadow-2xl pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span className="font-label text-[#F03B2E] block mb-1">CONFIRM ACTION</span>
+                <h3 className="mm-page-title text-lg sm:text-xl">{confirmDialog.title}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                aria-label="Close confirmation dialog"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs sm:text-sm text-[#B8B8B8] leading-relaxed">
+              {confirmDialog.description}
+            </p>
+
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                className="mm-btn-secondary min-h-[44px] rounded-lg w-full sm:w-auto"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDialog.onConfirm}
+                className={`min-h-[44px] px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider text-white cursor-pointer w-full sm:w-auto ${
+                  confirmDialog.tone === 'emerald'
+                    ? 'bg-emerald-600 hover:bg-emerald-500'
+                    : confirmDialog.tone === 'amber'
+                    ? 'bg-amber-600 hover:bg-amber-500'
+                    : 'bg-[#F03B2E] hover:bg-[#FF493B]'
+                }`}
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       {/* ── MODAL: INVITATION / MANUAL LINK RESULT ── */}
       {invitationModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={invitationModal.title}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
           onClick={() => setInvitationModal(null)}
         >
           <div
-            className="bg-[#181818] border border-[#303030] rounded-xl w-full max-w-lg p-6 space-y-5 shadow-2xl"
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-xl w-full sm:max-w-lg max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between border-b border-[#252525] pb-4">
-              <div>
-                <span className="font-label text-[#EB3E2E] block mb-1">
+            <div className="px-5 py-4 border-b border-[#252525] flex items-start justify-between gap-3 shrink-0">
+              <div className="min-w-0">
+                <span className="font-label text-[#F03B2E] block mb-1">
                   {invitationModal.emailDelivered ? 'EMAIL DELIVERED' : 'MANUAL INVITATION WORKFLOW'}
                 </span>
-                <h3 className="mm-page-title text-xl">{invitationModal.title}</h3>
+                <h3 className="mm-page-title text-lg sm:text-xl truncate">{invitationModal.title}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setInvitationModal(null)}
-                className="p-1.5 rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white cursor-pointer"
+                aria-label="Close modal"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs text-[#B8B8B8]">
-              <p>
+            <div className="p-5 overflow-y-auto overscroll-contain space-y-3 text-xs text-[#B8B8B8]">
+              <p className="break-words">
                 Coach: <strong className="text-[#F5F5F5]">{invitationModal.trainerName}</strong> ({invitationModal.email})
               </p>
 
@@ -900,18 +1475,18 @@ export default function Trainers() {
                       <label className="block text-[11px] font-bold uppercase tracking-wider text-[#F5F5F5]">
                         Secure Single-Use {invitationModal.linkType === 'reset' ? 'Reset' : 'Activation'} Link
                       </label>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                         <input
                           type="text"
                           readOnly
                           value={invitationModal.manualUrl}
-                          className="mm-input font-mono text-xs flex-1"
+                          className="mm-input font-mono text-xs flex-1 min-h-[44px]"
                           onFocus={(e) => e.target.select()}
                         />
                         <button
                           type="button"
                           onClick={() => handleCopyManualUrl(invitationModal.manualUrl)}
-                          className="mm-btn-primary !py-2.5 !px-4 rounded-lg shrink-0"
+                          className="mm-btn-primary !py-2.5 !px-4 min-h-[44px] rounded-lg shrink-0"
                         >
                           {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                           <span>{copiedLink ? 'Copied' : 'Copy'}</span>
@@ -927,11 +1502,11 @@ export default function Trainers() {
               )}
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-[#252525]">
+            <div className="px-5 py-4 border-t border-[#252525] flex justify-end shrink-0">
               <button
                 type="button"
                 onClick={() => setInvitationModal(null)}
-                className="mm-btn-secondary rounded-lg"
+                className="mm-btn-secondary min-h-[44px] rounded-lg w-full sm:w-auto"
               >
                 Done
               </button>
@@ -942,182 +1517,194 @@ export default function Trainers() {
 
       {/* ── ADD TRAINER MODAL (NO PLAINTEXT PASSWORD) ── */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#303030] rounded-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-[#252525] pb-3 mb-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Invite New Trainer"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setIsAddModalOpen(false)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-xl w-full sm:max-w-lg max-h-[92dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-[#252525] flex items-center justify-between shrink-0">
               <div>
-                <span className="font-label text-[#EB3E2E] block">SECURE ONBOARDING</span>
-                <h3 className="mm-page-title text-xl">INVITE NEW TRAINER</h3>
+                <span className="font-label text-[#F03B2E] block">SECURE ONBOARDING</span>
+                <h3 className="mm-page-title text-lg sm:text-xl">INVITE NEW TRAINER</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsAddModalOpen(false)}
-                className="p-1.5 rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white cursor-pointer"
+                aria-label="Close modal"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {addError && (
-              <div className="mb-4 p-3 rounded-lg bg-[#EB3E2E]/10 border border-[#EB3E2E] text-xs text-[#F5F5F5]">
-                {addError}
-              </div>
-            )}
+            <form onSubmit={handleAddSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="p-5 overflow-y-auto overscroll-contain space-y-3.5 flex-1">
+                {addError && (
+                  <div className="p-3 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E] text-xs text-[#F5F5F5]">
+                    {addError}
+                  </div>
+                )}
 
-            <form onSubmit={handleAddSubmit} className="space-y-3.5">
-              <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={addForm.name}
-                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-                  className="mm-input text-xs"
-                  placeholder="e.g. Master Coach Vignesh"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={addForm.email}
-                    onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
-                    className="mm-input text-xs"
-                    placeholder="coach@domain.com"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    required
-                    value={addForm.phone}
-                    onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
-                    className="mm-input text-xs"
-                    placeholder="9842100000 or +91 98421 00000"
-                  />
-                  <span className="text-[10px] text-[#858585] mt-1 block">
-                    10 digits starting with 6–9 (optional +91 or 0)
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
-                    Assigned Branch *
-                  </label>
-                  <select
-                    required
-                    value={addForm.branchId}
-                    onChange={(e) => setAddForm({ ...addForm, branchId: e.target.value })}
-                    className="mm-select text-xs"
-                  >
-                    {branches.map((b) => (
-                      <option key={b._id} value={b._id}>
-                        {b.city} Branch
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
-                    Employment Status
-                  </label>
-                  <select
-                    value={addForm.employmentStatus}
-                    onChange={(e) => setAddForm({ ...addForm, employmentStatus: e.target.value })}
-                    className="mm-select text-xs"
-                  >
-                    <option value="FULL_TIME">Full Time</option>
-                    <option value="PART_TIME">Part Time</option>
-                    <option value="CONTRACT">Contract</option>
-                    <option value="FREELANCE">Freelance</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
-                    Specialization *
+                    Full Name *
                   </label>
                   <input
                     type="text"
                     required
-                    value={addForm.specialization}
-                    onChange={(e) => setAddForm({ ...addForm, specialization: e.target.value })}
-                    className="mm-input text-xs"
-                    placeholder="Strength & Conditioning"
+                    value={addForm.name}
+                    onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                    className="mm-input min-h-[44px] text-xs"
+                    placeholder="e.g. Master Coach Vignesh"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
-                    Experience (Years)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={addForm.experienceYears}
-                    onChange={(e) => setAddForm({ ...addForm, experienceYears: e.target.value })}
-                    className="mm-input text-xs"
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
+                      Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={addForm.email}
+                      onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                      className="mm-input min-h-[44px] text-xs"
+                      placeholder="coach@domain.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
+                      Phone Number *
+                    </label>
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      required
+                      value={addForm.phone}
+                      onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
+                      className="mm-input min-h-[44px] text-xs"
+                      placeholder="9842100000 or +91 98421 00000"
+                    />
+                    <span className="text-[10px] text-[#858585] mt-1 block">
+                      10 digits starting with 6–9 (optional +91 or 0)
+                    </span>
+                  </div>
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
+                      Assigned Branch *
+                    </label>
+                    <select
+                      required
+                      value={addForm.branchId}
+                      onChange={(e) => setAddForm({ ...addForm, branchId: e.target.value })}
+                      className="mm-select min-h-[44px] text-xs"
+                    >
+                      {branches.map((b) => (
+                        <option key={b._id} value={b._id}>
+                          {b.city} Branch
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
+                      Employment Status
+                    </label>
+                    <select
+                      value={addForm.employmentStatus}
+                      onChange={(e) => setAddForm({ ...addForm, employmentStatus: e.target.value })}
+                      className="mm-select min-h-[44px] text-xs"
+                    >
+                      <option value="FULL_TIME">Full Time</option>
+                      <option value="PART_TIME">Part Time</option>
+                      <option value="CONTRACT">Contract</option>
+                      <option value="FREELANCE">Freelance</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
+                      Specialization *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={addForm.specialization}
+                      onChange={(e) => setAddForm({ ...addForm, specialization: e.target.value })}
+                      className="mm-input min-h-[44px] text-xs"
+                      placeholder="Strength & Conditioning"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
+                      Experience (Years)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={addForm.experienceYears}
+                      onChange={(e) => setAddForm({ ...addForm, experienceYears: e.target.value })}
+                      className="mm-input min-h-[44px] text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
+                      Qualification (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={addForm.qualification}
+                      onChange={(e) => setAddForm({ ...addForm, qualification: e.target.value })}
+                      className="mm-input min-h-[44px] text-xs"
+                      placeholder="e.g. ACE Certified / CSCS"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
+                      Profile Image URL (Optional)
+                    </label>
+                    <input
+                      type="url"
+                      value={addForm.profileImage}
+                      onChange={(e) => setAddForm({ ...addForm, profileImage: e.target.value })}
+                      className="mm-input min-h-[44px] text-xs"
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-[#858585] bg-[#111111] border border-[#252525] p-3 rounded-lg">
+                  Account status starts as <strong>PENDING_ACTIVATION</strong>. The coach sets their own password privately via a single-use 24-hour invitation link.
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
-                    Qualification (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={addForm.qualification}
-                    onChange={(e) => setAddForm({ ...addForm, qualification: e.target.value })}
-                    className="mm-input text-xs"
-                    placeholder="e.g. ACE Certified / CSCS"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
-                    Profile Image URL (Optional)
-                  </label>
-                  <input
-                    type="url"
-                    value={addForm.profileImage}
-                    onChange={(e) => setAddForm({ ...addForm, profileImage: e.target.value })}
-                    className="mm-input text-xs"
-                    placeholder="https://..."
-                  />
-                </div>
-              </div>
-
-              <p className="text-[11px] text-[#858585] bg-[#111111] border border-[#252525] p-3 rounded-lg">
-                Account status starts as <strong>PENDING_ACTIVATION</strong>. The coach sets their own password privately via a single-use 24-hour invitation link.
-              </p>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="px-5 py-4 border-t border-[#252525] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0 bg-[#181818]">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="mm-btn-secondary rounded-lg"
+                  className="mm-btn-secondary min-h-[44px] rounded-lg w-full sm:w-auto"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingAdd}
-                  className="mm-btn-primary rounded-lg"
+                  className="mm-btn-primary min-h-[44px] rounded-lg w-full sm:w-auto"
                 >
                   {submittingAdd ? 'Creating...' : 'Create & Generate Invite'}
                 </button>
@@ -1129,12 +1716,24 @@ export default function Trainers() {
 
       {/* ── TRAINER DOSSIER MODAL ── */}
       {selectedTrainerDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#303030] rounded-xl w-full max-w-xl p-6 max-h-[90vh] overflow-y-auto space-y-5">
-            <div className="flex items-start justify-between border-b border-[#252525] pb-4">
-              <div>
-                <h3 className="mm-page-title text-xl">{selectedTrainerDetails.trainer.name}</h3>
-                <span className="text-xs text-[#B8B8B8] font-mono">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Trainer dossier for ${selectedTrainerDetails.trainer.name}`}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setSelectedTrainerDetails(null)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-xl w-full sm:max-w-xl max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-[#252525] flex items-start justify-between gap-3 shrink-0">
+              <div className="min-w-0">
+                <span className="font-label text-[#F03B2E] block mb-0.5">COACH DOSSIER</span>
+                <h3 className="mm-page-title text-lg sm:text-xl truncate">
+                  {selectedTrainerDetails.trainer.name}
+                </h3>
+                <span className="text-xs text-[#B8B8B8] font-mono block truncate">
                   {selectedTrainerDetails.trainer.branch?.city} Branch •{' '}
                   {selectedTrainerDetails.trainer.specialization}
                 </span>
@@ -1142,71 +1741,92 @@ export default function Trainers() {
               <button
                 type="button"
                 onClick={() => setSelectedTrainerDetails(null)}
-                className="p-1.5 rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white cursor-pointer"
+                aria-label="Close trainer dossier"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs bg-[#111111] p-3.5 rounded-lg border border-[#252525]">
-              <div>
-                <span className="text-[10px] font-mono text-[#858585] block">STATUS</span>
-                <div className="mt-1">{renderStatusBadge(selectedTrainerDetails.trainer.status)}</div>
+            <div className="p-5 overflow-y-auto overscroll-contain space-y-5 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-[#111111] p-3.5 rounded-lg border border-[#252525]">
+                <div>
+                  <span className="text-[10px] font-mono text-[#858585] block">STATUS</span>
+                  <div className="mt-1">{renderStatusBadge(selectedTrainerDetails.trainer.status)}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] font-mono text-[#858585] block">INVITATION</span>
+                  <div className="mt-1">{renderInvitationBadge(selectedTrainerDetails.trainer.invitationStatus)}</div>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[10px] font-mono text-[#858585] block">EMAIL</span>
+                  <span className="text-[#F5F5F5] break-all">{selectedTrainerDetails.trainer.email}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-mono text-[#858585] block">PHONE</span>
+                  <span className="font-mono text-[#F5F5F5]">{selectedTrainerDetails.trainer.phone}</span>
+                </div>
               </div>
-              <div>
-                <span className="text-[10px] font-mono text-[#858585] block">INVITATION</span>
-                <div className="mt-1">{renderInvitationBadge(selectedTrainerDetails.trainer.invitationStatus)}</div>
-              </div>
-            </div>
 
-            <div>
-              <span className="font-label text-[#EB3E2E] block mb-2">
-                ASSIGNED ATHLETES ({selectedTrainerDetails.assignedClients?.length || 0})
-              </span>
-              <div className="bg-[#111111] border border-[#303030] rounded-lg divide-y divide-[#252525] max-h-48 overflow-y-auto">
-                {selectedTrainerDetails.assignedClients?.length > 0 ? (
-                  selectedTrainerDetails.assignedClients.map((client) => (
-                    <div key={client._id} className="p-3 flex items-center justify-between text-xs">
-                      <div>
-                        <span className="font-bold text-[#F5F5F5] block">{client.name}</span>
-                        <span className="text-[10px] text-[#858585] font-mono">
-                          {client.phone} • {client.email}
+              <div>
+                <span className="font-label text-[#F03B2E] block mb-2">
+                  ASSIGNED ATHLETES ({selectedTrainerDetails.assignedClients?.length || 0})
+                </span>
+                <div className="bg-[#111111] border border-[#303030] rounded-lg divide-y divide-[#252525] max-h-48 overflow-y-auto">
+                  {selectedTrainerDetails.assignedClients?.length > 0 ? (
+                    selectedTrainerDetails.assignedClients.map((client) => (
+                      <div key={client._id} className="p-3 flex items-center justify-between gap-2 text-xs">
+                        <div className="min-w-0">
+                          <span className="font-bold text-[#F5F5F5] block truncate">{client.name}</span>
+                          <span className="text-[10px] text-[#858585] font-mono break-all block">
+                            {client.phone} • {client.email}
+                          </span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 shrink-0">
+                          {client.status}
                         </span>
                       </div>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400">
-                        {client.status}
-                      </span>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-xs text-[#B8B8B8]">
+                      No clients currently assigned to this coach.
                     </div>
-                  ))
-                ) : (
-                  <div className="p-4 text-center text-xs text-[#B8B8B8]">
-                    No clients currently assigned to this coach.
-                  </div>
-                )}
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <span className="font-label text-[#B8B8B8] block mb-2">
+                  ACTIVE WORKOUT PLANS ({selectedTrainerDetails.workoutPlans?.length || 0})
+                </span>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {selectedTrainerDetails.workoutPlans?.length > 0 ? (
+                    selectedTrainerDetails.workoutPlans.map((wp) => (
+                      <div
+                        key={wp._id}
+                        className="p-2.5 rounded-lg bg-[#111111] border border-[#252525] flex justify-between items-center gap-2 text-xs"
+                      >
+                        <span className="font-semibold text-[#F5F5F5] truncate">{wp.title}</span>
+                        <span className="text-[10px] font-mono text-[#F03B2E] shrink-0">
+                          For: {wp.assignedTo?.name || 'Template'}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-[#858585] italic">No workout plans assigned yet.</p>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div>
-              <span className="font-label text-[#B8B8B8] block mb-2">
-                ACTIVE WORKOUT PLANS ({selectedTrainerDetails.workoutPlans?.length || 0})
-              </span>
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {selectedTrainerDetails.workoutPlans?.length > 0 ? (
-                  selectedTrainerDetails.workoutPlans.map((wp) => (
-                    <div
-                      key={wp._id}
-                      className="p-2.5 rounded-lg bg-[#111111] border border-[#252525] flex justify-between items-center text-xs"
-                    >
-                      <span className="font-semibold text-[#F5F5F5]">{wp.title}</span>
-                      <span className="text-[10px] font-mono text-[#EB3E2E]">
-                        For: {wp.assignedTo?.name || 'Template'}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-xs text-[#858585] italic">No workout plans assigned yet.</p>
-                )}
-              </div>
+            <div className="px-5 py-3.5 border-t border-[#252525] flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedTrainerDetails(null)}
+                className="mm-btn-secondary min-h-[44px] rounded-lg w-full sm:w-auto"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -1214,119 +1834,155 @@ export default function Trainers() {
 
       {/* ── EDIT TRAINER MODAL ── */}
       {editingTrainer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#303030] rounded-xl w-full max-w-md p-6">
-            <h3 className="mm-page-title text-xl mb-4">EDIT TRAINER PROFILE</h3>
-
-            <form onSubmit={handleEditSubmit} className="space-y-3">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Edit ${editingTrainer.name}`}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setEditingTrainer(null)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-[#252525] flex items-center justify-between shrink-0">
               <div>
-                <label className="block text-[11px] font-semibold uppercase text-[#B8B8B8] mb-1">
-                  Coach Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="mm-input text-xs"
-                />
+                <span className="font-label text-[#F03B2E] block">UPDATE RECORD</span>
+                <h3 className="mm-page-title text-lg sm:text-xl">EDIT TRAINER PROFILE</h3>
               </div>
+              <button
+                type="button"
+                onClick={() => setEditingTrainer(null)}
+                aria-label="Close edit modal"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleEditSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="p-5 overflow-y-auto overscroll-contain space-y-3 flex-1">
+                {editError && (
+                  <div className="p-3 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E] text-xs text-[#F5F5F5]">
+                    {editError}
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-[11px] font-semibold uppercase text-[#B8B8B8] mb-1">
-                    Phone
+                    Coach Name
                   </label>
                   <input
                     type="text"
                     required
-                    value={editForm.phone}
-                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                    className="mm-input text-xs"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="mm-input min-h-[44px] text-xs"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase text-[#B8B8B8] mb-1">
-                    Branch
-                  </label>
-                  <select
-                    value={editForm.branchId}
-                    onChange={(e) => setEditForm({ ...editForm, branchId: e.target.value })}
-                    className="mm-select text-xs"
-                  >
-                    {branches.map((b) => (
-                      <option key={b._id} value={b._id}>
-                        {b.city}
-                      </option>
-                    ))}
-                  </select>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase text-[#B8B8B8] mb-1">
+                      Phone
+                    </label>
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      required
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                      className="mm-input min-h-[44px] text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase text-[#B8B8B8] mb-1">
+                      Branch
+                    </label>
+                    <select
+                      value={editForm.branchId}
+                      onChange={(e) => setEditForm({ ...editForm, branchId: e.target.value })}
+                      className="mm-select min-h-[44px] text-xs"
+                    >
+                      {branches.map((b) => (
+                        <option key={b._id} value={b._id}>
+                          {b.city}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase text-[#B8B8B8] mb-1">
+                      Specialization
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.specialization}
+                      onChange={(e) => setEditForm({ ...editForm, specialization: e.target.value })}
+                      className="mm-input min-h-[44px] text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase text-[#B8B8B8] mb-1">
+                      Experience (Yrs)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editForm.experienceYears}
+                      onChange={(e) => setEditForm({ ...editForm, experienceYears: e.target.value })}
+                      className="mm-input min-h-[44px] text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase text-[#B8B8B8] mb-1">
+                      Qualification
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.qualification}
+                      onChange={(e) => setEditForm({ ...editForm, qualification: e.target.value })}
+                      className="mm-input min-h-[44px] text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase text-[#B8B8B8] mb-1">
+                      Employment
+                    </label>
+                    <select
+                      value={editForm.employmentStatus}
+                      onChange={(e) => setEditForm({ ...editForm, employmentStatus: e.target.value })}
+                      className="mm-select min-h-[44px] text-xs"
+                    >
+                      <option value="FULL_TIME">Full Time</option>
+                      <option value="PART_TIME">Part Time</option>
+                      <option value="CONTRACT">Contract</option>
+                      <option value="FREELANCE">Freelance</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase text-[#B8B8B8] mb-1">
-                    Specialization
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.specialization}
-                    onChange={(e) => setEditForm({ ...editForm, specialization: e.target.value })}
-                    className="mm-input text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase text-[#B8B8B8] mb-1">
-                    Experience (Yrs)
-                  </label>
-                  <input
-                    type="number"
-                    value={editForm.experienceYears}
-                    onChange={(e) => setEditForm({ ...editForm, experienceYears: e.target.value })}
-                    className="mm-input text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase text-[#B8B8B8] mb-1">
-                    Qualification
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.qualification}
-                    onChange={(e) => setEditForm({ ...editForm, qualification: e.target.value })}
-                    className="mm-input text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase text-[#B8B8B8] mb-1">
-                    Employment
-                  </label>
-                  <select
-                    value={editForm.employmentStatus}
-                    onChange={(e) => setEditForm({ ...editForm, employmentStatus: e.target.value })}
-                    className="mm-select text-xs"
-                  >
-                    <option value="FULL_TIME">Full Time</option>
-                    <option value="PART_TIME">Part Time</option>
-                    <option value="CONTRACT">Contract</option>
-                    <option value="FREELANCE">Freelance</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3">
+              <div className="px-5 py-4 border-t border-[#252525] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0 bg-[#181818]">
                 <button
                   type="button"
                   onClick={() => setEditingTrainer(null)}
-                  className="mm-btn-secondary rounded-lg"
+                  className="mm-btn-secondary min-h-[44px] rounded-lg w-full sm:w-auto"
                 >
                   Cancel
                 </button>
-                <button type="submit" className="mm-btn-primary rounded-lg">
-                  Save Changes
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="mm-btn-primary min-h-[44px] rounded-lg w-full sm:w-auto"
+                >
+                  {savingEdit ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>

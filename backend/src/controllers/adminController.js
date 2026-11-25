@@ -1028,7 +1028,7 @@ const resetClientPassword = async (req, res, next) => {
 
 const getTrainers = async (req, res, next) => {
   try {
-    const { branchId, search } = req.query;
+    const { branchId, search, page, limit } = req.query;
     const query = { role: 'TRAINER' };
 
     if (branchId && branchId !== 'ALL' && mongoose.Types.ObjectId.isValid(branchId)) {
@@ -1043,7 +1043,17 @@ const getTrainers = async (req, res, next) => {
       ];
     }
 
-    const trainers = await User.find(query).sort({ createdAt: -1 }).populate('branchId', 'name city');
+    const total = await User.countDocuments(query);
+    const hasPagination = page !== undefined || limit !== undefined;
+    const parsedPage = Math.max(1, parseInt(page, 10) || 1);
+    const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+
+    let trainerQuery = User.find(query).sort({ createdAt: -1 }).populate('branchId', 'name city');
+    if (hasPagination) {
+      trainerQuery = trainerQuery.skip((parsedPage - 1) * parsedLimit).limit(parsedLimit);
+    }
+
+    const trainers = await trainerQuery;
 
     const trainersWithProfiles = await Promise.all(
       trainers.map(async (t) => {
@@ -1074,7 +1084,20 @@ const getTrainers = async (req, res, next) => {
       })
     );
 
-    res.status(200).json({ success: true, count: trainersWithProfiles.length, trainers: trainersWithProfiles });
+    const totalPages = hasPagination ? Math.max(1, Math.ceil(total / parsedLimit)) : 1;
+
+    res.status(200).json({
+      success: true,
+      count: trainersWithProfiles.length,
+      total,
+      trainers: trainersWithProfiles,
+      pagination: {
+        total,
+        page: hasPagination ? parsedPage : 1,
+        limit: hasPagination ? parsedLimit : total || trainersWithProfiles.length,
+        totalPages,
+      },
+    });
   } catch (err) {
     next(err);
   }
