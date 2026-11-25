@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ClipboardList,
   Plus,
   Search,
-  Filter,
   CheckCircle2,
   XCircle,
   AlertTriangle,
@@ -13,13 +12,15 @@ import {
   Trash2,
   Power,
   Eye,
-  Calendar,
-  Layers,
-  Sparkles,
   RefreshCw,
   Clock,
-  ArrowRight,
   ShieldAlert,
+  MoreVertical,
+  SlidersHorizontal,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  RotateCcw,
 } from 'lucide-react';
 import adminService from '../../services/adminService.js';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
@@ -28,6 +29,7 @@ export default function MembershipPlans() {
   const { branches, selectedBranch } = useAdmin();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionFeedback, setActionFeedback] = useState(null);
 
   // Plans and Summary state
   const [plans, setPlans] = useState([]);
@@ -40,24 +42,29 @@ export default function MembershipPlans() {
 
   // Filters & Pagination
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState(selectedBranch);
   const [planTypeFilter, setPlanTypeFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [durationFilter, setDurationFilter] = useState('ALL');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Modals
+  // Modals & Bottom Sheets
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
   const [viewingPlanId, setViewingPlanId] = useState(null);
   const [viewingPlanData, setViewingPlanData] = useState(null);
   const [viewingLoading, setViewingLoading] = useState(false);
+  const [actionSheetPlan, setActionSheetPlan] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const [busyPlanId, setBusyPlanId] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
   const [deleteWarningModal, setDeleteWarningModal] = useState(null); // { plan, message }
 
-  // Available benefit options
   const defaultBenefitOptions = [
     'Access to all gym equipment',
     'Full Air-Conditioned Facility',
@@ -70,9 +77,7 @@ export default function MembershipPlans() {
     '1-on-1 Personal Training Session Included',
   ];
 
-  // Default empty form
   const getInitialForm = () => {
-    // Generate pricing for all known branches
     const pricing = branches.map((b) => ({
       branchId: b._id,
       branchName: b.city,
@@ -89,6 +94,7 @@ export default function MembershipPlans() {
       description: '',
       planType: 'MONTHLY',
       durationDays: 30,
+      isActive: true,
       benefits: [
         'Access to all gym equipment',
         'Full Air-Conditioned Facility',
@@ -96,11 +102,14 @@ export default function MembershipPlans() {
         'Locker Privileges',
       ],
       customBenefit: '',
-      branchPricing: pricing.length > 0 ? pricing : [
-        { branchId: '', branchName: 'Kovilpatti', isAvailable: true, basePrice: 2000, joiningFee: 500, discountType: 'NONE', discountValue: 0 },
-        { branchId: '', branchName: 'Karur', isAvailable: true, basePrice: 2200, joiningFee: 500, discountType: 'NONE', discountValue: 0 },
-        { branchId: '', branchName: 'Sivakasi', isAvailable: true, basePrice: 2100, joiningFee: 500, discountType: 'NONE', discountValue: 0 },
-      ],
+      branchPricing:
+        pricing.length > 0
+          ? pricing
+          : [
+              { branchId: '', branchName: 'Kovilpatti', isAvailable: true, basePrice: 2000, joiningFee: 500, discountType: 'NONE', discountValue: 0 },
+              { branchId: '', branchName: 'Karur', isAvailable: true, basePrice: 2200, joiningFee: 500, discountType: 'NONE', discountValue: 0 },
+              { branchId: '', branchName: 'Sivakasi', isAvailable: true, basePrice: 2100, joiningFee: 500, discountType: 'NONE', discountValue: 0 },
+            ],
     };
   };
 
@@ -111,43 +120,123 @@ export default function MembershipPlans() {
     setPage(1);
   }, [selectedBranch]);
 
-  const fetchPlans = async () => {
+  const anyOverlayOpen = Boolean(
+    isCreateModalOpen ||
+      viewingPlanId ||
+      actionSheetPlan ||
+      confirmDialog ||
+      deleteWarningModal
+  );
+
+  // Lock background scroll whenever any modal/sheet is open
+  useEffect(() => {
+    if (!anyOverlayOpen) return undefined;
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtml = html.style.overflow;
+    const prevBody = body.style.overflow;
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    return () => {
+      html.style.overflow = prevHtml;
+      body.style.overflow = prevBody;
+    };
+  }, [anyOverlayOpen]);
+
+  // Close topmost overlay on Escape
+  useEffect(() => {
+    if (!anyOverlayOpen) return undefined;
+    const handleKeyDown = (e) => {
+      if (e.key !== 'Escape') return;
+      if (deleteWarningModal) setDeleteWarningModal(null);
+      else if (confirmDialog) setConfirmDialog(null);
+      else if (isCreateModalOpen) setIsCreateModalOpen(false);
+      else if (actionSheetPlan) setActionSheetPlan(null);
+      else if (viewingPlanId) {
+        setViewingPlanId(null);
+        setViewingPlanData(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    anyOverlayOpen,
+    deleteWarningModal,
+    confirmDialog,
+    isCreateModalOpen,
+    actionSheetPlan,
+    viewingPlanId,
+  ]);
+
+  const showFeedback = (type, message) => {
+    setActionFeedback({ type, message });
+    setTimeout(() => {
+      setActionFeedback((curr) => (curr?.message === message ? null : curr));
+    }, 4500);
+  };
+
+  const fetchPlans = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await adminService.getMembershipPlans({
-        search,
+        search: appliedSearch,
         branchId: branchFilter,
         planType: planTypeFilter,
         status: statusFilter,
+        durationDays: durationFilter,
         page,
-        limit: 15,
+        limit: pageSize,
       });
 
       setPlans(res.plans || []);
       if (res.summary) {
         setSummary(res.summary);
       }
-      setTotalPages(res.totalPages || 1);
+      setTotalPages(Math.max(1, res.totalPages || 1));
       setTotalCount(res.total || 0);
     } catch (err) {
       setError(err.message || 'Failed to fetch membership plans');
     } finally {
       setLoading(false);
     }
-  };
+  }, [appliedSearch, branchFilter, planTypeFilter, statusFilter, durationFilter, page, pageSize]);
 
   useEffect(() => {
     fetchPlans();
-  }, [page, branchFilter, planTypeFilter, statusFilter]);
+  }, [fetchPlans]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     setPage(1);
-    fetchPlans();
+    setAppliedSearch(search.trim());
   };
 
-  // Helper to calculate preview price for a branch in form
+  const handleClearSearch = () => {
+    setSearch('');
+    setPage(1);
+    setAppliedSearch('');
+  };
+
+  const handleResetFilters = () => {
+    setSearch('');
+    setAppliedSearch('');
+    setBranchFilter('ALL');
+    setPlanTypeFilter('ALL');
+    setStatusFilter('ALL');
+    setDurationFilter('ALL');
+    setPage(1);
+  };
+
+  const hasActiveFilters = Boolean(
+    appliedSearch ||
+      branchFilter !== 'ALL' ||
+      planTypeFilter !== 'ALL' ||
+      statusFilter !== 'ALL' ||
+      durationFilter !== 'ALL'
+  );
+
+  // Helper to calculate preview price for a branch in form (matches backend calculateBranchFinalPrice)
   const getBranchPreviewPrice = (bp) => {
     const base = Math.max(0, Number(bp.basePrice) || 0);
     const fee = Math.max(0, Number(bp.joiningFee) || 0);
@@ -164,7 +253,6 @@ export default function MembershipPlans() {
     return Math.max(0, base + fee - discountAmt);
   };
 
-  // Open Create Modal
   const handleOpenCreate = () => {
     setEditingPlan(null);
     setFormError(null);
@@ -185,6 +273,7 @@ export default function MembershipPlans() {
       description: '',
       planType: 'MONTHLY',
       durationDays: 30,
+      isActive: true,
       benefits: [
         'Access to all gym equipment',
         'Full Air-Conditioned Facility',
@@ -197,23 +286,22 @@ export default function MembershipPlans() {
     setIsCreateModalOpen(true);
   };
 
-  // Open Edit Modal
   const handleOpenEdit = (plan) => {
+    setActionSheetPlan(null);
     setEditingPlan(plan);
     setFormError(null);
 
-    // Build branch pricing matching current branches list
     const pricing = branches.map((b) => {
       const existing = plan.branchPricing?.find(
-        (bp) => bp.branchId?._id === b._id || bp.branchId === b._id
+        (bp) => (bp.branchId?._id || bp.branchId) === b._id
       );
 
       return {
         branchId: b._id,
         branchName: b.city,
-        isAvailable: existing ? existing.isAvailable : true,
-        basePrice: existing ? existing.basePrice : plan.price || 2000,
-        joiningFee: existing ? existing.joiningFee : 500,
+        isAvailable: existing ? existing.isAvailable : false,
+        basePrice: existing ? existing.basePrice : plan.price || 0,
+        joiningFee: existing ? existing.joiningFee : 0,
         discountType: existing ? existing.discountType : 'NONE',
         discountValue: existing ? existing.discountValue : 0,
       };
@@ -224,7 +312,8 @@ export default function MembershipPlans() {
       code: plan.code || '',
       description: plan.description || '',
       planType: plan.planType || 'MONTHLY',
-      durationDays: plan.durationDays || (plan.durationMonths * 30) || 30,
+      durationDays: plan.durationDays || plan.durationMonths * 30 || 30,
+      isActive: Boolean(plan.isActive),
       benefits: plan.benefits && plan.benefits.length > 0 ? [...plan.benefits] : [...(plan.features || [])],
       customBenefit: '',
       branchPricing: pricing,
@@ -232,21 +321,21 @@ export default function MembershipPlans() {
     setIsCreateModalOpen(true);
   };
 
-  // View Details Drawer/Modal
   const handleOpenView = async (id) => {
+    setActionSheetPlan(null);
     setViewingPlanId(id);
     setViewingLoading(true);
     try {
       const res = await adminService.getMembershipPlanById(id);
       setViewingPlanData(res);
     } catch (err) {
-      alert(err.message || 'Failed to load plan details');
+      setViewingPlanId(null);
+      showFeedback('error', err.message || 'Failed to load plan details');
     } finally {
       setViewingLoading(false);
     }
   };
 
-  // Handle Form Submission (Create or Edit)
   const handleSubmitPlan = async (e) => {
     e.preventDefault();
     setFormSubmitting(true);
@@ -256,7 +345,6 @@ export default function MembershipPlans() {
       if (!formData.name.trim()) {
         throw new Error('Please enter a plan name.');
       }
-
       if (!formData.durationDays || Number(formData.durationDays) < 1) {
         throw new Error('Please enter a valid positive duration in days.');
       }
@@ -266,7 +354,6 @@ export default function MembershipPlans() {
         throw new Error('At least one branch must be enabled for this membership plan.');
       }
 
-      // Check prices
       for (const bp of formData.branchPricing) {
         if (bp.isAvailable) {
           if (Number(bp.basePrice) < 0) {
@@ -287,6 +374,7 @@ export default function MembershipPlans() {
         description: formData.description.trim(),
         planType: formData.planType,
         durationDays: Number(formData.durationDays),
+        isActive: Boolean(formData.isActive),
         benefits: formData.benefits,
         branchPricing: formData.branchPricing.map((bp) => ({
           branchId: bp.branchId,
@@ -300,12 +388,15 @@ export default function MembershipPlans() {
 
       if (editingPlan) {
         await adminService.updateMembershipPlan(editingPlan._id, payload);
+        showFeedback('success', `Plan "${payload.name}" updated. Existing client passes keep their historical pricing.`);
       } else {
         await adminService.createMembershipPlan(payload);
+        setPage(1);
+        showFeedback('success', `Membership plan "${payload.name}" created.`);
       }
 
       setIsCreateModalOpen(false);
-      fetchPlans();
+      await fetchPlans();
     } catch (err) {
       setFormError(err.message || 'Failed to save membership plan');
     } finally {
@@ -313,55 +404,100 @@ export default function MembershipPlans() {
     }
   };
 
-  // Toggle Plan Status
-  const handleToggleStatus = async (plan) => {
+  const executeToggleStatus = async (planId, nextState, planName = 'plan') => {
+    try {
+      setBusyPlanId(planId);
+      await adminService.toggleMembershipPlanStatus(planId, nextState);
+      showFeedback('success', `"${planName}" ${nextState ? 'activated' : 'deactivated'}.`);
+      await fetchPlans();
+    } catch (err) {
+      showFeedback('error', err.message || 'Failed to update plan status');
+    } finally {
+      setBusyPlanId(null);
+    }
+  };
+
+  const requestToggleStatus = (plan) => {
+    setActionSheetPlan(null);
     const nextState = !plan.isActive;
-    const confirmMsg = nextState
-      ? `Activate "${plan.name}" so clients can choose it?`
-      : `Deactivate "${plan.name}"? New clients will no longer be able to select this plan, but existing memberships remain active.`;
-
-    if (!window.confirm(confirmMsg)) return;
-
-    try {
-      await adminService.toggleMembershipPlanStatus(plan._id, nextState);
-      fetchPlans();
-    } catch (err) {
-      alert(err.message || 'Failed to update plan status');
-    }
+    setConfirmDialog({
+      title: nextState ? 'Activate Membership Plan' : 'Deactivate Membership Plan',
+      confirmLabel: nextState ? 'Activate Plan' : 'Deactivate Plan',
+      tone: nextState ? 'emerald' : 'amber',
+      description: nextState
+        ? `Activate "${plan.name}" so branches and clients can select it?`
+        : `Deactivate "${plan.name}"? New purchases will be prevented while existing client memberships remain intact.`,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        await executeToggleStatus(plan._id, nextState, plan.name);
+      },
+    });
   };
 
-  // Duplicate Plan
-  const handleDuplicate = async (plan) => {
-    if (!window.confirm(`Create a duplicate copy of "${plan.name}"?`)) return;
-
-    try {
-      await adminService.duplicateMembershipPlan(plan._id);
-      fetchPlans();
-    } catch (err) {
-      alert(err.message || 'Failed to duplicate plan');
-    }
+  const requestDuplicate = (plan) => {
+    setActionSheetPlan(null);
+    setConfirmDialog({
+      title: 'Duplicate Membership Plan',
+      confirmLabel: 'Duplicate Plan',
+      tone: 'red',
+      description: `Create a duplicate template copy of "${plan.name}" with all branch pricing rules?`,
+      onConfirm: async () => {
+        try {
+          setBusyPlanId(plan._id);
+          await adminService.duplicateMembershipPlan(plan._id);
+          setConfirmDialog(null);
+          showFeedback('success', `Duplicated "${plan.name}".`);
+          await fetchPlans();
+        } catch (err) {
+          setConfirmDialog(null);
+          showFeedback('error', err.message || 'Failed to duplicate plan');
+        } finally {
+          setBusyPlanId(null);
+        }
+      },
+    });
   };
 
-  // Delete Plan
-  const handleDelete = async (plan) => {
-    if (!window.confirm(`Are you sure you want to delete "${plan.name}"? If any member has ever used this plan, hard deletion will be blocked by system safety controls.`)) return;
-
-    try {
-      await adminService.deleteMembershipPlan(plan._id);
-      fetchPlans();
-    } catch (err) {
-      if (err.message && (err.message.includes('linked to member records') || err.message.includes('payment transactions'))) {
-        setDeleteWarningModal({
-          plan,
-          message: err.message,
-        });
-      } else {
-        alert(err.message || 'Failed to delete plan');
-      }
-    }
+  const requestDelete = (plan) => {
+    setActionSheetPlan(null);
+    setConfirmDialog({
+      title: 'Delete Membership Plan',
+      confirmLabel: 'Delete Plan',
+      tone: 'red',
+      description: `Delete "${plan.name}"? If any active or historical memberships or payment transactions reference this plan, deletion will be safely blocked.`,
+      onConfirm: async () => {
+        try {
+          setBusyPlanId(plan._id);
+          await adminService.deleteMembershipPlan(plan._id);
+          setConfirmDialog(null);
+          showFeedback('success', `Membership plan "${plan.name}" deleted.`);
+          if (plans.length === 1 && page > 1) {
+            setPage((p) => p - 1);
+          } else {
+            await fetchPlans();
+          }
+        } catch (err) {
+          setConfirmDialog(null);
+          if (
+            err.message &&
+            (err.message.includes('linked to member records') ||
+              err.message.includes('payment transactions') ||
+              err.message.includes('Cannot delete plan'))
+          ) {
+            setDeleteWarningModal({
+              plan,
+              message: err.message,
+            });
+          } else {
+            showFeedback('error', err.message || 'Failed to delete plan');
+          }
+        } finally {
+          setBusyPlanId(null);
+        }
+      },
+    });
   };
 
-  // Benefit toggle helper in form
   const toggleBenefit = (item) => {
     setFormData((prev) => {
       const exists = prev.benefits.includes(item);
@@ -372,20 +508,21 @@ export default function MembershipPlans() {
     });
   };
 
-  // Add custom benefit
   const handleAddCustomBenefit = (e) => {
     e.preventDefault();
-    if (!formData.customBenefit.trim()) return;
-    if (!formData.benefits.includes(formData.customBenefit.trim())) {
+    const val = formData.customBenefit.trim();
+    if (!val) return;
+    if (!formData.benefits.includes(val)) {
       setFormData((prev) => ({
         ...prev,
-        benefits: [...prev.benefits, prev.customBenefit.trim()],
+        benefits: [...prev.benefits, val],
         customBenefit: '',
       }));
+    } else {
+      setFormData((prev) => ({ ...prev, customBenefit: '' }));
     }
   };
 
-  // Update specific branch pricing field
   const updateBranchField = (index, field, value) => {
     setFormData((prev) => {
       const updated = [...prev.branchPricing];
@@ -394,7 +531,6 @@ export default function MembershipPlans() {
     });
   };
 
-  // Format INR Currency
   const formatINR = (val) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -403,11 +539,9 @@ export default function MembershipPlans() {
     }).format(val || 0);
   };
 
-  // Find price for a city in table
   const getCityPricing = (plan, cityName) => {
     if (!plan.branchPricing || plan.branchPricing.length === 0) {
-      // Legacy fallback
-      return { isAvailable: plan.isActive, finalPrice: plan.price || 0, basePrice: plan.price || 0 };
+      return { isAvailable: Boolean(plan.isActive && plan.price !== undefined), finalPrice: plan.price || 0, basePrice: plan.price || 0, joiningFee: 0 };
     }
 
     const bp = plan.branchPricing.find((b) => {
@@ -419,140 +553,195 @@ export default function MembershipPlans() {
     return bp;
   };
 
+  // Normalized list of branches + actual DB pricing for mobile cards
+  const getPlanBranchRows = (plan) => {
+    if (branches.length > 0) {
+      return branches.map((b) => {
+        const bp = plan.branchPricing?.find(
+          (item) => (item.branchId?._id || item.branchId) === b._id
+        );
+        return {
+          key: b._id,
+          city: b.city,
+          isAvailable: Boolean(bp?.isAvailable),
+          basePrice: bp?.basePrice || 0,
+          joiningFee: bp?.joiningFee || 0,
+          discountType: bp?.discountType || 'NONE',
+          discountValue: bp?.discountValue || 0,
+          finalPrice: bp?.finalPrice ?? 0,
+        };
+      });
+    }
+    return (plan.branchPricing || []).map((bp, idx) => ({
+      key: bp.branchId?._id || idx,
+      city: bp.branchId?.city || bp.branchId?.name || `Branch ${idx + 1}`,
+      isAvailable: Boolean(bp.isAvailable),
+      basePrice: bp.basePrice || 0,
+      joiningFee: bp.joiningFee || 0,
+      discountType: bp.discountType || 'NONE',
+      discountValue: bp.discountValue || 0,
+      finalPrice: bp.finalPrice ?? 0,
+    }));
+  };
+
+  const startIndex = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endIndex = Math.min(totalCount, page * pageSize);
+
   return (
-    <div className="space-y-6">
-      {/* ── HEADER ── */}
+    <div className="space-y-5 sm:space-y-6 min-w-0">
+      {/* ── HEADER & CREATE CTA ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono uppercase text-[#EB3E2E] tracking-wider">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-mono uppercase text-[#F03B2E] tracking-wider">
               PRICING &amp; MEMBERSHIP TIERS
             </span>
             <span className="text-[#303030]">•</span>
             <span className="text-xs text-[#B8B8B8] font-mono">Branch-Specific Rates</span>
           </div>
-          <h2
-            className="text-xl sm:text-2xl font-bold uppercase tracking-tight text-[#F5F5F5] mt-1"
-            style={{ fontFamily: "'Oswald', sans-serif" }}
-          >
+          <h2 className="mm-page-title text-2xl sm:text-3xl mt-1">
             MEMBERSHIP PLANS CATALOG
           </h2>
-          <p className="text-xs text-[#B8B8B8] mt-0.5">
-            Configure flexible gym pass templates with independent branch pricing for Kovilpatti, Karur, and Sivakasi.
+          <p className="text-xs sm:text-sm text-[#B8B8B8] mt-0.5">
+            Configure gym pass templates with independent branch pricing for Kovilpatti, Karur, and Sivakasi.
           </p>
         </div>
 
         <button
           type="button"
           onClick={handleOpenCreate}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white transition-all cursor-pointer shadow-lg shadow-[#EB3E2E]/10 shrink-0"
+          className="min-h-[44px] flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#F03B2E] hover:bg-[#FF493B] text-white transition-all cursor-pointer shadow-lg shadow-[#F03B2E]/15 w-full sm:w-auto shrink-0"
         >
-          <Plus className="w-4 h-4" />
-          <span>+ Create New Plan</span>
+          <Plus className="w-4 h-4 shrink-0" />
+          <span>Add Membership Plan</span>
         </button>
       </div>
 
+      {/* ── ACTION FEEDBACK BANNER ── */}
+      {actionFeedback && (
+        <div
+          role="status"
+          className={`rounded-xl p-3.5 flex items-center justify-between gap-3 text-xs border ${
+            actionFeedback.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-200'
+              : 'bg-[#F03B2E]/10 border-[#F03B2E]/40 text-[#FF6A5E]'
+          }`}
+        >
+          <span className="min-w-0 break-words">{actionFeedback.message}</span>
+          <button
+            type="button"
+            onClick={() => setActionFeedback(null)}
+            aria-label="Dismiss notification"
+            className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-black/20 shrink-0 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* ── 4 SUMMARY CARDS ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
-        {/* Total Plans */}
-        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#B8B8B8]">TOTAL PLANS</span>
-            <div className="w-8 h-8 rounded-lg bg-[#202020] border border-[#303030] flex items-center justify-center text-[#F5F5F5]">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-mono uppercase text-[#B8B8B8]">TOTAL PLANS</span>
+            <div className="w-8 h-8 rounded-lg bg-[#202020] border border-[#303030] flex items-center justify-center text-[#F5F5F5] shrink-0">
               <ClipboardList className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3 flex flex-col">
-            <span
-              className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
-              style={{ fontFamily: "'Oswald', sans-serif" }}
-            >
-              {summary.totalPlans}
-            </span>
-            <span className="text-[11px] text-[#B8B8B8] mt-0.5">Configured Templates</span>
+          <div className="mt-2.5">
+            <span className="mm-kpi-value text-2xl sm:text-3xl block">{summary.totalPlans}</span>
+            <span className="text-[11px] text-[#B8B8B8]">Plan Templates</span>
           </div>
         </div>
 
-        {/* Active Plans */}
-        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#B8B8B8]">ACTIVE PLANS</span>
-            <div className="w-8 h-8 rounded-lg bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-400">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-mono uppercase text-[#B8B8B8]">ACTIVE</span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
               <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3 flex flex-col">
-            <span
-              className="text-2xl sm:text-3xl font-bold text-green-400"
-              style={{ fontFamily: "'Oswald', sans-serif" }}
-            >
+          <div className="mt-2.5">
+            <span className="font-display text-2xl sm:text-3xl font-bold text-emerald-400 block">
               {summary.activePlans}
             </span>
-            <span className="text-[11px] text-[#B8B8B8] mt-0.5">Available to Clients</span>
+            <span className="text-[11px] text-[#B8B8B8]">Available</span>
           </div>
         </div>
 
-        {/* Inactive Plans */}
-        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#B8B8B8]">INACTIVE PLANS</span>
-            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-mono uppercase text-[#B8B8B8]">INACTIVE</span>
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
               <XCircle className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3 flex flex-col">
-            <span
-              className="text-2xl sm:text-3xl font-bold text-amber-400"
-              style={{ fontFamily: "'Oswald', sans-serif" }}
-            >
+          <div className="mt-2.5">
+            <span className="font-display text-2xl sm:text-3xl font-bold text-amber-400 block">
               {summary.inactivePlans}
             </span>
-            <span className="text-[11px] text-[#B8B8B8] mt-0.5">Archived / Paused</span>
+            <span className="text-[11px] text-[#B8B8B8]">Paused</span>
           </div>
         </div>
 
-        {/* Branches Covered */}
-        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between hover:border-[#EB3E2E]/40 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase text-[#B8B8B8]">BRANCHES COVERED</span>
-            <div className="w-8 h-8 rounded-lg bg-[#EB3E2E]/10 border border-[#EB3E2E]/20 flex items-center justify-center text-[#EB3E2E]">
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-mono uppercase text-[#B8B8B8]">BRANCHES</span>
+            <div className="w-8 h-8 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E]/20 flex items-center justify-center text-[#F03B2E] shrink-0">
               <Building className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3 flex flex-col">
-            <span
-              className="text-2xl sm:text-3xl font-bold text-[#F5F5F5]"
-              style={{ fontFamily: "'Oswald', sans-serif" }}
-            >
-              {summary.branchesCovered} / 3
+          <div className="mt-2.5">
+            <span className="mm-kpi-value text-2xl sm:text-3xl block">
+              {summary.branchesCovered} / {branches.length || 3}
             </span>
-            <span className="text-[11px] text-[#B8B8B8] mt-0.5">Kovilpatti, Karur, Sivakasi</span>
+            <span className="text-[11px] text-[#B8B8B8] truncate block">Covered Hubs</span>
           </div>
         </div>
       </div>
 
       {/* ── SEARCH & FILTER CONTROLS ── */}
-      <div className="bg-[#111111] border border-[#303030] rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        <form onSubmit={handleSearchSubmit} className="flex-1 relative">
-          <Search className="w-4 h-4 text-[#B8B8B8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search plans by name, code or description..."
-            className="w-full pl-9 pr-4 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] placeholder-[#B8B8B8] focus:border-[#EB3E2E] focus:outline-none"
-          />
+      <div className="bg-[#111111] border border-[#303030] rounded-2xl p-3.5 sm:p-4 space-y-3">
+        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 min-w-0">
+          <div className="relative flex-1 min-w-0">
+            <Search className="w-4 h-4 text-[#858585] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search plans by name or code..."
+              aria-label="Search membership plans by name"
+              className="w-full min-h-[44px] pl-10 pr-10 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] placeholder-[#858585] focus:border-[#F03B2E] focus:outline-none"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                aria-label="Clear search"
+                className="absolute right-1 top-1/2 -translate-y-1/2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-[#858585] hover:text-[#F5F5F5] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <button
+            type="submit"
+            className="min-h-[44px] px-4 py-2 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] cursor-pointer shrink-0"
+          >
+            Search
+          </button>
         </form>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
           {/* Branch Filter */}
           <select
+            aria-label="Filter plans by branch"
             value={branchFilter}
             onChange={(e) => {
               setBranchFilter(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none cursor-pointer"
+            className="w-full min-h-[44px] px-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none cursor-pointer"
           >
             <option value="ALL">All Branches</option>
             {branches.map((b) => (
@@ -564,12 +753,13 @@ export default function MembershipPlans() {
 
           {/* Plan Type Filter */}
           <select
+            aria-label="Filter plans by type"
             value={planTypeFilter}
             onChange={(e) => {
               setPlanTypeFilter(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none cursor-pointer"
+            className="w-full min-h-[44px] px-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none cursor-pointer"
           >
             <option value="ALL">All Plan Types</option>
             <option value="MONTHLY">Monthly</option>
@@ -581,34 +771,65 @@ export default function MembershipPlans() {
 
           {/* Status Filter */}
           <select
+            aria-label="Filter plans by status"
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none cursor-pointer"
+            className="w-full min-h-[44px] px-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none cursor-pointer"
           >
             <option value="ALL">All Status</option>
             <option value="ACTIVE">Active Only</option>
             <option value="INACTIVE">Inactive Only</option>
           </select>
+
+          {/* Duration Filter */}
+          <select
+            aria-label="Filter plans by duration"
+            value={durationFilter}
+            onChange={(e) => {
+              setDurationFilter(e.target.value);
+              setPage(1);
+            }}
+            className="w-full min-h-[44px] px-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none cursor-pointer"
+          >
+            <option value="ALL">All Durations</option>
+            <option value="30">30 Days</option>
+            <option value="90">90 Days</option>
+            <option value="180">180 Days</option>
+            <option value="365">365 Days</option>
+          </select>
         </div>
+
+        {hasActiveFilters && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="min-h-[36px] px-3 py-1.5 rounded-lg bg-[#181818] hover:bg-[#202020] border border-[#303030] text-[11px] font-bold uppercase tracking-wider text-[#B8B8B8] hover:text-[#F5F5F5] inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-[#F03B2E]" />
+              <span>Clear Filters</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── ERROR NOTICE & RETRY ── */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-center justify-between gap-3 text-red-400">
-          <div className="flex items-center gap-2.5">
+        <div className="bg-[#F03B2E]/10 border border-[#F03B2E]/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[#FF493B]">
+          <div className="flex items-center gap-2.5 min-w-0">
             <AlertTriangle className="w-5 h-5 shrink-0" />
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-wider">Plans Catalog Error</p>
-              <p className="text-xs text-red-300/80">{error}</p>
+              <p className="text-xs text-[#B8B8B8] break-words">{error}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={fetchPlans}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-xs font-bold uppercase text-red-300 transition-colors cursor-pointer"
+            className="min-h-[44px] flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#F03B2E]/20 hover:bg-[#F03B2E]/30 text-xs font-bold uppercase text-[#F5F5F5] cursor-pointer w-full sm:w-auto"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Retry</span>
@@ -616,551 +837,875 @@ export default function MembershipPlans() {
         </div>
       )}
 
-      {/* ── MEMBERSHIP PLANS TABLE ── */}
-      <div className="bg-[#181818] border border-[#303030] rounded-2xl overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-[#303030] bg-[#111111] text-[11px] font-mono uppercase tracking-wider text-[#B8B8B8]">
-                <th className="py-3.5 px-4 font-semibold">Plan Name</th>
-                <th className="py-3.5 px-4 font-semibold">Type</th>
-                <th className="py-3.5 px-4 font-semibold">Duration</th>
-                <th className="py-3.5 px-4 font-semibold">Kovilpatti Price</th>
-                <th className="py-3.5 px-4 font-semibold">Karur Price</th>
-                <th className="py-3.5 px-4 font-semibold">Sivakasi Price</th>
-                <th className="py-3.5 px-4 font-semibold">Status</th>
-                <th className="py-3.5 px-4 font-semibold">Last Updated</th>
-                <th className="py-3.5 px-4 font-semibold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#202020] text-xs">
-              {loading ? (
-                <tr>
-                  <td colSpan={9} className="py-12 text-center text-[#B8B8B8]">
-                    <div className="flex items-center justify-center gap-2">
-                      <RefreshCw className="w-4 h-4 animate-spin text-[#EB3E2E]" />
-                      <span>Loading membership plans...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : plans.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-12 text-center text-[#B8B8B8]">
-                    No membership plans match the specified criteria.
-                  </td>
-                </tr>
-              ) : (
-                plans.map((p) => {
-                  const kovilpatti = getCityPricing(p, 'Kovilpatti');
-                  const karur = getCityPricing(p, 'Karur');
-                  const sivakasi = getCityPricing(p, 'Sivakasi');
+      {/* ── PLANS LIST: DESKTOP TABLE (>= 1024px) & MOBILE/TABLET CARDS (< 1024px) ── */}
+      {loading ? (
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl py-12 text-center text-xs text-[#B8B8B8] flex items-center justify-center gap-2">
+          <RefreshCw className="w-4 h-4 animate-spin text-[#F03B2E]" />
+          <span>Loading membership plans...</span>
+        </div>
+      ) : plans.length === 0 ? (
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl py-12 px-4 text-center space-y-3">
+          <p className="text-sm font-bold text-[#F5F5F5]">No membership plans found</p>
+          <p className="text-xs text-[#858585]">No membership plans match the specified criteria.</p>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="min-h-[44px] px-4 py-2 rounded-xl bg-[#202020] border border-[#303030] text-xs font-bold uppercase text-[#F5F5F5] cursor-pointer"
+            >
+              Reset Filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* ── DESKTOP TABLE (>= 1024px, Preserved Design) ── */}
+          <div className="hidden lg:block bg-[#181818] border border-[#303030] rounded-2xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-[#303030] bg-[#111111] text-[11px] font-mono uppercase tracking-wider text-[#B8B8B8]">
+                    <th className="py-3.5 px-4 font-semibold">Plan Name</th>
+                    <th className="py-3.5 px-4 font-semibold">Type</th>
+                    <th className="py-3.5 px-4 font-semibold">Duration</th>
+                    <th className="py-3.5 px-4 font-semibold">Kovilpatti Price</th>
+                    <th className="py-3.5 px-4 font-semibold">Karur Price</th>
+                    <th className="py-3.5 px-4 font-semibold">Sivakasi Price</th>
+                    <th className="py-3.5 px-4 font-semibold">Status</th>
+                    <th className="py-3.5 px-4 font-semibold">Last Updated</th>
+                    <th className="py-3.5 px-4 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#202020] text-xs">
+                  {plans.map((p) => {
+                    const kovilpatti = getCityPricing(p, 'Kovilpatti');
+                    const karur = getCityPricing(p, 'Karur');
+                    const sivakasi = getCityPricing(p, 'Sivakasi');
+                    const busy = busyPlanId === p._id;
 
-                  return (
-                    <tr key={p._id} className="hover:bg-[#202020] transition-colors">
-                      {/* Plan Name & Code */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-[#F5F5F5] text-sm">{p.name}</span>
-                          <span className="text-[10px] text-[#EB3E2E] font-mono mt-0.5">
-                            {p.code || 'NO-CODE'} • {p.benefits?.length || p.features?.length || 0} Benefits
+                    return (
+                      <tr key={p._id} className="hover:bg-[#202020] transition-colors">
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-[#F5F5F5] text-sm">{p.name}</span>
+                            <span className="text-[10px] text-[#F03B2E] font-mono mt-0.5">
+                              {p.code || 'NO-CODE'} • {p.benefits?.length || p.features?.length || 0} Benefits
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <span className="px-2 py-0.5 rounded bg-[#252525] text-[#B8B8B8] font-mono text-[10px] font-bold">
+                            {p.planType}
                           </span>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Plan Type */}
-                      <td className="py-3.5 px-4">
-                        <span className="px-2 py-0.5 rounded bg-[#252525] text-[#B8B8B8] font-mono text-[10px] font-bold">
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-1.5 font-mono text-[#F5F5F5]">
+                            <Clock className="w-3.5 h-3.5 text-[#F03B2E]" />
+                            <span>{p.durationDays || p.durationMonths * 30} Days</span>
+                          </div>
+                        </td>
+
+                        {[kovilpatti, karur, sivakasi].map((bp, idx) => (
+                          <td key={idx} className="py-3.5 px-4 font-mono">
+                            {bp.isAvailable ? (
+                              <div className="flex flex-col">
+                                <span className="font-bold text-[#F5F5F5]">{formatINR(bp.finalPrice)}</span>
+                                {bp.joiningFee > 0 && (
+                                  <span className="text-[10px] text-[#B8B8B8]">
+                                    incl. {formatINR(bp.joiningFee)} fee
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded bg-[#F03B2E]/10 text-[#FF493B] border border-[#F03B2E]/20 text-[10px]">
+                                Not Available
+                              </span>
+                            )}
+                          </td>
+                        ))}
+
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                              p.isActive
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-[#F03B2E]/10 text-[#FF493B] border border-[#F03B2E]/30'
+                            }`}
+                          >
+                            {p.isActive ? 'ACTIVE' : 'INACTIVE'}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4 text-[#B8B8B8] font-mono text-[11px]">
+                          {new Date(p.updatedAt || p.createdAt).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenView(p._id)}
+                              className="p-1.5 rounded-lg bg-[#252525] hover:bg-[#F03B2E] hover:text-white text-[#B8B8B8] transition-colors cursor-pointer"
+                              title="View Plan Details"
+                              aria-label={`View ${p.name}`}
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(p)}
+                              className="p-1.5 rounded-lg bg-[#252525] hover:bg-[#F03B2E] hover:text-white text-[#B8B8B8] transition-colors cursor-pointer"
+                              title="Edit Pricing & Duration"
+                              aria-label={`Edit ${p.name}`}
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => requestDuplicate(p)}
+                              className="p-1.5 rounded-lg bg-[#252525] hover:bg-[#F03B2E] hover:text-white text-[#B8B8B8] transition-colors cursor-pointer"
+                              title="Duplicate Plan"
+                              aria-label={`Duplicate ${p.name}`}
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => requestToggleStatus(p)}
+                              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                p.isActive
+                                  ? 'bg-[#252525] hover:bg-amber-500/20 text-[#B8B8B8] hover:text-amber-400'
+                                  : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                              }`}
+                              title={p.isActive ? 'Deactivate Plan' : 'Activate Plan'}
+                              aria-label={p.isActive ? `Deactivate ${p.name}` : `Activate ${p.name}`}
+                            >
+                              <Power className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => requestDelete(p)}
+                              className="p-1.5 rounded-lg bg-[#252525] hover:bg-[#F03B2E]/20 text-[#B8B8B8] hover:text-[#FF493B] transition-colors cursor-pointer"
+                              title="Delete Plan"
+                              aria-label={`Delete ${p.name}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ── MOBILE & TABLET MEMBERSHIP PLAN CARDS (< 1024px) ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 lg:hidden">
+            {plans.map((p) => {
+              const busy = busyPlanId === p._id;
+              const branchRows = getPlanBranchRows(p);
+              const availableCount = branchRows.filter((b) => b.isAvailable).length;
+              const benefitsList = p.benefits?.length ? p.benefits : p.features || [];
+
+              return (
+                <article
+                  key={p._id}
+                  className="bg-[#181818] border border-[#303030] rounded-xl p-4 flex flex-col justify-between gap-3.5 min-w-0"
+                >
+                  {/* Card Header */}
+                  <div className="flex items-start justify-between gap-2 min-w-0">
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <h3 className="font-display text-base sm:text-lg font-bold uppercase text-[#F5F5F5] leading-tight truncate">
+                        {p.name}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="px-2 py-0.5 rounded bg-[#202020] border border-[#303030] text-[#B8B8B8] font-mono text-[10px] font-bold uppercase">
                           {p.planType}
                         </span>
-                      </td>
-
-                      {/* Duration */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-1.5 font-mono text-[#F5F5F5]">
-                          <Clock className="w-3.5 h-3.5 text-[#EB3E2E]" />
-                          <span>{p.durationDays || (p.durationMonths * 30)} Days</span>
-                        </div>
-                      </td>
-
-                      {/* Kovilpatti Price */}
-                      <td className="py-3.5 px-4 font-mono">
-                        {kovilpatti.isAvailable ? (
-                          <div className="flex flex-col">
-                            <span className="font-bold text-[#F5F5F5]">{formatINR(kovilpatti.finalPrice)}</span>
-                            {kovilpatti.joiningFee > 0 && (
-                              <span className="text-[10px] text-[#B8B8B8]">
-                                incl. {formatINR(kovilpatti.joiningFee)} fee
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[10px]">
-                            Not Available
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Karur Price */}
-                      <td className="py-3.5 px-4 font-mono">
-                        {karur.isAvailable ? (
-                          <div className="flex flex-col">
-                            <span className="font-bold text-[#F5F5F5]">{formatINR(karur.finalPrice)}</span>
-                            {karur.joiningFee > 0 && (
-                              <span className="text-[10px] text-[#B8B8B8]">
-                                incl. {formatINR(karur.joiningFee)} fee
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[10px]">
-                            Not Available
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Sivakasi Price */}
-                      <td className="py-3.5 px-4 font-mono">
-                        {sivakasi.isAvailable ? (
-                          <div className="flex flex-col">
-                            <span className="font-bold text-[#F5F5F5]">{formatINR(sivakasi.finalPrice)}</span>
-                            {sivakasi.joiningFee > 0 && (
-                              <span className="text-[10px] text-[#B8B8B8]">
-                                incl. {formatINR(sivakasi.joiningFee)} fee
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[10px]">
-                            Not Available
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3.5 px-4">
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${
                             p.isActive
-                              ? 'bg-green-500/10 text-green-400 border border-green-500/30'
-                              : 'bg-red-500/10 text-red-400 border border-red-500/30'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : 'bg-[#F03B2E]/15 text-[#FF493B] border-[#F03B2E]/35'
                           }`}
                         >
                           {p.isActive ? 'ACTIVE' : 'INACTIVE'}
                         </span>
-                      </td>
+                      </div>
+                    </div>
 
-                      {/* Last Updated */}
-                      <td className="py-3.5 px-4 text-[#B8B8B8] font-mono text-[11px]">
-                        {new Date(p.updatedAt || p.createdAt).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </td>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setActionSheetPlan(p)}
+                      aria-label={`Open actions for ${p.name}`}
+                      aria-haspopup="dialog"
+                      className="min-w-[44px] min-h-[44px] -mr-1.5 -mt-1 flex items-center justify-center rounded-lg bg-[#202020] hover:bg-[#303030] text-[#F5F5F5] border border-[#303030] hover:border-[#F03B2E] cursor-pointer shrink-0 transition-colors"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                  </div>
 
-                      {/* Actions */}
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* View details */}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenView(p._id)}
-                            className="p-1.5 rounded-lg bg-[#252525] hover:bg-[#EB3E2E] hover:text-white text-[#B8B8B8] transition-colors"
-                            title="View Plan Details & Roster"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
+                  {/* Plan Specs Row */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#B8B8B8] border-t border-[#252525] pt-2.5">
+                    <span className="inline-flex items-center gap-1.5 font-mono text-[#F5F5F5] font-semibold">
+                      <Clock className="w-3.5 h-3.5 text-[#F03B2E]" />
+                      {p.durationDays || p.durationMonths * 30} Days
+                    </span>
+                    <span className="text-[11px] font-mono text-[#858585]">
+                      {availableCount}/{branchRows.length} Branches • Updated{' '}
+                      {new Date(p.updatedAt || p.createdAt).toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                      })}
+                    </span>
+                  </div>
 
-                          {/* Edit */}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(p)}
-                            className="p-1.5 rounded-lg bg-[#252525] hover:bg-[#EB3E2E] hover:text-white text-[#B8B8B8] transition-colors"
-                            title="Edit Pricing & Duration"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Duplicate */}
-                          <button
-                            type="button"
-                            onClick={() => handleDuplicate(p)}
-                            className="p-1.5 rounded-lg bg-[#252525] hover:bg-[#EB3E2E] hover:text-white text-[#B8B8B8] transition-colors"
-                            title="Duplicate Plan"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Toggle status */}
-                          <button
-                            type="button"
-                            onClick={() => handleToggleStatus(p)}
-                            className={`p-1.5 rounded-lg transition-colors ${
-                              p.isActive
-                                ? 'bg-[#252525] hover:bg-amber-500/20 text-[#B8B8B8] hover:text-amber-400'
-                                : 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
-                            }`}
-                            title={p.isActive ? 'Deactivate Plan' : 'Activate Plan'}
-                          >
-                            <Power className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Delete */}
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(p)}
-                            className="p-1.5 rounded-lg bg-[#252525] hover:bg-red-500/20 text-[#B8B8B8] hover:text-red-400 transition-colors"
-                            title="Delete Plan"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                  {/* Branch-Specific Pricing Block (Compact & Real DB Values) */}
+                  <div className="rounded-lg bg-[#111111] border border-[#252525] divide-y divide-[#252525]">
+                    {branchRows.map((br) => (
+                      <div
+                        key={br.key}
+                        className="px-3 py-2 flex items-center justify-between gap-2 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-mono font-bold uppercase text-[#B8B8B8] block truncate">
+                            {br.city}
+                          </span>
+                          {br.isAvailable && (br.joiningFee > 0 || (br.discountType !== 'NONE' && br.discountValue > 0)) && (
+                            <span className="text-[10px] font-mono text-[#858585] block">
+                              {br.joiningFee > 0 ? `+${formatINR(br.joiningFee)} join fee` : ''}
+                              {br.joiningFee > 0 && br.discountType !== 'NONE' && br.discountValue > 0 ? ' • ' : ''}
+                              {br.discountType === 'PERCENTAGE' && br.discountValue > 0
+                                ? `${br.discountValue}% off`
+                                : br.discountType === 'FIXED' && br.discountValue > 0
+                                ? `-${formatINR(br.discountValue)}`
+                                : ''}
+                            </span>
+                          )}
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
 
-        {/* ── PAGINATION BAR ── */}
-        {totalPages > 1 && (
-          <div className="p-4 border-t border-[#303030] bg-[#111111] flex items-center justify-between">
-            <span className="text-xs text-[#B8B8B8] font-mono">
-              Showing page {page} of {totalPages} ({totalCount} total plans)
-            </span>
-            <div className="flex items-center gap-2">
+                        {br.isAvailable ? (
+                          <span className="font-mono font-bold text-sm text-[#F5F5F5] shrink-0">
+                            {formatINR(br.finalPrice)}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded bg-[#F03B2E]/10 text-[#FF493B] border border-[#F03B2E]/25 font-mono text-[10px] font-semibold shrink-0">
+                            Not Available
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Benefits Summary */}
+                  {benefitsList.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {benefitsList.slice(0, 3).map((b, i) => (
+                        <span
+                          key={i}
+                          className="px-2 py-0.5 rounded bg-[#111111] border border-[#252525] text-[10px] text-[#B8B8B8] truncate max-w-full"
+                        >
+                          {b}
+                        </span>
+                      ))}
+                      {benefitsList.length > 3 && (
+                        <span className="px-2 py-0.5 rounded bg-[#202020] text-[10px] font-mono text-[#F03B2E]">
+                          +{benefitsList.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Card Footer */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-[#252525]">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenView(p._id)}
+                      className="min-h-[44px] px-3.5 py-2 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-[#B8B8B8]" />
+                      <span>Details</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setActionSheetPlan(p)}
+                      className="flex-1 min-h-[44px] px-3.5 py-2 rounded-lg bg-[#F03B2E]/15 hover:bg-[#F03B2E]/25 border border-[#F03B2E]/40 text-xs font-bold uppercase tracking-wider text-[#F5F5F5] inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-[#F03B2E]" />
+                      <span>{busy ? 'Working...' : 'Manage Plan'}</span>
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {/* ── PAGINATION BAR ── */}
+          <div className="bg-[#181818] border border-[#303030] rounded-xl px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#B8B8B8]">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+              <span>
+                Showing <strong className="text-[#F5F5F5]">{startIndex}–{endIndex}</strong> of{' '}
+                <strong className="text-[#F5F5F5]">{totalCount}</strong> plans
+              </span>
+              <label className="inline-flex items-center gap-2">
+                <span className="text-[11px] uppercase tracking-wider text-[#858585]">Per page</span>
+                <select
+                  aria-label="Plans per page"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="bg-[#111111] border border-[#303030] rounded-lg px-2.5 py-1.5 min-h-[36px] text-xs text-[#F5F5F5] cursor-pointer"
+                >
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={25}>25</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
               <button
                 type="button"
-                disabled={page <= 1}
+                disabled={page <= 1 || loading}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-3 py-1 bg-[#202020] text-[#F5F5F5] rounded text-xs disabled:opacity-40 cursor-pointer"
+                className="min-h-[44px] px-3.5 py-2 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
-                Previous
+                <ChevronLeft className="w-4 h-4" />
+                <span>Previous</span>
               </button>
+
+              <span className="font-mono text-xs text-[#F5F5F5] px-2 whitespace-nowrap">
+                Page {page} / {totalPages}
+              </span>
+
               <button
                 type="button"
-                disabled={page >= totalPages}
+                disabled={page >= totalPages || loading}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="px-3 py-1 bg-[#202020] text-[#F5F5F5] rounded text-xs disabled:opacity-40 cursor-pointer"
+                className="min-h-[44px] px-3.5 py-2 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
-                Next
+                <span>Next</span>
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
-        )}
-      </div>
+        </>
+      )}
 
-      {/* ── CREATE / EDIT PLAN MODAL ── */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-3xl p-6 relative my-8 max-h-[90vh] overflow-y-auto space-y-6">
-            <div className="flex items-start justify-between border-b border-[#303030] pb-4">
-              <div>
-                <h3
-                  className="text-lg font-bold uppercase text-[#F5F5F5]"
-                  style={{ fontFamily: "'Oswald', sans-serif" }}
+      {/* ── MOBILE PLAN ACTION BOTTOM SHEET ── */}
+      {actionSheetPlan && (
+        <div
+          id="plan-action-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Manage ${actionSheetPlan.name}`}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setActionSheetPlan(null)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[88dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="pt-2.5 sm:pt-4 px-5 pb-4 border-b border-[#252525] shrink-0">
+              <div className="w-10 h-1 bg-[#303030] rounded-full mx-auto mb-3 sm:hidden" />
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="font-label text-[#F03B2E] block mb-0.5">PLAN ACTIONS</span>
+                  <h3 className="mm-page-title text-lg sm:text-xl truncate">
+                    {actionSheetPlan.name}
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                    <span className="px-2 py-0.5 rounded bg-[#202020] border border-[#303030] text-[#B8B8B8] font-mono text-[10px] font-bold">
+                      {actionSheetPlan.planType} • {actionSheetPlan.durationDays || 30}d
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                        actionSheetPlan.isActive
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                          : 'bg-[#F03B2E]/15 text-[#FF493B] border-[#F03B2E]/35'
+                      }`}
+                    >
+                      {actionSheetPlan.isActive ? 'ACTIVE' : 'INACTIVE'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActionSheetPlan(null)}
+                  aria-label="Close action menu"
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
                 >
-                  {editingPlan ? `Edit Membership Plan: ${editingPlan.name}` : 'Create New Membership Plan'}
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-5 overflow-y-auto overscroll-contain space-y-3">
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleOpenView(actionSheetPlan._id)}
+                  className="min-h-[48px] px-3 py-2.5 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center gap-2 cursor-pointer"
+                >
+                  <Eye className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                  <span className="truncate">View Details</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit(actionSheetPlan)}
+                  className="min-h-[48px] px-3 py-2.5 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center gap-2 cursor-pointer"
+                >
+                  <Edit className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                  <span className="truncate">Edit Plan</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => requestDuplicate(actionSheetPlan)}
+                  className="min-h-[48px] px-3 py-2.5 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center gap-2 cursor-pointer"
+                >
+                  <Copy className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                  <span className="truncate">Duplicate Plan</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => requestToggleStatus(actionSheetPlan)}
+                  className={`min-h-[48px] px-3 py-2.5 rounded-xl border text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer ${
+                    actionSheetPlan.isActive
+                      ? 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/35 text-amber-300'
+                      : 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/35 text-emerald-400'
+                  }`}
+                >
+                  <Power className="w-4 h-4 shrink-0" />
+                  <span className="truncate">
+                    {actionSheetPlan.isActive ? 'Deactivate' : 'Activate'}
+                  </span>
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-[#252525]">
+                <button
+                  type="button"
+                  onClick={() => requestDelete(actionSheetPlan)}
+                  className="w-full min-h-[48px] px-4 py-2.5 rounded-xl bg-[#F03B2E]/12 hover:bg-[#F03B2E]/25 border border-[#F03B2E]/40 text-xs font-bold uppercase tracking-wider text-[#FF493B] flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4 shrink-0" />
+                  <span>Delete Plan</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CONFIRMATION DIALOG ── */}
+      {confirmDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={confirmDialog.title}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setConfirmDialog(null)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-xl w-full sm:max-w-md p-5 sm:p-6 space-y-4 shadow-2xl pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span className="font-label text-[#F03B2E] block mb-1">CONFIRM ACTION</span>
+                <h3 className="mm-page-title text-lg sm:text-xl">{confirmDialog.title}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                aria-label="Close confirmation dialog"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs sm:text-sm text-[#B8B8B8] leading-relaxed">
+              {confirmDialog.description}
+            </p>
+
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                className="min-h-[44px] px-4 py-2 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase text-[#B8B8B8] cursor-pointer w-full sm:w-auto"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDialog.onConfirm}
+                className={`min-h-[44px] px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-white cursor-pointer w-full sm:w-auto ${
+                  confirmDialog.tone === 'emerald'
+                    ? 'bg-emerald-600 hover:bg-emerald-500'
+                    : confirmDialog.tone === 'amber'
+                    ? 'bg-amber-600 hover:bg-amber-500'
+                    : 'bg-[#F03B2E] hover:bg-[#FF493B]'
+                }`}
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CREATE / EDIT PLAN MODAL (BOTTOM SHEET ON MOBILE) ── */}
+      {isCreateModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={editingPlan ? `Edit ${editingPlan.name}` : 'Create New Membership Plan'}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setIsCreateModalOpen(false)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-3xl max-h-[92dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Sticky Header */}
+            <div className="px-5 py-4 border-b border-[#303030] flex items-start justify-between gap-3 shrink-0 bg-[#181818]">
+              <div className="min-w-0">
+                <span className="font-label text-[#F03B2E] block mb-0.5">
+                  {editingPlan ? 'EDIT PLAN TEMPLATE' : 'NEW PLAN TEMPLATE'}
+                </span>
+                <h3 className="mm-page-title text-lg sm:text-xl truncate">
+                  {editingPlan ? `Edit: ${editingPlan.name}` : 'Create Membership Plan'}
                 </h3>
-                <p className="text-xs text-[#B8B8B8] mt-0.5">
-                  Configure branch-specific pricing, joining fees, discounts, and member benefits.
+                <p className="text-[11px] text-[#B8B8B8] mt-0.5">
+                  Changes affect future enrollments only; existing memberships keep their historical price snapshot.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(false)}
-                className="p-1 rounded-lg bg-[#252525] text-[#B8B8B8] hover:text-white"
+                aria-label="Close modal"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
               >
-                <XCircle className="w-5 h-5" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {formError && (
-              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>{formError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmitPlan} className="space-y-6">
-              {/* SECTION A: BASIC INFORMATION */}
-              <div className="space-y-4">
-                <h4 className="text-xs font-mono uppercase text-[#EB3E2E] font-bold tracking-wider">
-                  1. Basic Plan Specifications
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
-                      Plan Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="e.g. 3 Months Transformation Pro"
-                      className="w-full px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                    />
+            {/* Independently Scrollable Form + Sticky Footer */}
+            <form onSubmit={handleSubmitPlan} className="flex flex-col flex-1 min-h-0">
+              <div className="p-5 overflow-y-auto overscroll-contain space-y-6 flex-1">
+                {formError && (
+                  <div className="p-3 rounded-xl bg-[#F03B2E]/10 border border-[#F03B2E] text-xs text-[#F5F5F5] flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                    <span>{formError}</span>
                   </div>
+                )}
 
-                  <div>
-                    <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
-                      Plan Code (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.code}
-                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                      placeholder="e.g. MM-3M-PRO"
-                      className="w-full px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] font-mono uppercase focus:border-[#EB3E2E] focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
-                      Plan Type
-                    </label>
-                    <select
-                      value={formData.planType}
-                      onChange={(e) => {
-                        const type = e.target.value;
-                        let defaultDays = 30;
-                        if (type === 'MONTHLY') defaultDays = 30;
-                        else if (type === 'QUARTERLY') defaultDays = 90;
-                        else if (type === 'HALF_YEARLY') defaultDays = 180;
-                        else if (type === 'YEARLY') defaultDays = 365;
-                        setFormData({ ...formData, planType: type, durationDays: defaultDays });
-                      }}
-                      className="w-full px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none cursor-pointer"
-                    >
-                      <option value="MONTHLY">Monthly (30 Days)</option>
-                      <option value="QUARTERLY">Quarterly (90 Days)</option>
-                      <option value="HALF_YEARLY">Half-Yearly (180 Days)</option>
-                      <option value="YEARLY">Yearly (365 Days)</option>
-                      <option value="CUSTOM">Custom Duration</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
-                      Duration in Days *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min={1}
-                      value={formData.durationDays}
-                      onChange={(e) => setFormData({ ...formData, durationDays: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] font-mono focus:border-[#EB3E2E] focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
-                    Plan Description
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Brief overview of who this pass is for and included privileges..."
-                    className="w-full px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* SECTION B: BENEFITS */}
-              <div className="space-y-3 border-t border-[#303030] pt-4">
-                <h4 className="text-xs font-mono uppercase text-[#EB3E2E] font-bold tracking-wider">
-                  2. Included Amenities &amp; Benefits
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {defaultBenefitOptions.map((opt) => {
-                    const isChecked = formData.benefits.includes(opt);
-                    return (
-                      <label
-                        key={opt}
-                        onClick={() => toggleBenefit(opt)}
-                        className={`flex items-center gap-2.5 p-2 rounded-xl border text-xs cursor-pointer transition-colors ${
-                          isChecked
-                            ? 'bg-[#EB3E2E]/10 border-[#EB3E2E]/40 text-[#F5F5F5]'
-                            : 'bg-[#111111] border-[#252525] text-[#B8B8B8] hover:text-[#F5F5F5]'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {}}
-                          className="rounded text-[#EB3E2E] focus:ring-0"
-                        />
-                        <span className="text-xs select-none">{opt}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-
-                {/* Custom Benefit Input */}
-                <div className="flex gap-2 mt-2">
-                  <input
-                    type="text"
-                    value={formData.customBenefit}
-                    onChange={(e) => setFormData({ ...formData, customBenefit: e.target.value })}
-                    placeholder="Add custom benefit (e.g. Free protein shake on workout days)..."
-                    className="flex-1 px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddCustomBenefit}
-                    className="px-3 py-2 bg-[#252525] hover:bg-[#303030] text-[#F5F5F5] text-xs font-semibold rounded-xl"
-                  >
-                    + Add
-                  </button>
-                </div>
-              </div>
-
-              {/* SECTION C: BRANCH AVAILABILITY & INDEPENDENT PRICING */}
-              <div className="space-y-4 border-t border-[#303030] pt-4">
-                <div>
-                  <h4 className="text-xs font-mono uppercase text-[#EB3E2E] font-bold tracking-wider">
-                    3. Branch Availability &amp; Independent Pricing
-                  </h4>
-                  <p className="text-[11px] text-[#B8B8B8] mt-0.5">
-                    Configure distinct pricing, joining fees, and discounts for each branch location independently.
-                  </p>
-                </div>
-
+                {/* SECTION A: BASIC INFORMATION */}
                 <div className="space-y-4">
-                  {formData.branchPricing.map((bp, idx) => {
-                    const finalPreview = getBranchPreviewPrice(bp);
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-xs font-mono uppercase text-[#F03B2E] font-bold tracking-wider">
+                      1. Basic Plan Specifications
+                    </h4>
 
-                    return (
-                      <div
-                        key={bp.branchId || idx}
-                        className={`p-4 rounded-xl border transition-colors ${
-                          bp.isAvailable
-                            ? 'bg-[#111111] border-[#303030]'
-                            : 'bg-[#111111] border-[#202020] opacity-60'
-                        }`}
+                    <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#111111] border border-[#303030] cursor-pointer select-none min-h-[36px]">
+                      <input
+                        type="checkbox"
+                        checked={formData.isActive}
+                        onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                        className="w-4 h-4 rounded accent-[#F03B2E]"
+                      />
+                      <span className="text-[11px] font-mono uppercase text-[#F5F5F5]">
+                        {formData.isActive ? 'Plan Active' : 'Plan Inactive'}
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
+                        Plan Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        placeholder="e.g. 3 Months Transformation Pro"
+                        className="w-full min-h-[44px] px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
+                        Plan Code (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.code}
+                        onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                        placeholder="e.g. MM-3M-PRO"
+                        className="w-full min-h-[44px] px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] font-mono uppercase focus:border-[#F03B2E] focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
+                        Plan Type
+                      </label>
+                      <select
+                        value={formData.planType}
+                        onChange={(e) => {
+                          const type = e.target.value;
+                          let defaultDays = Number(formData.durationDays) || 30;
+                          if (type === 'MONTHLY') defaultDays = 30;
+                          else if (type === 'QUARTERLY') defaultDays = 90;
+                          else if (type === 'HALF_YEARLY') defaultDays = 180;
+                          else if (type === 'YEARLY') defaultDays = 365;
+                          setFormData({ ...formData, planType: type, durationDays: defaultDays });
+                        }}
+                        className="w-full min-h-[44px] px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none cursor-pointer"
                       >
-                        {/* Branch Title & Toggle */}
-                        <div className="flex items-center justify-between pb-3 border-b border-[#202020]">
-                          <div className="flex items-center gap-2">
-                            <Building className="w-4 h-4 text-[#EB3E2E]" />
-                            <span className="font-bold text-sm text-[#F5F5F5]">
-                              {bp.branchName} Hub
-                            </span>
+                        <option value="MONTHLY">Monthly (30 Days)</option>
+                        <option value="QUARTERLY">Quarterly (90 Days)</option>
+                        <option value="HALF_YEARLY">Half-Yearly (180 Days)</option>
+                        <option value="YEARLY">Yearly (365 Days)</option>
+                        <option value="CUSTOM">Custom Duration</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
+                        Duration in Days *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min={1}
+                        value={formData.durationDays}
+                        onChange={(e) => setFormData({ ...formData, durationDays: e.target.value })}
+                        className="w-full min-h-[44px] px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] font-mono focus:border-[#F03B2E] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-mono text-[#B8B8B8] uppercase block mb-1">
+                      Plan Description
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      placeholder="Brief overview of who this pass is for and included privileges..."
+                      className="w-full px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* SECTION B: BENEFITS */}
+                <div className="space-y-3 border-t border-[#303030] pt-4">
+                  <h4 className="text-xs font-mono uppercase text-[#F03B2E] font-bold tracking-wider">
+                    2. Included Amenities &amp; Benefits
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {defaultBenefitOptions.map((opt) => {
+                      const isChecked = formData.benefits.includes(opt);
+                      return (
+                        <label
+                          key={opt}
+                          className={`flex items-center gap-2.5 p-2.5 min-h-[44px] rounded-xl border text-xs cursor-pointer transition-colors ${
+                            isChecked
+                              ? 'bg-[#F03B2E]/10 border-[#F03B2E]/40 text-[#F5F5F5]'
+                              : 'bg-[#111111] border-[#252525] text-[#B8B8B8] hover:text-[#F5F5F5]'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleBenefit(opt)}
+                            className="w-4 h-4 rounded accent-[#F03B2E]"
+                          />
+                          <span className="text-xs select-none">{opt}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                    <input
+                      type="text"
+                      value={formData.customBenefit}
+                      onChange={(e) => setFormData({ ...formData, customBenefit: e.target.value })}
+                      placeholder="Add custom benefit..."
+                      className="flex-1 min-h-[44px] px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddCustomBenefit}
+                      className="min-h-[44px] px-4 py-2 bg-[#252525] hover:bg-[#303030] text-[#F5F5F5] text-xs font-semibold rounded-xl cursor-pointer shrink-0"
+                    >
+                      + Add Benefit
+                    </button>
+                  </div>
+                </div>
+
+                {/* SECTION C: BRANCH AVAILABILITY & INDEPENDENT PRICING */}
+                <div className="space-y-4 border-t border-[#303030] pt-4">
+                  <div>
+                    <h4 className="text-xs font-mono uppercase text-[#F03B2E] font-bold tracking-wider">
+                      3. Branch Availability &amp; Independent Pricing
+                    </h4>
+                    <p className="text-[11px] text-[#B8B8B8] mt-0.5">
+                      Configure pricing, joining fees, and discounts for each branch independently.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3.5">
+                    {formData.branchPricing.map((bp, idx) => {
+                      const finalPreview = getBranchPreviewPrice(bp);
+
+                      return (
+                        <div
+                          key={bp.branchId || idx}
+                          className={`p-3.5 sm:p-4 rounded-xl border transition-colors ${
+                            bp.isAvailable
+                              ? 'bg-[#111111] border-[#303030]'
+                              : 'bg-[#111111] border-[#202020] opacity-70'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between pb-3 border-b border-[#202020]">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Building className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                              <span className="font-bold text-sm text-[#F5F5F5] truncate">
+                                {bp.branchName} Hub
+                              </span>
+                            </div>
+
+                            <label className="flex items-center gap-2 cursor-pointer select-none min-h-[36px]">
+                              <span className="text-[11px] font-mono uppercase text-[#B8B8B8]">
+                                {bp.isAvailable ? 'Available' : 'Disabled'}
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={bp.isAvailable}
+                                onChange={(e) => updateBranchField(idx, 'isAvailable', e.target.checked)}
+                                className="w-4 h-4 rounded accent-[#F03B2E]"
+                              />
+                            </label>
                           </div>
 
-                          <label className="flex items-center gap-2 cursor-pointer select-none">
-                            <span className="text-[11px] font-mono uppercase text-[#B8B8B8]">
-                              {bp.isAvailable ? 'Available' : 'Disabled'}
-                            </span>
-                            <input
-                              type="checkbox"
-                              checked={bp.isAvailable}
-                              onChange={(e) => updateBranchField(idx, 'isAvailable', e.target.checked)}
-                              className="w-4 h-4 rounded text-[#EB3E2E] focus:ring-0"
-                            />
-                          </label>
-                        </div>
-
-                        {bp.isAvailable && (
-                          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-3">
-                            {/* Base Price */}
-                            <div>
-                              <label className="text-[10px] font-mono text-[#B8B8B8] uppercase block mb-1">
-                                Base Price (₹) *
-                              </label>
-                              <input
-                                type="number"
-                                min={0}
-                                required
-                                value={bp.basePrice}
-                                onChange={(e) => updateBranchField(idx, 'basePrice', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-[#181818] border border-[#303030] rounded-lg text-xs font-mono text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                              />
-                            </div>
-
-                            {/* Joining Fee */}
-                            <div>
-                              <label className="text-[10px] font-mono text-[#B8B8B8] uppercase block mb-1">
-                                Joining Fee (₹)
-                              </label>
-                              <input
-                                type="number"
-                                min={0}
-                                value={bp.joiningFee}
-                                onChange={(e) => updateBranchField(idx, 'joiningFee', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-[#181818] border border-[#303030] rounded-lg text-xs font-mono text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                              />
-                            </div>
-
-                            {/* Discount Type & Value */}
-                            <div>
-                              <label className="text-[10px] font-mono text-[#B8B8B8] uppercase block mb-1">
-                                Discount
-                              </label>
-                              <div className="flex gap-1.5">
-                                <select
-                                  value={bp.discountType}
-                                  onChange={(e) => updateBranchField(idx, 'discountType', e.target.value)}
-                                  className="px-1.5 py-1.5 bg-[#181818] border border-[#303030] rounded-lg text-[10px] text-[#F5F5F5] focus:outline-none"
-                                >
-                                  <option value="NONE">None</option>
-                                  <option value="FIXED">Flat ₹</option>
-                                  <option value="PERCENTAGE">%</option>
-                                </select>
+                          {bp.isAvailable && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+                              <div>
+                                <label className="text-[10px] font-mono text-[#B8B8B8] uppercase block mb-1">
+                                  Base Price (₹) *
+                                </label>
                                 <input
                                   type="number"
                                   min={0}
-                                  disabled={bp.discountType === 'NONE'}
-                                  value={bp.discountValue}
-                                  onChange={(e) => updateBranchField(idx, 'discountValue', e.target.value)}
-                                  className="w-full px-2 py-1.5 bg-[#181818] border border-[#303030] rounded-lg text-xs font-mono text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none disabled:opacity-40"
+                                  required
+                                  value={bp.basePrice}
+                                  onChange={(e) => updateBranchField(idx, 'basePrice', e.target.value)}
+                                  className="w-full min-h-[42px] px-2.5 py-1.5 bg-[#181818] border border-[#303030] rounded-lg text-xs font-mono text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
                                 />
                               </div>
-                            </div>
 
-                            {/* Live Final Price Calculation Box */}
-                            <div className="bg-[#181818] p-2 rounded-lg border border-[#303030] flex flex-col justify-between">
-                              <span className="text-[9px] font-mono uppercase text-[#B8B8B8]">
-                                Final Payable Rate
-                              </span>
-                              <div className="flex items-baseline gap-1 mt-1">
-                                <span className="text-base font-bold text-[#EB3E2E] font-mono">
+                              <div>
+                                <label className="text-[10px] font-mono text-[#B8B8B8] uppercase block mb-1">
+                                  Joining Fee (₹)
+                                </label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={bp.joiningFee}
+                                  onChange={(e) => updateBranchField(idx, 'joiningFee', e.target.value)}
+                                  className="w-full min-h-[42px] px-2.5 py-1.5 bg-[#181818] border border-[#303030] rounded-lg text-xs font-mono text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] font-mono text-[#B8B8B8] uppercase block mb-1">
+                                  Discount
+                                </label>
+                                <div className="flex gap-1.5">
+                                  <select
+                                    value={bp.discountType}
+                                    onChange={(e) => updateBranchField(idx, 'discountType', e.target.value)}
+                                    className="min-h-[42px] px-2 py-1.5 bg-[#181818] border border-[#303030] rounded-lg text-[11px] text-[#F5F5F5] focus:outline-none"
+                                  >
+                                    <option value="NONE">None</option>
+                                    <option value="FIXED">Flat ₹</option>
+                                    <option value="PERCENTAGE">%</option>
+                                  </select>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    disabled={bp.discountType === 'NONE'}
+                                    value={bp.discountValue}
+                                    onChange={(e) => updateBranchField(idx, 'discountValue', e.target.value)}
+                                    className="w-full min-h-[42px] px-2 py-1.5 bg-[#181818] border border-[#303030] rounded-lg text-xs font-mono text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none disabled:opacity-40"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="bg-[#181818] p-2.5 rounded-lg border border-[#303030] flex flex-col justify-between">
+                                <span className="text-[9px] font-mono uppercase text-[#B8B8B8]">
+                                  Final Payable Rate
+                                </span>
+                                <span className="text-base font-bold text-[#F03B2E] font-mono mt-0.5">
                                   {formatINR(finalPreview)}
                                 </span>
+                                <span className="text-[9px] text-[#858585] font-mono">
+                                  Base ₹{bp.basePrice || 0} + Fee ₹{bp.joiningFee || 0}
+                                </span>
                               </div>
-                              <span className="text-[9px] text-[#B8B8B8] font-mono">
-                                Base ₹{bp.basePrice} + Fee ₹{bp.joiningFee}
-                              </span>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
-              {/* MODAL FOOTER */}
-              <div className="flex items-center justify-end gap-3 border-t border-[#303030] pt-4">
+              {/* Sticky Footer */}
+              <div className="px-5 py-4 border-t border-[#303030] bg-[#181818] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] hover:text-white rounded-xl text-xs font-semibold"
+                  className="min-h-[44px] px-4 py-2 bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] hover:text-white rounded-xl text-xs font-semibold cursor-pointer w-full sm:w-auto"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={formSubmitting}
-                  className="px-5 py-2 bg-[#EB3E2E] hover:bg-[#FF493B] text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-[#EB3E2E]/10 disabled:opacity-50 cursor-pointer"
+                  className="min-h-[44px] px-5 py-2 bg-[#F03B2E] hover:bg-[#FF493B] text-white rounded-xl text-xs font-bold uppercase tracking-wider disabled:opacity-50 cursor-pointer w-full sm:w-auto"
                 >
                   {formSubmitting ? 'Saving Plan...' : editingPlan ? 'Save Plan Changes' : 'Create Plan'}
                 </button>
@@ -1170,21 +1715,43 @@ export default function MembershipPlans() {
         </div>
       )}
 
-      {/* ── VIEW PLAN DETAILS MODAL ── */}
+      {/* ── VIEW PLAN DETAILS SHEET ── */}
       {viewingPlanId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto space-y-5">
-            <div className="flex items-start justify-between border-b border-[#303030] pb-4">
-              <div>
-                <span className="text-[10px] font-mono text-[#EB3E2E] uppercase tracking-wider">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Membership Plan Details"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => {
+            setViewingPlanId(null);
+            setViewingPlanData(null);
+          }}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-[#303030] flex items-start justify-between gap-3 shrink-0">
+              <div className="min-w-0">
+                <span className="text-[10px] font-mono text-[#F03B2E] uppercase tracking-wider block">
                   MEMBERSHIP SPECIFICATION DOSSIER
                 </span>
-                <h3
-                  className="text-lg font-bold uppercase text-[#F5F5F5] mt-0.5"
-                  style={{ fontFamily: "'Oswald', sans-serif" }}
-                >
-                  {viewingPlanData?.plan?.name || 'Loading Plan...'}
-                </h3>
+                <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                  <h3 className="mm-page-title text-lg sm:text-xl truncate">
+                    {viewingPlanData?.plan?.name || 'Loading Plan...'}
+                  </h3>
+                  {viewingPlanData?.plan && (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                        viewingPlanData.plan.isActive
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                          : 'bg-[#F03B2E]/15 text-[#FF493B] border-[#F03B2E]/35'
+                      }`}
+                    >
+                      {viewingPlanData.plan.isActive ? 'ACTIVE' : 'INACTIVE'}
+                    </span>
+                  )}
+                </div>
               </div>
               <button
                 type="button"
@@ -1192,191 +1759,278 @@ export default function MembershipPlans() {
                   setViewingPlanId(null);
                   setViewingPlanData(null);
                 }}
-                className="p-1 rounded-lg bg-[#252525] text-[#B8B8B8] hover:text-white"
+                aria-label="Close plan details"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
               >
-                <XCircle className="w-5 h-5" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {viewingLoading ? (
-              <div className="py-12 text-center text-xs text-[#B8B8B8]">
-                Loading plan specifications...
-              </div>
-            ) : viewingPlanData?.plan ? (
-              <div className="space-y-5 text-xs">
-                {/* Meta Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#111111] p-4 rounded-xl border border-[#303030]">
-                  <div>
-                    <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Plan Type</span>
-                    <p className="font-bold text-[#F5F5F5] mt-0.5">{viewingPlanData.plan.planType}</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Duration</span>
-                    <p className="font-mono text-[#F5F5F5] mt-0.5">
-                      {viewingPlanData.plan.durationDays || (viewingPlanData.plan.durationMonths * 30)} Days
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Active Athletes</span>
-                    <p className="font-bold text-green-400 mt-0.5">
-                      {viewingPlanData.activeMembershipsCount || 0} Members
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Total All-Time</span>
-                    <p className="font-bold text-[#EB3E2E] mt-0.5">
-                      {viewingPlanData.totalMembershipsCount || 0} Passes
-                    </p>
-                  </div>
+            <div className="p-5 overflow-y-auto overscroll-contain flex-1 space-y-5 text-xs">
+              {viewingLoading ? (
+                <div className="py-12 text-center text-xs text-[#B8B8B8]">
+                  Loading plan specifications...
                 </div>
+              ) : viewingPlanData?.plan ? (
+                <>
+                  {/* Meta Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#111111] p-4 rounded-xl border border-[#303030]">
+                    <div>
+                      <span className="text-[10px] font-mono uppercase text-[#858585]">Plan Type</span>
+                      <p className="font-bold text-[#F5F5F5] mt-0.5">{viewingPlanData.plan.planType}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-mono uppercase text-[#858585]">Duration</span>
+                      <p className="font-mono text-[#F5F5F5] mt-0.5">
+                        {viewingPlanData.plan.durationDays || viewingPlanData.plan.durationMonths * 30} Days
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-mono uppercase text-[#858585]">Active Passes</span>
+                      <p className="font-bold text-emerald-400 mt-0.5">
+                        {viewingPlanData.activeMembershipsCount || 0} Members
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-mono uppercase text-[#858585]">Total Passes</span>
+                      <p className="font-bold text-[#F03B2E] mt-0.5">
+                        {viewingPlanData.totalMembershipsCount || 0} Passes
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-mono uppercase text-[#858585]">Created</span>
+                      <p className="font-mono text-[#B8B8B8] mt-0.5">
+                        {viewingPlanData.plan.createdAt
+                          ? new Date(viewingPlanData.plan.createdAt).toLocaleDateString('en-IN')
+                          : '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-mono uppercase text-[#858585]">Updated</span>
+                      <p className="font-mono text-[#B8B8B8] mt-0.5">
+                        {viewingPlanData.plan.updatedAt
+                          ? new Date(viewingPlanData.plan.updatedAt).toLocaleDateString('en-IN')
+                          : '—'}
+                      </p>
+                    </div>
+                  </div>
 
-                {/* Description */}
-                {viewingPlanData.plan.description && (
+                  {viewingPlanData.plan.description && (
+                    <div>
+                      <span className="text-[10px] font-mono uppercase text-[#858585] block mb-1">
+                        Description
+                      </span>
+                      <p className="text-xs text-[#CCCCCC] bg-[#111111] p-3 rounded-xl border border-[#252525]">
+                        {viewingPlanData.plan.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Benefits */}
                   <div>
-                    <span className="text-[10px] font-mono uppercase text-[#B8B8B8] block mb-1">
-                      Description:
+                    <span className="text-[10px] font-mono uppercase text-[#858585] block mb-1.5">
+                      Included Benefits
                     </span>
-                    <p className="text-xs text-[#CCCCCC] bg-[#111111] p-3 rounded-xl border border-[#252525]">
-                      {viewingPlanData.plan.description}
-                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {(viewingPlanData.plan.benefits || viewingPlanData.plan.features || []).map((b, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 p-2.5 rounded-lg bg-[#111111] border border-[#252525]"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span className="text-[#F5F5F5] text-xs">{b}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                )}
 
-                {/* Benefits */}
-                <div>
-                  <span className="text-[10px] font-mono uppercase text-[#B8B8B8] block mb-1.5">
-                    Included Benefits:
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {(viewingPlanData.plan.benefits || viewingPlanData.plan.features || []).map((b, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-2 p-2 rounded-lg bg-[#111111] border border-[#252525]"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />
-                        <span className="text-[#F5F5F5] text-xs">{b}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                  {/* Branch Breakdown: Table on sm+, Mobile Cards on < sm */}
+                  <div>
+                    <span className="text-[10px] font-mono uppercase text-[#858585] block mb-1.5">
+                      Branch Pricing Breakdown
+                    </span>
 
-                {/* Branch Breakdown Table */}
-                <div>
-                  <span className="text-[10px] font-mono uppercase text-[#B8B8B8] block mb-1.5">
-                    Branch Pricing Breakdown:
-                  </span>
-                  <div className="overflow-x-auto border border-[#303030] rounded-xl">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-[#111111] border-b border-[#303030] text-[10px] font-mono uppercase text-[#B8B8B8]">
-                          <th className="py-2.5 px-3">Branch Location</th>
-                          <th className="py-2.5 px-3">Status</th>
-                          <th className="py-2.5 px-3">Base Price</th>
-                          <th className="py-2.5 px-3">Joining Fee</th>
-                          <th className="py-2.5 px-3">Discount</th>
-                          <th className="py-2.5 px-3 text-right">Final Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#202020] font-mono text-xs">
-                        {(viewingPlanData.plan.branchPricing || []).map((bp, i) => (
-                          <tr key={i} className="hover:bg-[#202020]">
-                            <td className="py-2.5 px-3 font-semibold text-[#F5F5F5]">
-                              {bp.branchId?.city || 'HQ Hub'} ({bp.branchId?.name || 'Branch'})
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <span
-                                className={`px-2 py-0.5 rounded text-[10px] ${
-                                  bp.isAvailable
-                                    ? 'bg-green-500/10 text-green-400'
-                                    : 'bg-red-500/10 text-red-400'
-                                }`}
-                              >
-                                {bp.isAvailable ? 'AVAILABLE' : 'DISABLED'}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 text-[#CCCCCC]">{formatINR(bp.basePrice)}</td>
-                            <td className="py-2.5 px-3 text-[#B8B8B8]">{formatINR(bp.joiningFee)}</td>
-                            <td className="py-2.5 px-3 text-[#B8B8B8]">
-                              {bp.discountType === 'NONE'
-                                ? 'None'
-                                : bp.discountType === 'PERCENTAGE'
-                                ? `${bp.discountValue}%`
-                                : formatINR(bp.discountValue)}
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-bold text-[#EB3E2E]">
-                              {bp.isAvailable ? formatINR(bp.finalPrice) : 'N/A'}
-                            </td>
+                    <div className="hidden sm:block overflow-x-auto border border-[#303030] rounded-xl">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-[#111111] border-b border-[#303030] text-[10px] font-mono uppercase text-[#B8B8B8]">
+                            <th className="py-2.5 px-3">Branch</th>
+                            <th className="py-2.5 px-3">Status</th>
+                            <th className="py-2.5 px-3">Base</th>
+                            <th className="py-2.5 px-3">Joining Fee</th>
+                            <th className="py-2.5 px-3">Discount</th>
+                            <th className="py-2.5 px-3 text-right">Final Amount</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                        </thead>
+                        <tbody className="divide-y divide-[#202020] font-mono text-xs">
+                          {(viewingPlanData.plan.branchPricing || []).map((bp, i) => (
+                            <tr key={i} className="hover:bg-[#202020]">
+                              <td className="py-2.5 px-3 font-semibold text-[#F5F5F5]">
+                                {bp.branchId?.city || 'HQ Hub'}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] ${
+                                    bp.isAvailable
+                                      ? 'bg-emerald-500/10 text-emerald-400'
+                                      : 'bg-[#F03B2E]/10 text-[#FF493B]'
+                                  }`}
+                                >
+                                  {bp.isAvailable ? 'AVAILABLE' : 'DISABLED'}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-[#CCCCCC]">{formatINR(bp.basePrice)}</td>
+                              <td className="py-2.5 px-3 text-[#B8B8B8]">{formatINR(bp.joiningFee)}</td>
+                              <td className="py-2.5 px-3 text-[#B8B8B8]">
+                                {bp.discountType === 'NONE'
+                                  ? 'None'
+                                  : bp.discountType === 'PERCENTAGE'
+                                  ? `${bp.discountValue}%`
+                                  : formatINR(bp.discountValue)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-bold text-[#F03B2E]">
+                                {bp.isAvailable ? formatINR(bp.finalPrice) : 'Not Available'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
 
-                <div className="flex justify-end pt-3 border-t border-[#303030]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const p = viewingPlanData.plan;
-                      setViewingPlanId(null);
-                      setViewingPlanData(null);
-                      handleOpenEdit(p);
-                    }}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-[#EB3E2E] hover:bg-[#FF493B] text-white font-bold rounded-xl uppercase tracking-wider text-xs cursor-pointer"
-                  >
-                    <Edit className="w-3.5 h-3.5" />
-                    <span>Edit Plan</span>
-                  </button>
-                </div>
+                    <div className="sm:hidden space-y-2">
+                      {(viewingPlanData.plan.branchPricing || []).map((bp, i) => (
+                        <div
+                          key={i}
+                          className="p-3 rounded-xl bg-[#111111] border border-[#252525] space-y-1.5 font-mono text-xs"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-[#F5F5F5]">
+                              {bp.branchId?.city || 'HQ Hub'}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] ${
+                                bp.isAvailable
+                                  ? 'bg-emerald-500/10 text-emerald-400'
+                                  : 'bg-[#F03B2E]/10 text-[#FF493B]'
+                              }`}
+                            >
+                              {bp.isAvailable ? 'AVAILABLE' : 'NOT AVAILABLE'}
+                            </span>
+                          </div>
+                          {bp.isAvailable && (
+                            <div className="grid grid-cols-2 gap-1.5 text-[11px] text-[#B8B8B8] pt-1">
+                              <span>Base: {formatINR(bp.basePrice)}</span>
+                              <span>Fee: {formatINR(bp.joiningFee)}</span>
+                              <span>
+                                Disc:{' '}
+                                {bp.discountType === 'NONE'
+                                  ? 'None'
+                                  : bp.discountType === 'PERCENTAGE'
+                                  ? `${bp.discountValue}%`
+                                  : formatINR(bp.discountValue)}
+                              </span>
+                              <span className="text-[#F03B2E] font-bold">
+                                Final: {formatINR(bp.finalPrice)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            {viewingPlanData?.plan && (
+              <div className="px-5 py-3.5 border-t border-[#303030] bg-[#181818] flex flex-col-reverse sm:flex-row justify-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewingPlanId(null);
+                    setViewingPlanData(null);
+                  }}
+                  className="min-h-[44px] px-4 py-2 bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] rounded-xl text-xs font-bold uppercase cursor-pointer w-full sm:w-auto"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = viewingPlanData.plan;
+                    setViewingPlanId(null);
+                    setViewingPlanData(null);
+                    handleOpenEdit(p);
+                  }}
+                  className="min-h-[44px] flex items-center justify-center gap-1.5 px-4 py-2 bg-[#F03B2E] hover:bg-[#FF493B] text-white font-bold rounded-xl uppercase tracking-wider text-xs cursor-pointer w-full sm:w-auto"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                  <span>Edit Plan</span>
+                </button>
               </div>
-            ) : null}
+            )}
           </div>
         </div>
       )}
+
       {/* ── SAFE DELETE PROTECTION MODAL ── */}
       {deleteWarningModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#181818] border border-amber-500/40 rounded-2xl w-full max-w-md p-6 relative shadow-[0_0_40px_rgba(235,62,46,0.18)]">
-            <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-4">
-              <ShieldAlert className="w-6 h-6 text-[#EB3E2E]" />
-            </div>
-
-            <h3
-              className="text-lg font-bold uppercase tracking-tight text-[#F5F5F5] mb-2"
-              style={{ fontFamily: "'Oswald', sans-serif" }}
-            >
-              Safe Delete Protection
-            </h3>
-
-            <p className="text-xs text-[#CCCCCC] leading-relaxed mb-3">
-              Cannot delete <strong className="text-[#F5F5F5]">"{deleteWarningModal.plan.name}"</strong> because it is currently linked to active or historical athlete pass records in the gym database.
-            </p>
-
-            <div className="p-3.5 rounded-xl bg-[#111111] border border-[#303030] text-[11px] text-[#B8B8B8] mb-5 space-y-1">
-              <div className="text-[#EB3E2E] font-semibold flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                <span>✓ Database Integrity Rule</span>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Safe Delete Protection"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setDeleteWarningModal(null)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-amber-500/40 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md p-5 sm:p-6 shadow-2xl pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-6 h-6 text-[#F03B2E]" />
               </div>
-              <p>
-                Deleting plans with subscriber history would invalidate member cards and reporting figures. Instead, deactivating this plan immediately removes it from future athlete enrollments while preserving all historical data.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end gap-2.5">
               <button
                 type="button"
                 onClick={() => setDeleteWarningModal(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] hover:text-[#F5F5F5] transition-colors"
+                aria-label="Close protection modal"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer"
               >
-                Keep Active
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <h3 className="mm-page-title text-lg mb-2">Safe Delete Protection</h3>
+
+            <p className="text-xs text-[#CCCCCC] leading-relaxed mb-3">
+              Cannot delete <strong className="text-[#F5F5F5]">"{deleteWarningModal.plan.name}"</strong> because it is linked to existing or historical athlete memberships or payment transactions.
+            </p>
+
+            <div className="p-3.5 rounded-xl bg-[#111111] border border-[#303030] text-[11px] text-[#B8B8B8] mb-5 space-y-1">
+              <div className="text-[#F03B2E] font-semibold uppercase tracking-wider text-[10px]">
+                ✓ Database Integrity Rule
+              </div>
+              <p>
+                Deactivating removes this template from future enrollments while preserving all existing member passes and historical pricing snapshots.
+              </p>
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteWarningModal(null)}
+                className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] hover:text-[#F5F5F5] cursor-pointer w-full sm:w-auto"
+              >
+                Keep Current Status
               </button>
               <button
                 type="button"
                 onClick={async () => {
-                  const pId = deleteWarningModal.plan._id;
+                  const p = deleteWarningModal.plan;
                   setDeleteWarningModal(null);
-                  await handleToggleStatus(pId, false);
+                  await executeToggleStatus(p._id, false, p.name);
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white font-semibold transition-all shadow-lg shadow-[#EB3E2E]/20"
+                className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#F03B2E] hover:bg-[#FF493B] text-white cursor-pointer w-full sm:w-auto"
               >
                 Deactivate Plan Instead
               </button>

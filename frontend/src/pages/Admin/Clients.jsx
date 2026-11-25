@@ -1,27 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Users,
   Search,
-  Filter,
   Download,
   Plus,
   ChevronLeft,
   ChevronRight,
   MoreVertical,
-  CheckCircle2,
-  XCircle,
   AlertTriangle,
   UserCheck,
   Building,
   CreditCard,
   CalendarCheck,
-  Activity,
   Receipt,
   KeyRound,
-  Shield,
   Edit,
   Eye,
+  X,
+  Mail,
+  Phone,
+  Calendar,
+  Dumbbell,
+  SlidersHorizontal,
+  PauseCircle,
+  CheckCircle2,
   UserPlus,
+  RotateCcw,
 } from 'lucide-react';
 import adminService from '../../services/adminService.js';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
@@ -31,32 +34,67 @@ export default function Clients() {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionFeedback, setActionFeedback] = useState(null);
 
   // Pagination & Filtering
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState(selectedBranch);
   const [membershipStatus, setMembershipStatus] = useState('ALL');
   const [accountStatus, setAccountStatus] = useState('ALL');
+  const [trainerFilter, setTrainerFilter] = useState('ALL');
 
-  // Modals & Drawers
+  // Modals & Bottom Sheets
   const [selectedClientId, setSelectedClientId] = useState(null);
   const [clientDetailData, setClientDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailTargetSection, setDetailTargetSection] = useState(null);
+
+  const [actionSheetClient, setActionSheetClient] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const [busyClientId, setBusyClientId] = useState(null);
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addError, setAddError] = useState(null);
+  const [submittingAdd, setSubmittingAdd] = useState(false);
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editTargetId, setEditTargetId] = useState(null);
+  const [editError, setEditError] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordTargetClient, setPasswordTargetClient] = useState(null);
+  const [passwordError, setPasswordError] = useState(null);
+  const [savingPassword, setSavingPassword] = useState(false);
+
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [assignTargetClient, setAssignTargetClient] = useState(null);
+  const [assignError, setAssignError] = useState(null);
   const [assignForm, setAssignForm] = useState({
     planId: '',
     startDate: new Date().toISOString().slice(0, 10),
     amount: '',
   });
   const [assignLoading, setAssignLoading] = useState(false);
+
+  const [isTrainerModalOpen, setIsTrainerModalOpen] = useState(false);
+  const [trainerModalClient, setTrainerModalClient] = useState(null);
+  const [selectedTrainerId, setSelectedTrainerId] = useState('');
+  const [trainerAssignError, setTrainerAssignError] = useState(null);
+  const [assigningTrainer, setAssigningTrainer] = useState(false);
+
   const [trainersList, setTrainersList] = useState([]);
   const [plans, setPlans] = useState([]);
+
+  // Section scroll refs inside Dossier
+  const membershipSectionRef = useRef(null);
+  const attendanceSectionRef = useRef(null);
+  const paymentSectionRef = useRef(null);
 
   // Form states
   const [addForm, setAddForm] = useState({
@@ -85,58 +123,178 @@ export default function Clients() {
 
   const [newPassword, setNewPassword] = useState('');
 
-  // Update branch filter if top nav branch changes
+  const activeTrainers = trainersList.filter((t) => t.status === 'ACTIVE');
+
   useEffect(() => {
     setBranchFilter(selectedBranch);
     setPage(1);
   }, [selectedBranch]);
 
-  const fetchClients = async () => {
+  const anyOverlayOpen = Boolean(
+    selectedClientId ||
+      actionSheetClient ||
+      confirmDialog ||
+      isAddModalOpen ||
+      isEditModalOpen ||
+      isPasswordModalOpen ||
+      isAssignModalOpen ||
+      isTrainerModalOpen
+  );
+
+  // Lock background scroll whenever any modal or sheet is open
+  useEffect(() => {
+    if (!anyOverlayOpen) return undefined;
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtml = html.style.overflow;
+    const prevBody = body.style.overflow;
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    return () => {
+      html.style.overflow = prevHtml;
+      body.style.overflow = prevBody;
+    };
+  }, [anyOverlayOpen]);
+
+  // Escape key closes topmost overlay
+  useEffect(() => {
+    if (!anyOverlayOpen) return undefined;
+    const handleKeyDown = (e) => {
+      if (e.key !== 'Escape') return;
+      if (confirmDialog) setConfirmDialog(null);
+      else if (isPasswordModalOpen) {
+        setIsPasswordModalOpen(false);
+        setPasswordError(null);
+      } else if (isAssignModalOpen) {
+        setIsAssignModalOpen(false);
+        setAssignError(null);
+      } else if (isTrainerModalOpen) {
+        setIsTrainerModalOpen(false);
+        setTrainerAssignError(null);
+      } else if (isEditModalOpen) {
+        setIsEditModalOpen(false);
+        setEditError(null);
+      } else if (isAddModalOpen) {
+        setIsAddModalOpen(false);
+        setAddError(null);
+      } else if (actionSheetClient) {
+        setActionSheetClient(null);
+      } else if (selectedClientId) {
+        setSelectedClientId(null);
+        setClientDetailData(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    anyOverlayOpen,
+    confirmDialog,
+    isPasswordModalOpen,
+    isAssignModalOpen,
+    isTrainerModalOpen,
+    isEditModalOpen,
+    isAddModalOpen,
+    actionSheetClient,
+    selectedClientId,
+  ]);
+
+  const showFeedback = (type, message) => {
+    setActionFeedback({ type, message });
+    setTimeout(() => {
+      setActionFeedback((curr) => (curr?.message === message ? null : curr));
+    }, 4500);
+  };
+
+  const fetchClients = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await adminService.getClients({
         page,
-        limit: 15,
-        search,
+        limit: pageSize,
+        search: appliedSearch,
         branchId: branchFilter,
         membershipStatus,
         accountStatus,
+        trainerId: trainerFilter,
       });
       setClients(res.clients || []);
-      setTotalPages(res.totalPages || 1);
+      setTotalPages(Math.max(1, res.totalPages || 1));
       setTotalCount(res.total || 0);
     } catch (err) {
       setError(err.message || 'Failed to fetch clients');
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, pageSize, appliedSearch, branchFilter, membershipStatus, accountStatus, trainerFilter]);
 
-  const fetchTrainers = async () => {
+  const fetchTrainersAndPlans = useCallback(async () => {
     try {
-      const res = await adminService.getTrainers();
-      if (res.trainers) setTrainersList(res.trainers);
-      const plansRes = await adminService.getMembershipPlans().catch(() => ({ plans: [] }));
+      const [trRes, plansRes] = await Promise.all([
+        adminService.getTrainers(),
+        adminService.getMembershipPlans().catch(() => ({ plans: [] })),
+      ]);
+      if (trRes.trainers) setTrainersList(trRes.trainers);
       if (plansRes.plans) setPlans(plansRes.plans);
     } catch (err) {
       console.error('Failed to load trainers or plans:', err);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchClients();
-  }, [page, branchFilter, membershipStatus, accountStatus]);
+  }, [fetchClients]);
 
   useEffect(() => {
-    fetchTrainers();
-  }, []);
+    fetchTrainersAndPlans();
+  }, [fetchTrainersAndPlans]);
+
+  // Scroll to requested section inside Dossier once loaded
+  useEffect(() => {
+    if (!clientDetailData || !detailTargetSection) return;
+    const refMap = {
+      membership: membershipSectionRef,
+      attendance: attendanceSectionRef,
+      payments: paymentSectionRef,
+    };
+    const targetRef = refMap[detailTargetSection];
+    if (targetRef?.current) {
+      setTimeout(() => {
+        targetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+    setDetailTargetSection(null);
+  }, [clientDetailData, detailTargetSection]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     setPage(1);
-    fetchClients();
+    setAppliedSearch(search.trim());
   };
+
+  const handleClearSearch = () => {
+    setSearch('');
+    setPage(1);
+    setAppliedSearch('');
+  };
+
+  const handleResetFilters = () => {
+    setSearch('');
+    setAppliedSearch('');
+    setBranchFilter('ALL');
+    setMembershipStatus('ALL');
+    setAccountStatus('ALL');
+    setTrainerFilter('ALL');
+    setPage(1);
+  };
+
+  const hasActiveFilters = Boolean(
+    appliedSearch ||
+      branchFilter !== 'ALL' ||
+      membershipStatus !== 'ALL' ||
+      accountStatus !== 'ALL' ||
+      trainerFilter !== 'ALL'
+  );
 
   const handleExportCSV = () => {
     const exportData = clients.map((c) => ({
@@ -147,115 +305,260 @@ export default function Clients() {
       Branch: c.branch?.city || '',
       Status: c.status,
       MembershipPlan: c.membership?.planName || 'None',
-      MembershipStatus: c.membership?.status || 'NOT_ENROLLED',
+      MembershipStatus: c.membership?.status || 'NO_MEMBERSHIP',
       ExpiryDate: c.membership?.expiryDate ? new Date(c.membership.expiryDate).toLocaleDateString() : '—',
+      Trainer: c.trainer?.name || 'No Trainer Assigned',
       RegisteredOn: new Date(c.createdAt).toLocaleDateString(),
     }));
     adminService.exportToCSV(exportData, `clients_${Date.now()}.csv`);
   };
 
-  const handleOpenClientDetails = async (id) => {
+  const handleOpenClientDetails = async (id, focusSection = null) => {
+    setActionSheetClient(null);
+    setDetailTargetSection(focusSection);
     setSelectedClientId(id);
     setDetailLoading(true);
     try {
       const res = await adminService.getClientDetails(id);
       setClientDetailData(res);
     } catch (err) {
-      alert(err.message || 'Failed to fetch client dossier');
+      setSelectedClientId(null);
+      showFeedback('error', err.message || 'Failed to fetch client dossier');
     } finally {
       setDetailLoading(false);
     }
   };
 
   const handleOpenEdit = (c) => {
+    setActionSheetClient(null);
+    setEditError(null);
+    const id = c.id || c._id;
+    setEditTargetId(id);
     setEditForm({
-      name: c.name,
-      phone: c.phone,
-      email: c.email,
+      name: c.name || '',
+      phone: c.phone || '',
+      email: c.email || '',
       branchId: c.branch?._id || '',
-      fitnessGoal: c.fitnessGoal || 'General Fitness',
-      experienceLevel: c.experienceLevel || 'Beginner',
+      fitnessGoal: c.fitnessGoal || clientDetailData?.profile?.fitnessGoal || 'General Fitness',
+      experienceLevel: c.experienceLevel || clientDetailData?.profile?.experienceLevel || 'Beginner',
     });
     setIsEditModalOpen(true);
   };
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
+    if (!editTargetId) return;
+    setEditError(null);
     try {
-      await adminService.updateClient(selectedClientId, editForm);
+      setSavingEdit(true);
+      await adminService.updateClient(editTargetId, editForm);
       setIsEditModalOpen(false);
-      handleOpenClientDetails(selectedClientId);
-      fetchClients();
+      showFeedback('success', 'Client profile updated successfully.');
+      await fetchClients();
+      if (selectedClientId === editTargetId) {
+        handleOpenClientDetails(editTargetId);
+      }
     } catch (err) {
-      alert(err.message || 'Failed to update client');
+      setEditError(err.message || 'Failed to update client');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
-  const handleToggleStatus = async (client) => {
+  const requestToggleStatus = (client) => {
+    setActionSheetClient(null);
+    const targetId = client.id || client._id;
     const newSt = client.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
-    if (!window.confirm(`Set account status for ${client.name} to ${newSt}?`)) return;
+    const isSuspending = newSt === 'SUSPENDED';
+
+    setConfirmDialog({
+      title: isSuspending ? 'Suspend Client Account' : 'Reactivate Client Account',
+      confirmLabel: isSuspending ? 'Suspend Account' : 'Reactivate Account',
+      tone: isSuspending ? 'red' : 'emerald',
+      description: isSuspending
+        ? `Suspend ${client.name}? They will not be able to log in or access athlete features until reactivated.`
+        : `Restore active Athlete Portal access for ${client.name}?`,
+      onConfirm: async () => {
+        try {
+          setBusyClientId(targetId);
+          await adminService.updateClientStatus(targetId, newSt);
+          setConfirmDialog(null);
+          showFeedback('success', `${client.name} status updated to ${newSt}.`);
+          await fetchClients();
+          if (selectedClientId === targetId) {
+            handleOpenClientDetails(targetId);
+          }
+        } catch (err) {
+          setConfirmDialog(null);
+          showFeedback('error', err.message || 'Failed to update status');
+        } finally {
+          setBusyClientId(null);
+        }
+      },
+    });
+  };
+
+  const handleOpenTrainerModal = (client) => {
+    setActionSheetClient(null);
+    setTrainerAssignError(null);
+    setTrainerModalClient(client);
+    setSelectedTrainerId(client.trainer?._id || client.trainer?.id || '');
+    setIsTrainerModalOpen(true);
+  };
+
+  const handleConfirmTrainerModal = async (e) => {
+    e.preventDefault();
+    const targetId = trainerModalClient?.id || trainerModalClient?._id;
+    if (!targetId) return;
+    setTrainerAssignError(null);
     try {
-      await adminService.updateClientStatus(client.id || client._id, newSt);
-      fetchClients();
-      if (selectedClientId) handleOpenClientDetails(selectedClientId);
+      setAssigningTrainer(true);
+      await adminService.assignTrainer(targetId, selectedTrainerId);
+      setIsTrainerModalOpen(false);
+      showFeedback(
+        'success',
+        selectedTrainerId ? 'Trainer assigned successfully.' : 'Trainer unassigned successfully.'
+      );
+      await fetchClients();
+      if (selectedClientId === targetId) {
+        handleOpenClientDetails(targetId);
+      }
     } catch (err) {
-      alert(err.message || 'Failed to update status');
+      setTrainerAssignError(err.message || 'Failed to assign trainer');
+    } finally {
+      setAssigningTrainer(false);
     }
   };
 
-  const handleAssignTrainer = async (trainerId) => {
-    try {
-      await adminService.assignTrainer(selectedClientId, trainerId);
-      handleOpenClientDetails(selectedClientId);
-      fetchClients();
-    } catch (err) {
-      alert(err.message || 'Failed to assign trainer');
-    }
+  const handleAssignTrainerInline = async (trainerId) => {
+    if (!selectedClientId) return;
+    const chosenTrainer = activeTrainers.find((t) => t.id === trainerId);
+    setConfirmDialog({
+      title: trainerId ? 'Confirm Trainer Assignment' : 'Remove Trainer Assignment',
+      confirmLabel: trainerId ? 'Assign Trainer' : 'Unassign Trainer',
+      tone: 'red',
+      description: trainerId
+        ? `Assign ${chosenTrainer?.name || 'selected trainer'} to ${clientDetailData?.client?.name}?`
+        : `Remove assigned trainer for ${clientDetailData?.client?.name}?`,
+      onConfirm: async () => {
+        try {
+          await adminService.assignTrainer(selectedClientId, trainerId);
+          setConfirmDialog(null);
+          showFeedback(
+            'success',
+            trainerId ? 'Trainer assigned successfully.' : 'Trainer unassigned successfully.'
+          );
+          await handleOpenClientDetails(selectedClientId);
+          await fetchClients();
+        } catch (err) {
+          setConfirmDialog(null);
+          showFeedback('error', err.message || 'Failed to assign trainer');
+        }
+      },
+    });
+  };
+
+  const handleOpenPasswordModal = (client) => {
+    setActionSheetClient(null);
+    setPasswordError(null);
+    setNewPassword('');
+    setPasswordTargetClient(client);
+    setIsPasswordModalOpen(true);
   };
 
   const handleResetPassword = async (e) => {
     e.preventDefault();
+    setPasswordError(null);
+    const targetId = passwordTargetClient?.id || passwordTargetClient?._id || selectedClientId;
+    if (!targetId) return;
     if (newPassword.length < 8) {
-      alert('Password must be at least 8 characters long');
+      setPasswordError('Password must be at least 8 characters long.');
       return;
     }
     try {
-      await adminService.resetClientPassword(selectedClientId, newPassword);
-      alert('Password reset successfully!');
+      setSavingPassword(true);
+      await adminService.resetClientPassword(targetId, newPassword);
       setIsPasswordModalOpen(false);
       setNewPassword('');
+      showFeedback('success', 'Client password reset successfully.');
     } catch (err) {
-      alert(err.message || 'Failed to reset password');
+      setPasswordError(err.message || 'Failed to reset password');
+    } finally {
+      setSavingPassword(false);
     }
+  };
+
+  const handleOpenAddModal = () => {
+    setAddError(null);
+    setAddForm({
+      name: '',
+      email: '',
+      phone: '',
+      password: 'Password@123',
+      branchId: branches[0]?._id || '',
+      fitnessGoal: 'Muscle Building',
+      experienceLevel: 'Intermediate',
+      trainerId: '',
+      planId: '',
+      membershipPlanName: '',
+      durationMonths: 1,
+      membershipAmount: 0,
+    });
+    setIsAddModalOpen(true);
   };
 
   const handleCreateClientSubmit = async (e) => {
     e.preventDefault();
+    setAddError(null);
     try {
+      setSubmittingAdd(true);
       await adminService.createClient(addForm);
       setIsAddModalOpen(false);
-      fetchClients();
-      alert('Client registered successfully!');
+      setPage(1);
+      await fetchClients();
+      showFeedback('success', 'Client registered successfully.');
     } catch (err) {
-      alert(err.message || 'Failed to create client');
+      setAddError(err.message || 'Failed to create client');
+    } finally {
+      setSubmittingAdd(false);
     }
+  };
+
+  const handleOpenAssignMembershipModal = (client) => {
+    setActionSheetClient(null);
+    setAssignError(null);
+    const defaultPlan = plans[0];
+    const targetBranchId = client.branch?._id || client.branch || branches[0]?._id;
+    const bp = defaultPlan?.branchPricing?.find(
+      (b) => (b.branchId?._id || b.branchId || '').toString() === (targetBranchId || '').toString()
+    );
+    const defaultCost = bp?.finalPrice !== undefined ? bp.finalPrice : (defaultPlan?.price || '');
+    setAssignTargetClient(client);
+    setAssignForm({
+      planId: defaultPlan?._id || '',
+      startDate: new Date().toISOString().slice(0, 10),
+      amount: defaultCost,
+    });
+    setIsAssignModalOpen(true);
   };
 
   const handleAssignMembership = async (e) => {
     e.preventDefault();
+    setAssignError(null);
     if (!assignForm.planId) {
-      alert('Please select a membership plan.');
+      setAssignError('Please select a membership plan.');
       return;
     }
-    const clientId = clientDetailData?.client?.id || clientDetailData?.client?._id || selectedClientId;
+    const clientObj = assignTargetClient || clientDetailData?.client;
+    const clientId = clientObj?.id || clientObj?._id || selectedClientId;
     if (!clientId) {
-      alert('No client selected.');
+      setAssignError('No client selected.');
       return;
     }
     try {
       setAssignLoading(true);
       const selectedPlan = plans.find((p) => p._id === assignForm.planId);
-      const branchId = clientDetailData?.client?.branch?._id || clientDetailData?.client?.branch || (branches[0]?._id);
+      const branchId = clientObj?.branch?._id || clientObj?.branch || branches[0]?._id;
 
       await adminService.createClientMembership({
         userId: clientId,
@@ -266,346 +569,882 @@ export default function Clients() {
         startDate: assignForm.startDate,
       });
 
-      alert('Membership assigned successfully!');
       setIsAssignModalOpen(false);
-      handleOpenClientDetails(clientId);
-      fetchClients();
+      showFeedback('success', 'Membership assigned successfully.');
+      await fetchClients();
+      if (selectedClientId === clientId) {
+        handleOpenClientDetails(clientId);
+      }
     } catch (err) {
-      alert(err.message || 'Failed to assign membership');
+      setAssignError(err.message || 'Failed to assign membership');
     } finally {
       setAssignLoading(false);
     }
   };
 
+  const getMembershipDisplay = (membership) => {
+    if (!membership) {
+      return {
+        hasRecord: false,
+        label: 'NO MEMBERSHIP',
+        badgeClass: 'bg-[#202020] text-[#B8B8B8] border-[#303030]',
+        state: 'NONE',
+      };
+    }
+    const isActive = membership.status === 'ACTIVE' && !membership.isExpired;
+    if (isActive) {
+      return {
+        hasRecord: true,
+        label: 'ACTIVE',
+        badgeClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+        state: 'ACTIVE',
+      };
+    }
+    if (membership.status === 'PENDING' || membership.status === 'PENDING_PAYMENT') {
+      return {
+        hasRecord: true,
+        label: 'PENDING PAYMENT',
+        badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+        state: 'PENDING',
+      };
+    }
+    if (membership.status === 'CANCELLED') {
+      return {
+        hasRecord: true,
+        label: 'CANCELLED',
+        badgeClass: 'bg-[#202020] text-[#B8B8B8] border-[#303030]',
+        state: 'CANCELLED',
+      };
+    }
+    return {
+      hasRecord: true,
+      label: 'EXPIRED',
+      badgeClass: 'bg-[#F03B2E]/15 text-[#FF493B] border-[#F03B2E]/35',
+      state: 'EXPIRED',
+    };
+  };
+
+  const renderAccountBadge = (status) => {
+    if (status === 'ACTIVE') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">
+          ACTIVE
+        </span>
+      );
+    }
+    if (status === 'SUSPENDED') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#F03B2E]/15 text-[#FF493B] border border-[#F03B2E]/35 whitespace-nowrap">
+          SUSPENDED
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#202020] text-[#858585] border border-[#303030] whitespace-nowrap">
+        {status || 'INACTIVE'}
+      </span>
+    );
+  };
+
+  const startIndex = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endIndex = Math.min(totalCount, page * pageSize);
+
   return (
-    <div className="space-y-6">
-      {/* ── HEADER & ACTIONS ── */}
+    <div className="space-y-5 sm:space-y-6 min-w-0">
+      {/* ── HEADER & PRIMARY CTA ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2
-            className="text-xl sm:text-2xl font-bold uppercase tracking-tight text-[#F5F5F5]"
-            style={{ fontFamily: "'Oswald', sans-serif" }}
-          >
+        <div className="min-w-0">
+          <h2 className="mm-page-title text-2xl sm:text-3xl">
             CLIENT MANAGEMENT DIRECTORY
           </h2>
-          <p className="text-xs text-[#B8B8B8]">
+          <p className="text-xs sm:text-sm text-[#B8B8B8] mt-1">
             Total {totalCount} registered athletes across Kovilpatti, Karur and Sivakasi.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#252525] text-[#F5F5F5] border border-[#303030] hover:border-[#EB3E2E] transition-colors cursor-pointer"
+            className="min-h-[44px] flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#252525] text-[#F5F5F5] border border-[#303030] hover:border-[#F03B2E] transition-colors cursor-pointer w-full sm:w-auto"
           >
-            <Download className="w-3.5 h-3.5 text-[#EB3E2E]" />
+            <Download className="w-4 h-4 text-[#F03B2E] shrink-0" />
             <span>Export CSV</span>
           </button>
 
           <button
             type="button"
-            onClick={() => {
-              setAddForm({
-                name: '',
-                email: '',
-                phone: '',
-                password: 'Password@123',
-                branchId: branches[0]?._id || '',
-                fitnessGoal: 'Muscle Building',
-                experienceLevel: 'Intermediate',
-                trainerId: '',
-                membershipPlanName: '1 Month Kickstart',
-                durationMonths: 1,
-                membershipAmount: 2000,
-              });
-              setIsAddModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white transition-all cursor-pointer shadow-lg shadow-[#EB3E2E]/10"
+            onClick={handleOpenAddModal}
+            className="min-h-[44px] flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#F03B2E] hover:bg-[#FF493B] text-white transition-all cursor-pointer shadow-lg shadow-[#F03B2E]/15 w-full sm:w-auto"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>Add Client</span>
           </button>
         </div>
       </div>
 
+      {/* ── ACTION FEEDBACK BANNER ── */}
+      {actionFeedback && (
+        <div
+          role="status"
+          className={`rounded-xl p-3.5 flex items-center justify-between gap-3 text-xs border ${
+            actionFeedback.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-200'
+              : 'bg-[#F03B2E]/10 border-[#F03B2E]/40 text-[#FF6A5E]'
+          }`}
+        >
+          <span className="min-w-0 break-words">{actionFeedback.message}</span>
+          <button
+            type="button"
+            onClick={() => setActionFeedback(null)}
+            aria-label="Dismiss notification"
+            className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-black/20 shrink-0 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* ── SEARCH & FILTERS BAR ── */}
-      <div className="bg-[#111111] border border-[#303030] rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        {/* Search */}
-        <form onSubmit={handleSearchSubmit} className="flex-1 relative">
-          <Search className="w-4 h-4 text-[#B8B8B8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, phone, or email..."
-            className="w-full pl-9 pr-4 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] placeholder-[#B8B8B8] focus:border-[#EB3E2E] focus:outline-none transition-colors"
-          />
+      <div className="bg-[#111111] border border-[#303030] rounded-2xl p-3.5 sm:p-4 space-y-3">
+        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 min-w-0">
+          <div className="relative flex-1 min-w-0">
+            <Search className="w-4 h-4 text-[#858585] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, phone, or email..."
+              aria-label="Search clients by name, phone, or email"
+              className="w-full min-h-[44px] pl-10 pr-10 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] placeholder-[#858585] focus:border-[#F03B2E] focus:outline-none transition-colors"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                aria-label="Clear search"
+                className="absolute right-1 top-1/2 -translate-y-1/2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-[#858585] hover:text-[#F5F5F5] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <button
+            type="submit"
+            className="min-h-[44px] px-4 py-2 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] cursor-pointer shrink-0"
+          >
+            Search
+          </button>
         </form>
 
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
           {/* Branch filter */}
           <select
+            aria-label="Filter clients by branch"
             value={branchFilter}
             onChange={(e) => {
               setBranchFilter(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none cursor-pointer"
+            className="w-full min-h-[44px] px-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none cursor-pointer"
           >
             <option value="ALL">All Branches</option>
             {branches.map((b) => (
               <option key={b._id} value={b._id}>
-                {b.city}
+                {b.city} Branch
               </option>
             ))}
           </select>
 
           {/* Membership Status filter */}
           <select
+            aria-label="Filter clients by membership status"
             value={membershipStatus}
             onChange={(e) => {
               setMembershipStatus(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none cursor-pointer"
+            className="w-full min-h-[44px] px-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none cursor-pointer"
           >
             <option value="ALL">All Memberships</option>
-            <option value="ACTIVE">Active Pass</option>
-            <option value="EXPIRED">Expired Pass</option>
+            <option value="ACTIVE">Active Membership</option>
+            <option value="PENDING">Pending Payment</option>
+            <option value="EXPIRED">Expired Membership</option>
+            <option value="CANCELLED">Cancelled Membership</option>
             <option value="NO_MEMBERSHIP">No Membership</option>
           </select>
 
           {/* Account Status filter */}
           <select
+            aria-label="Filter clients by account status"
             value={accountStatus}
             onChange={(e) => {
               setAccountStatus(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none cursor-pointer"
+            className="w-full min-h-[44px] px-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none cursor-pointer"
           >
             <option value="ALL">All Account Status</option>
-            <option value="ACTIVE">Active</option>
-            <option value="SUSPENDED">Suspended</option>
+            <option value="ACTIVE">Active Accounts</option>
+            <option value="SUSPENDED">Suspended Accounts</option>
+            <option value="INACTIVE">Inactive Accounts</option>
+          </select>
+
+          {/* Assigned Trainer filter */}
+          <select
+            aria-label="Filter clients by assigned trainer"
+            value={trainerFilter}
+            onChange={(e) => {
+              setTrainerFilter(e.target.value);
+              setPage(1);
+            }}
+            className="w-full min-h-[44px] px-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none cursor-pointer"
+          >
+            <option value="ALL">All Trainers</option>
+            <option value="UNASSIGNED">No Trainer Assigned</option>
+            {activeTrainers.map((t) => (
+              <option key={t.id} value={t.id}>
+                Coach: {t.name}
+              </option>
+            ))}
           </select>
         </div>
+
+        {hasActiveFilters && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="min-h-[36px] px-3 py-1.5 rounded-lg bg-[#181818] hover:bg-[#202020] border border-[#303030] text-[11px] font-bold uppercase tracking-wider text-[#B8B8B8] hover:text-[#F5F5F5] inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-[#F03B2E]" />
+              <span>Clear Filters</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── ERROR NOTICE & RETRY ── */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-center justify-between gap-3 text-red-400">
-          <div className="flex items-center gap-2.5">
+        <div className="bg-[#F03B2E]/10 border border-[#F03B2E]/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[#FF493B]">
+          <div className="flex items-center gap-2.5 min-w-0">
             <AlertTriangle className="w-5 h-5 shrink-0" />
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-wider">Client Database Sync Error</p>
-              <p className="text-xs text-red-300/80">{error}</p>
+              <p className="text-xs text-[#B8B8B8] break-words">{error}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={fetchClients}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-xs font-bold uppercase text-red-300 transition-colors cursor-pointer"
+            className="min-h-[44px] px-4 py-2 rounded-lg bg-[#F03B2E]/20 hover:bg-[#F03B2E]/30 text-xs font-bold uppercase text-[#F5F5F5] transition-colors cursor-pointer w-full sm:w-auto"
           >
-            <span>Retry</span>
+            Retry
           </button>
         </div>
       )}
 
-      {/* ── CLIENTS TABLE ── */}
-      <div className="bg-[#181818] border border-[#303030] rounded-2xl overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-[#303030] bg-[#111111] text-[11px] font-mono uppercase tracking-wider text-[#B8B8B8]">
-                <th className="py-3.5 px-4 font-semibold">Athlete</th>
-                <th className="py-3.5 px-4 font-semibold">Contact</th>
-                <th className="py-3.5 px-4 font-semibold">Branch</th>
-                <th className="py-3.5 px-4 font-semibold">Membership</th>
-                <th className="py-3.5 px-4 font-semibold">Trainer</th>
-                <th className="py-3.5 px-4 font-semibold">Status</th>
-                <th className="py-3.5 px-4 font-semibold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#202020] text-xs">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-[#B8B8B8]">
-                    Loading athletes database...
-                  </td>
-                </tr>
-              ) : clients.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-[#B8B8B8]">
-                    No clients match the specified search or filter criteria.
-                  </td>
-                </tr>
-              ) : (
-                clients.map((c) => (
-                  <tr key={c.id || c._id} className="hover:bg-[#202020] transition-colors">
-                    {/* Athlete info */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#EB3E2E]/10 border border-[#EB3E2E]/30 flex items-center justify-center text-[#EB3E2E] font-bold text-xs shrink-0">
-                          {c.name ? c.name[0].toUpperCase() : 'U'}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="font-bold text-[#F5F5F5]">{c.name}</span>
-                          <span className="text-[10px] text-[#B8B8B8] font-mono">
-                            ID: {(c.id || c._id || '').toString().slice(-6)} • {c.fitnessGoal}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Contact */}
-                    <td className="py-3 px-4">
-                      <div className="flex flex-col">
-                        <span className="text-[#F5F5F5] font-mono">{c.phone}</span>
-                        <span className="text-[10px] text-[#B8B8B8]">{c.email}</span>
-                      </div>
-                    </td>
-
-                    {/* Branch */}
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded-md bg-[#252525] text-[#EB3E2E] font-bold text-[10px] font-mono">
-                        {c.branch?.city || 'HQ'}
-                      </span>
-                    </td>
-
-                    {/* Membership */}
-                    <td className="py-3 px-4">
-                      {c.membership ? (
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-[#F5F5F5] truncate max-w-[130px]">
-                            {c.membership.planName}
-                          </span>
-                          <span
-                            className={`text-[10px] font-mono ${
-                              c.membership.status === 'ACTIVE' && !c.membership.isExpired
-                                ? 'text-green-400 font-semibold'
-                                : c.membership.status === 'PENDING'
-                                ? 'text-amber-400 font-semibold'
-                                : 'text-red-400 font-bold'
-                            }`}
-                          >
-                            {c.membership.status === 'ACTIVE' && !c.membership.isExpired
-                              ? `ACTIVE • ${new Date(c.membership.expiryDate).toLocaleDateString()}`
-                              : c.membership.status === 'PENDING'
-                              ? 'PENDING APPROVAL'
-                              : `EXPIRED • ${new Date(c.membership.expiryDate).toLocaleDateString()}`}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-[#B8B8B8] italic">No Membership</span>
-                      )}
-                    </td>
-
-                    {/* Assigned Trainer (Optional) */}
-                    <td className="py-3 px-4">
-                      {c.trainer ? (
-                        <span className="text-xs font-medium text-[#F5F5F5]">{c.trainer.name}</span>
-                      ) : (
-                        <span className="text-[11px] text-[#B8B8B8]">Self-Managed</span>
-                      )}
-                    </td>
-
-                    {/* Status */}
-                    <td className="py-3 px-4">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                          c.status === 'ACTIVE'
-                            ? 'bg-green-500/10 text-green-400 border border-green-500/30'
-                            : 'bg-red-500/10 text-red-400 border border-red-500/30'
-                        }`}
-                      >
-                        {c.status}
-                      </span>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenClientDetails(c.id || c._id)}
-                          className="px-2.5 py-1 rounded-lg bg-[#252525] hover:bg-[#EB3E2E] hover:text-white text-[#F5F5F5] font-semibold text-[11px] transition-colors cursor-pointer"
-                        >
-                          Dossier
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(c)}
-                          className={`p-1 rounded-lg transition-colors cursor-pointer ${
-                            c.status === 'ACTIVE'
-                              ? 'text-[#B8B8B8] hover:text-red-400'
-                              : 'text-green-400 hover:text-green-300'
-                          }`}
-                          title={c.status === 'ACTIVE' ? 'Suspend Account' : 'Activate Account'}
-                        >
-                          <UserCheck className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
+      {/* ── CLIENTS LIST: DESKTOP TABLE (>= 1024px) & MOBILE/TABLET CARDS (< 1024px) ── */}
+      {loading ? (
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl py-12 text-center text-xs text-[#B8B8B8]">
+          Loading athletes database...
+        </div>
+      ) : clients.length === 0 ? (
+        <div className="bg-[#181818] border border-[#303030] rounded-2xl py-12 px-4 text-center space-y-3">
+          <p className="text-sm font-bold text-[#F5F5F5]">No clients found</p>
+          <p className="text-xs text-[#858585]">
+            No clients match the specified search or filter criteria.
+          </p>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="min-h-[44px] px-4 py-2 rounded-xl bg-[#202020] border border-[#303030] text-xs font-bold uppercase text-[#F5F5F5] cursor-pointer"
+            >
+              Reset Filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* ── DESKTOP TABLE (>= 1024px, Preserved Design) ── */}
+          <div className="hidden lg:block bg-[#181818] border border-[#303030] rounded-2xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-[#303030] bg-[#111111] text-[11px] font-mono uppercase tracking-wider text-[#B8B8B8]">
+                    <th className="py-3.5 px-4 font-semibold">Athlete</th>
+                    <th className="py-3.5 px-4 font-semibold">Contact</th>
+                    <th className="py-3.5 px-4 font-semibold">Branch</th>
+                    <th className="py-3.5 px-4 font-semibold">Membership</th>
+                    <th className="py-3.5 px-4 font-semibold">Trainer</th>
+                    <th className="py-3.5 px-4 font-semibold">Status</th>
+                    <th className="py-3.5 px-4 font-semibold text-right">Actions</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody className="divide-y divide-[#202020] text-xs">
+                  {clients.map((c) => {
+                    const mDisplay = getMembershipDisplay(c.membership);
+                    return (
+                      <tr key={c.id || c._id} className="hover:bg-[#202020] transition-colors">
+                        {/* Athlete info */}
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-[#F03B2E]/10 border border-[#F03B2E]/30 flex items-center justify-center text-[#F03B2E] font-bold text-xs shrink-0">
+                              {c.name ? c.name[0].toUpperCase() : 'U'}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-[#F5F5F5]">{c.name}</span>
+                              <span className="text-[10px] text-[#B8B8B8] font-mono">
+                                ID: {(c.id || c._id || '').toString().slice(-6)} • Joined{' '}
+                                {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '—'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
 
-        {/* Pagination Bar */}
-        <div className="p-4 border-t border-[#303030] bg-[#111111] flex items-center justify-between text-xs text-[#B8B8B8]">
-          <span>
-            Showing page <strong className="text-[#F5F5F5]">{page}</strong> of{' '}
-            <strong className="text-[#F5F5F5]">{totalPages}</strong> ({totalCount} athletes)
-          </span>
+                        {/* Contact */}
+                        <td className="py-3 px-4">
+                          <div className="flex flex-col">
+                            <span className="text-[#F5F5F5] font-mono">{c.phone}</span>
+                            <span className="text-[10px] text-[#B8B8B8]">{c.email}</span>
+                          </div>
+                        </td>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-              className="p-1.5 rounded-lg bg-[#202020] text-[#F5F5F5] border border-[#303030] hover:border-[#EB3E2E] disabled:opacity-40 cursor-pointer"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              onClick={() => setPage(page + 1)}
-              className="p-1.5 rounded-lg bg-[#202020] text-[#F5F5F5] border border-[#303030] hover:border-[#EB3E2E] disabled:opacity-40 cursor-pointer"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+                        {/* Branch */}
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 rounded-md bg-[#252525] text-[#F03B2E] font-bold text-[10px] font-mono">
+                            {c.branch?.city || 'HQ'}
+                          </span>
+                        </td>
+
+                        {/* Membership */}
+                        <td className="py-3 px-4">
+                          {c.membership ? (
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-[#F5F5F5] truncate max-w-[140px]">
+                                {c.membership.planName}
+                              </span>
+                              <span
+                                className={`text-[10px] font-mono ${
+                                  mDisplay.state === 'ACTIVE'
+                                    ? 'text-emerald-400 font-semibold'
+                                    : mDisplay.state === 'PENDING'
+                                    ? 'text-amber-400 font-semibold'
+                                    : 'text-[#FF493B] font-bold'
+                                }`}
+                              >
+                                {mDisplay.label}
+                                {c.membership.expiryDate
+                                  ? ` • ${new Date(c.membership.expiryDate).toLocaleDateString()}`
+                                  : ''}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] font-mono font-bold uppercase text-[#858585]">
+                              NO ACTIVE MEMBERSHIP
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Assigned Trainer */}
+                        <td className="py-3 px-4">
+                          {c.trainer ? (
+                            <span className="text-xs font-medium text-[#F5F5F5]">{c.trainer.name}</span>
+                          ) : (
+                            <span className="text-[11px] text-[#B8B8B8]">No Trainer Assigned</span>
+                          )}
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3 px-4">{renderAccountBadge(c.status)}</td>
+
+                        {/* Actions */}
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenClientDetails(c.id || c._id)}
+                              className="px-2.5 py-1 rounded-lg bg-[#252525] hover:bg-[#F03B2E] hover:text-white text-[#F5F5F5] font-semibold text-[11px] transition-colors cursor-pointer"
+                            >
+                              Dossier
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busyClientId === (c.id || c._id)}
+                              onClick={() => requestToggleStatus(c)}
+                              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                c.status === 'ACTIVE'
+                                  ? 'text-[#B8B8B8] hover:text-[#FF493B]'
+                                  : 'text-emerald-400 hover:text-emerald-300'
+                              }`}
+                              title={c.status === 'ACTIVE' ? 'Suspend Account' : 'Reactivate Account'}
+                              aria-label={c.status === 'ACTIVE' ? `Suspend ${c.name}` : `Reactivate ${c.name}`}
+                            >
+                              <UserCheck className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* ── CLIENT 360 DOSSIER DRAWER / MODAL ── */}
-      {selectedClientId && clientDetailData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-2xl bg-[#111111] border-l border-[#303030] h-full overflow-y-auto p-6 space-y-6 shadow-2xl">
-            {/* Drawer Header */}
-            <div className="flex items-start justify-between border-b border-[#303030] pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-[#EB3E2E]/20 border border-[#EB3E2E]/40 flex items-center justify-center text-[#EB3E2E] font-bold text-lg">
-                  {clientDetailData.client.name ? clientDetailData.client.name[0].toUpperCase() : 'U'}
-                </div>
-                <div className="flex flex-col">
-                  <h3
-                    className="text-lg font-bold uppercase text-[#F5F5F5]"
-                    style={{ fontFamily: "'Oswald', sans-serif" }}
+          {/* ── MOBILE & TABLET CLIENT CARDS (< 1024px) ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 lg:hidden">
+            {clients.map((c) => {
+              const clientId = c.id || c._id;
+              const mDisplay = getMembershipDisplay(c.membership);
+              const busy = busyClientId === clientId;
+
+              return (
+                <article
+                  key={clientId}
+                  className="bg-[#181818] border border-[#303030] rounded-xl p-4 flex flex-col justify-between gap-3.5 min-w-0"
+                >
+                  {/* Card Header: Avatar + Name + Account Status + 3-dot Menu */}
+                  <div className="flex items-start justify-between gap-2 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-10 h-10 rounded-full bg-[#F03B2E]/15 border border-[#F03B2E]/35 flex items-center justify-center text-[#F03B2E] font-bold text-sm shrink-0">
+                        {c.name ? c.name[0].toUpperCase() : 'U'}
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <h3 className="font-display text-base sm:text-lg font-bold uppercase text-[#F5F5F5] leading-tight truncate">
+                          {c.name}
+                        </h3>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {renderAccountBadge(c.status)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setActionSheetClient(c)}
+                      aria-label={`Open actions for ${c.name}`}
+                      aria-haspopup="dialog"
+                      className="min-w-[44px] min-h-[44px] -mr-1.5 -mt-1 flex items-center justify-center rounded-lg bg-[#202020] hover:bg-[#303030] text-[#F5F5F5] border border-[#303030] hover:border-[#F03B2E] cursor-pointer shrink-0 transition-colors"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Client Contact & Registration Details */}
+                  <div className="space-y-1.5 text-xs text-[#B8B8B8] border-t border-[#252525] pt-3 min-w-0">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <Mail className="w-3.5 h-3.5 text-[#F03B2E] shrink-0 mt-0.5" />
+                      <span className="break-all min-w-0 text-[#F5F5F5]">{c.email}</span>
+                    </div>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Phone className="w-3.5 h-3.5 text-[#F03B2E] shrink-0" />
+                      <span className="font-mono text-[#F5F5F5]">{c.phone}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] text-[#858585]">
+                      <span className="inline-flex items-center gap-1 font-semibold text-[#F5F5F5]">
+                        <Building className="w-3 h-3 text-[#F03B2E]" />
+                        {c.branch?.city || 'HQ'} Branch
+                      </span>
+                      <span className="inline-flex items-center gap-1 font-mono">
+                        <Calendar className="w-3 h-3" />
+                        Joined {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Real Membership Box */}
+                  <div className="rounded-lg bg-[#111111] border border-[#252525] p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-[#858585] inline-flex items-center gap-1">
+                        <CreditCard className="w-3 h-3 text-[#F03B2E]" />
+                        Membership
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border whitespace-nowrap ${mDisplay.badgeClass}`}
+                      >
+                        {mDisplay.label}
+                      </span>
+                    </div>
+
+                    {mDisplay.hasRecord ? (
+                      <div className="space-y-1 text-xs">
+                        <div className="font-bold text-[#F5F5F5] truncate">{c.membership.planName}</div>
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-[#858585]">
+                          <span>
+                            Start:{' '}
+                            {c.membership.startDate
+                              ? new Date(c.membership.startDate).toLocaleDateString()
+                              : '—'}
+                          </span>
+                          <span className={mDisplay.state === 'ACTIVE' ? 'text-emerald-400' : 'text-[#FF493B]'}>
+                            Exp:{' '}
+                            {c.membership.expiryDate
+                              ? new Date(c.membership.expiryDate).toLocaleDateString()
+                              : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-mono font-semibold text-[#B8B8B8]">
+                          NO ACTIVE MEMBERSHIP
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAssignMembershipModal(c)}
+                          className="text-[11px] font-bold uppercase text-[#F03B2E] hover:text-[#FF493B] underline cursor-pointer shrink-0"
+                        >
+                          Assign
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Assigned Trainer Row */}
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-[#111111] border border-[#252525] text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Dumbbell className="w-3.5 h-3.5 text-[#F03B2E] shrink-0" />
+                      <span className="truncate text-[#F5F5F5] font-medium">
+                        {c.trainer ? c.trainer.name : 'No Trainer Assigned'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenTrainerModal(c)}
+                      className="text-[11px] font-bold uppercase text-[#F03B2E] hover:text-[#FF493B] cursor-pointer shrink-0"
+                    >
+                      {c.trainer ? 'Change' : 'Assign'}
+                    </button>
+                  </div>
+
+                  {/* Card Footer */}
+                  <div className="flex items-center gap-2 pt-1 border-t border-[#252525]">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenClientDetails(clientId)}
+                      className="min-h-[44px] px-3.5 py-2 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-[#B8B8B8]" />
+                      <span>View Client</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setActionSheetClient(c)}
+                      className="flex-1 min-h-[44px] px-3.5 py-2 rounded-lg bg-[#F03B2E]/15 hover:bg-[#F03B2E]/25 border border-[#F03B2E]/40 text-xs font-bold uppercase tracking-wider text-[#F5F5F5] inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-[#F03B2E]" />
+                      <span>{busy ? 'Working...' : 'Manage Client'}</span>
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {/* ── PAGINATION BAR ── */}
+          <div className="bg-[#181818] border border-[#303030] rounded-xl px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#B8B8B8]">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+              <span>
+                Showing <strong className="text-[#F5F5F5]">{startIndex}–{endIndex}</strong> of{' '}
+                <strong className="text-[#F5F5F5]">{totalCount}</strong> athletes
+              </span>
+              <label className="inline-flex items-center gap-2">
+                <span className="text-[11px] uppercase tracking-wider text-[#858585]">Per page</span>
+                <select
+                  aria-label="Clients per page"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="bg-[#111111] border border-[#303030] rounded-lg px-2.5 py-1.5 min-h-[36px] text-xs text-[#F5F5F5] cursor-pointer"
+                >
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={25}>25</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+              <button
+                type="button"
+                disabled={page <= 1 || loading}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="min-h-[44px] px-3.5 py-2 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span>Previous</span>
+              </button>
+
+              <span className="font-mono text-xs text-[#F5F5F5] px-2 whitespace-nowrap">
+                Page {page} / {totalPages}
+              </span>
+
+              <button
+                type="button"
+                disabled={page >= totalPages || loading}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="min-h-[44px] px-3.5 py-2 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <span>Next</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── MOBILE CLIENT ACTION BOTTOM SHEET ── */}
+      {actionSheetClient && (() => {
+        const mInfo = getMembershipDisplay(actionSheetClient.membership);
+        const sheetId = actionSheetClient.id || actionSheetClient._id;
+        return (
+          <div
+            id="client-action-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Manage ${actionSheetClient.name}`}
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setActionSheetClient(null)}
+          >
+            <div
+              className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[88dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="pt-2.5 sm:pt-4 px-5 pb-4 border-b border-[#252525] shrink-0">
+                <div className="w-10 h-1 bg-[#303030] rounded-full mx-auto mb-3 sm:hidden" />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="font-label text-[#F03B2E] block mb-0.5">CLIENT ACTIONS</span>
+                    <h3 className="mm-page-title text-lg sm:text-xl truncate">
+                      {actionSheetClient.name}
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                      {renderAccountBadge(actionSheetClient.status)}
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${mInfo.badgeClass}`}
+                      >
+                        {mInfo.label}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActionSheetClient(null)}
+                    aria-label="Close action menu"
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
                   >
-                    {clientDetailData.client.name}
-                  </h3>
-                  <span className="text-xs text-[#B8B8B8] font-mono">
-                    ID: {clientDetailData.client.id} • Joined{' '}
-                    {new Date(clientDetailData.client.createdAt).toLocaleDateString()}
-                  </span>
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
+
+              <div className="p-4 sm:p-5 overflow-y-auto overscroll-contain space-y-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenClientDetails(sheetId)}
+                    className="min-h-[48px] px-3 py-2.5 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center gap-2 cursor-pointer"
+                  >
+                    <Eye className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                    <span className="truncate">View Profile</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(actionSheetClient)}
+                    className="min-h-[48px] px-3 py-2.5 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center gap-2 cursor-pointer"
+                  >
+                    <Edit className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                    <span className="truncate">Edit Details</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenTrainerModal(actionSheetClient)}
+                    className="min-h-[48px] px-3 py-2.5 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center gap-2 cursor-pointer"
+                  >
+                    <UserPlus className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                    <span className="truncate">
+                      {actionSheetClient.trainer ? 'Change Trainer' : 'Assign Trainer'}
+                    </span>
+                  </button>
+
+                  {mInfo.state === 'ACTIVE' || mInfo.state === 'PENDING' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenClientDetails(sheetId, 'membership')}
+                      className="min-h-[48px] px-3 py-2.5 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center gap-2 cursor-pointer"
+                    >
+                      <CreditCard className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                      <span className="truncate">View Membership</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAssignMembershipModal(actionSheetClient)}
+                      className="min-h-[48px] px-3 py-2.5 rounded-xl bg-[#F03B2E]/15 hover:bg-[#F03B2E]/25 border border-[#F03B2E]/40 text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center gap-2 cursor-pointer"
+                    >
+                      <CreditCard className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                      <span className="truncate">
+                        {mInfo.state === 'EXPIRED' || mInfo.state === 'CANCELLED'
+                          ? 'Renew Pass'
+                          : 'Assign Membership'}
+                      </span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenClientDetails(sheetId, 'attendance')}
+                    className="min-h-[48px] px-3 py-2.5 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center gap-2 cursor-pointer"
+                  >
+                    <CalendarCheck className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                    <span className="truncate">Attendance</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenClientDetails(sheetId, 'payments')}
+                    className="min-h-[48px] px-3 py-2.5 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center gap-2 cursor-pointer"
+                  >
+                    <Receipt className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                    <span className="truncate">Payments</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPasswordModal(actionSheetClient)}
+                    className="min-h-[48px] px-3 py-2.5 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase tracking-wider text-[#F5F5F5] flex items-center gap-2 cursor-pointer"
+                  >
+                    <KeyRound className="w-4 h-4 text-[#F03B2E] shrink-0" />
+                    <span className="truncate">Reset Password</span>
+                  </button>
+
+                  {actionSheetClient.status === 'ACTIVE' ? (
+                    <button
+                      type="button"
+                      onClick={() => requestToggleStatus(actionSheetClient)}
+                      className="min-h-[48px] px-3 py-2.5 rounded-xl bg-[#F03B2E]/15 hover:bg-[#F03B2E]/25 border border-[#F03B2E]/40 text-xs font-bold uppercase tracking-wider text-[#FF493B] flex items-center gap-2 cursor-pointer"
+                    >
+                      <PauseCircle className="w-4 h-4 shrink-0" />
+                      <span className="truncate">Suspend</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => requestToggleStatus(actionSheetClient)}
+                      className="min-h-[48px] px-3 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/35 text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span className="truncate">Reactivate</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── CONFIRMATION DIALOG ── */}
+      {confirmDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={confirmDialog.title}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setConfirmDialog(null)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-xl w-full sm:max-w-md p-5 sm:p-6 space-y-4 shadow-2xl pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span className="font-label text-[#F03B2E] block mb-1">CONFIRM ACTION</span>
+                <h3 className="mm-page-title text-lg sm:text-xl">{confirmDialog.title}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                aria-label="Close confirmation dialog"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs sm:text-sm text-[#B8B8B8] leading-relaxed">
+              {confirmDialog.description}
+            </p>
+
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                className="min-h-[44px] px-4 py-2 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase text-[#B8B8B8] cursor-pointer w-full sm:w-auto"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDialog.onConfirm}
+                className={`min-h-[44px] px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-white cursor-pointer w-full sm:w-auto ${
+                  confirmDialog.tone === 'emerald'
+                    ? 'bg-emerald-600 hover:bg-emerald-500'
+                    : 'bg-[#F03B2E] hover:bg-[#FF493B]'
+                }`}
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CLIENT 360 DOSSIER DRAWER / BOTTOM SHEET (6 ORGANIZED SECTIONS) ── */}
+      {selectedClientId && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Client Dossier"
+          className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-end bg-black/80 backdrop-blur-sm"
+          onClick={() => {
+            setSelectedClientId(null);
+            setClientDetailData(null);
+          }}
+        >
+          <div
+            className="w-full sm:max-w-2xl bg-[#111111] border-t sm:border-t-0 sm:border-l border-[#303030] rounded-t-2xl sm:rounded-none h-[92dvh] sm:h-full flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Sticky Header */}
+            <div className="px-5 py-4 border-b border-[#303030] bg-[#111111] flex items-start justify-between gap-3 shrink-0">
+              {clientDetailData ? (
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-full bg-[#F03B2E]/20 border border-[#F03B2E]/40 flex items-center justify-center text-[#F03B2E] font-bold text-base shrink-0">
+                    {clientDetailData.client.name ? clientDetailData.client.name[0].toUpperCase() : 'U'}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <h3 className="font-display text-lg sm:text-xl font-bold uppercase text-[#F5F5F5] truncate">
+                      {clientDetailData.client.name}
+                    </h3>
+                    <span className="text-[11px] text-[#B8B8B8] font-mono truncate">
+                      ID: {String(clientDetailData.client.id).slice(-6)} • Joined{' '}
+                      {new Date(clientDetailData.client.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm font-bold uppercase text-[#F5F5F5]">Loading Client Dossier...</div>
+              )}
 
               <button
                 type="button"
@@ -613,420 +1452,748 @@ export default function Clients() {
                   setSelectedClientId(null);
                   setClientDetailData(null);
                 }}
-                className="p-2 rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030]"
+                aria-label="Close client dossier"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
               >
-                &times; Close
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Quick Action Buttons for this client */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleOpenEdit(clientDetailData.client)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#202020] hover:bg-[#303030] text-xs font-semibold text-[#F5F5F5] border border-[#303030]"
-              >
-                <Edit className="w-3.5 h-3.5" />
-                <span>Edit Profile</span>
-              </button>
+            {/* Independently Scrollable 6 Sections */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-5 space-y-5">
+              {detailLoading || !clientDetailData ? (
+                <div className="py-12 text-center text-xs text-[#B8B8B8]">Loading athlete profile...</div>
+              ) : (
+                <>
+                  {/* 1. Personal Information */}
+                  <section className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-3">
+                    <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold block">
+                      1. Personal Information
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-[10px] font-mono uppercase text-[#858585] block">Full Name</span>
+                        <p className="font-bold text-[#F5F5F5] mt-0.5">{clientDetailData.client.name}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-mono uppercase text-[#858585] block">Email</span>
+                        <p className="font-bold text-[#F5F5F5] mt-0.5 break-all">{clientDetailData.client.email}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-mono uppercase text-[#858585] block">Mobile</span>
+                        <p className="font-mono font-bold text-[#F5F5F5] mt-0.5">{clientDetailData.client.phone}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-mono uppercase text-[#858585] block">Goal &amp; Level</span>
+                        <p className="font-bold text-[#F5F5F5] mt-0.5">
+                          {clientDetailData.profile?.fitnessGoal || 'General Fitness'} •{' '}
+                          {clientDetailData.profile?.experienceLevel || 'Beginner'}
+                        </p>
+                      </div>
+                    </div>
+                  </section>
 
-              <button
-                type="button"
-                onClick={() => setIsPasswordModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#202020] hover:bg-[#303030] text-xs font-semibold text-[#F5F5F5] border border-[#303030]"
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>Reset Password</span>
-              </button>
+                  {/* 2. Account Information */}
+                  <section className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold">
+                        2. Account Information
+                      </span>
+                      {renderAccountBadge(clientDetailData.client.status)}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-[10px] font-mono uppercase text-[#858585] block">Home Branch</span>
+                        <p className="font-bold text-[#F5F5F5] mt-0.5">
+                          {clientDetailData.client.branch?.city || 'Kovilpatti HQ'}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-mono uppercase text-[#858585] block">Registered</span>
+                        <p className="font-mono text-[#F5F5F5] mt-0.5">
+                          {new Date(clientDetailData.client.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-[#252525]">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(clientDetailData.client)}
+                        className="min-h-[40px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#202020] hover:bg-[#303030] text-xs font-semibold text-[#F5F5F5] border border-[#303030] cursor-pointer"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>Edit Profile</span>
+                      </button>
 
-              <button
-                type="button"
-                onClick={() => handleToggleStatus(clientDetailData.client)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border ${
-                  clientDetailData.client.status === 'ACTIVE'
-                    ? 'bg-red-500/10 text-red-400 border-red-500/30'
-                    : 'bg-green-500/10 text-green-400 border-green-500/30'
-                }`}
-              >
-                <span>{clientDetailData.client.status === 'ACTIVE' ? 'Suspend Account' : 'Activate Account'}</span>
-              </button>
-            </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenPasswordModal(clientDetailData.client)}
+                        className="min-h-[40px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#202020] hover:bg-[#303030] text-xs font-semibold text-[#F5F5F5] border border-[#303030] cursor-pointer"
+                      >
+                        <KeyRound className="w-3.5 h-3.5" />
+                        <span>Reset Password</span>
+                      </button>
 
-            {/* Client Key Overview Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-[#181818] p-4 rounded-xl border border-[#303030]">
-              <div>
-                <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Mobile</span>
-                <p className="text-xs font-bold text-[#F5F5F5] mt-0.5">{clientDetailData.client.phone}</p>
-              </div>
-              <div>
-                <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Email</span>
-                <p className="text-xs font-bold text-[#F5F5F5] mt-0.5 truncate">{clientDetailData.client.email}</p>
-              </div>
-              <div>
-                <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Branch</span>
-                <p className="text-xs font-bold text-[#EB3E2E] mt-0.5">
-                  {clientDetailData.client.branch?.city || 'Kovilpatti HQ'}
-                </p>
-              </div>
-              <div>
-                <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Fitness Goal</span>
-                <p className="text-xs font-bold text-[#F5F5F5] mt-0.5">
-                  {clientDetailData.profile?.fitnessGoal || 'General Fitness'}
-                </p>
-              </div>
-              <div>
-                <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Experience Level</span>
-                <p className="text-xs font-bold text-[#F5F5F5] mt-0.5">
-                  {clientDetailData.profile?.experienceLevel || 'Beginner'}
-                </p>
-              </div>
-              <div>
-                <span className="text-[10px] font-mono uppercase text-[#B8B8B8]">Assigned Coach</span>
-                <div className="mt-0.5 flex items-center gap-1">
-                  <select
-                    value={clientDetailData.profile?.trainerId?._id || ''}
-                    onChange={(e) => handleAssignTrainer(e.target.value)}
-                    className="bg-[#111111] border border-[#303030] rounded text-[11px] text-[#F5F5F5] px-1.5 py-0.5 focus:outline-none"
+                      <button
+                        type="button"
+                        onClick={() => requestToggleStatus(clientDetailData.client)}
+                        className={`min-h-[40px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer ${
+                          clientDetailData.client.status === 'ACTIVE'
+                            ? 'bg-[#F03B2E]/10 text-[#FF493B] border-[#F03B2E]/35'
+                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                        }`}
+                      >
+                        <span>
+                          {clientDetailData.client.status === 'ACTIVE' ? 'Suspend Account' : 'Reactivate Account'}
+                        </span>
+                      </button>
+                    </div>
+                  </section>
+
+                  {/* 3. Membership Information */}
+                  <section
+                    ref={membershipSectionRef}
+                    className="bg-[#181818] border border-[#303030] rounded-xl p-4 flex flex-col gap-3"
                   >
-                    <option value="">No Coach (Self-Managed)</option>
-                    {trainersList.map((t) => (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold">
+                        3. Membership Information
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                          clientDetailData.activeMembership
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : 'bg-[#252525] text-[#B8B8B8] border-[#303030]'
+                        }`}
+                      >
+                        {clientDetailData.activeMembership ? 'ACTIVE' : 'NO ACTIVE MEMBERSHIP'}
+                      </span>
+                    </div>
+
+                    {clientDetailData.activeMembership ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                        <div>
+                          <span className="text-[10px] text-[#B8B8B8] block uppercase">Plan</span>
+                          <p className="font-bold text-[#F5F5F5]">{clientDetailData.activeMembership.planName}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#B8B8B8] block uppercase">Start Date</span>
+                          <p className="font-mono text-[#F5F5F5]">
+                            {new Date(clientDetailData.activeMembership.startDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#B8B8B8] block uppercase">Expiry Date</span>
+                          <p className="font-mono text-emerald-400 font-bold">
+                            {new Date(clientDetailData.activeMembership.expiryDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#B8B8B8] block uppercase">Price</span>
+                          <p className="font-bold text-[#F03B2E]">
+                            ₹{clientDetailData.activeMembership.finalAmount || clientDetailData.activeMembership.amount || 0}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        <p className="text-xs font-mono font-bold text-[#B8B8B8]">
+                          NO ACTIVE MEMBERSHIP
+                          {clientDetailData.latestMembership
+                            ? ` (Latest record: ${clientDetailData.latestMembership.planName} — ${clientDetailData.latestMembership.status})`
+                            : ''}
+                        </p>
+                        <div className="pt-2 border-t border-[#252525] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <p className="text-xs text-[#858585]">
+                            Assign a verified plan pass directly from Admin.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAssignMembershipModal(clientDetailData.client)}
+                            className="min-h-[44px] px-4 py-2 rounded-lg bg-[#F03B2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase transition-all cursor-pointer w-full sm:w-auto"
+                          >
+                            {clientDetailData.latestMembership ? 'Renew Membership' : 'Assign Membership'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+
+                  {/* 4. Trainer Information */}
+                  <section className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-3">
+                    <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold block">
+                      4. Trainer Information
+                    </span>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="text-xs">
+                        <span className="text-[10px] font-mono uppercase text-[#858585] block">
+                          Assigned Coach
+                        </span>
+                        <p className="font-bold text-[#F5F5F5] mt-0.5">
+                          {clientDetailData.profile?.trainerId?.name || 'No Trainer Assigned'}
+                        </p>
+                      </div>
+                      <select
+                        aria-label="Assign active trainer"
+                        value={clientDetailData.profile?.trainerId?._id || ''}
+                        onChange={(e) => handleAssignTrainerInline(e.target.value)}
+                        className="min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] px-3 py-2 focus:border-[#F03B2E] focus:outline-none w-full sm:w-auto"
+                      >
+                        <option value="">No Trainer Assigned</option>
+                        {activeTrainers.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.branch?.city})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </section>
+
+                  {/* 5. Attendance History */}
+                  <section
+                    ref={attendanceSectionRef}
+                    className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-2.5"
+                  >
+                    <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold block">
+                      5. Attendance History
+                    </span>
+                    <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto">
+                      {clientDetailData.attendances?.length > 0 ? (
+                        clientDetailData.attendances.map((a) => (
+                          <span
+                            key={a._id}
+                            className="px-2.5 py-1 bg-[#111111] border border-[#303030] rounded text-[11px] font-mono text-[#F5F5F5]"
+                          >
+                            {new Date(a.date).toLocaleDateString()} •{' '}
+                            {new Date(a.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-[#B8B8B8] italic">No attendance visits recorded.</span>
+                      )}
+                    </div>
+                  </section>
+
+                  {/* 6. Payment History */}
+                  <section
+                    ref={paymentSectionRef}
+                    className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-2.5"
+                  >
+                    <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold block">
+                      6. Payment History
+                    </span>
+                    {clientDetailData.payments?.length > 0 ? (
+                      <>
+                        {/* Desktop Ledger Table */}
+                        <div className="hidden sm:block bg-[#111111] border border-[#252525] rounded-lg overflow-hidden max-h-44 overflow-y-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="border-b border-[#303030] bg-[#181818] text-[10px] text-[#B8B8B8]">
+                                <th className="p-2 font-mono">Date</th>
+                                <th className="p-2 font-mono">Tx ID</th>
+                                <th className="p-2 font-mono">Amount</th>
+                                <th className="p-2 font-mono">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#202020]">
+                              {clientDetailData.payments.map((p) => (
+                                <tr key={p._id}>
+                                  <td className="p-2 font-mono">{new Date(p.date).toLocaleDateString()}</td>
+                                  <td className="p-2 font-mono truncate max-w-[120px]">{p.transactionId}</td>
+                                  <td className="p-2 font-bold text-[#F03B2E]">₹{p.amount}</td>
+                                  <td className="p-2">
+                                    <span className="text-[10px] font-bold text-emerald-400">{p.status}</span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {/* Mobile Payment List */}
+                        <div className="sm:hidden space-y-2 max-h-48 overflow-y-auto">
+                          {clientDetailData.payments.map((p) => (
+                            <div
+                              key={p._id}
+                              className="p-2.5 rounded-lg bg-[#111111] border border-[#252525] flex items-center justify-between gap-2 text-xs"
+                            >
+                              <div className="min-w-0">
+                                <span className="font-mono text-[#F5F5F5] block">
+                                  {new Date(p.date).toLocaleDateString()}
+                                </span>
+                                <span className="text-[10px] font-mono text-[#858585] truncate block">
+                                  {p.transactionId}
+                                </span>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="font-bold text-[#F03B2E] block">₹{p.amount}</span>
+                                <span className="text-[10px] font-bold text-emerald-400">{p.status}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-xs text-[#B8B8B8] italic">No payment transactions recorded.</p>
+                    )}
+                  </section>
+                </>
+              )}
+            </div>
+
+            {/* Sticky Footer */}
+            <div className="px-5 py-3.5 border-t border-[#252525] bg-[#111111] flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedClientId(null);
+                  setClientDetailData(null);
+                }}
+                className="min-h-[44px] px-4 py-2 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase text-[#F5F5F5] cursor-pointer w-full sm:w-auto"
+              >
+                Close Dossier
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ASSIGN / CHANGE TRAINER MODAL ── */}
+      {isTrainerModalOpen && trainerModalClient && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Assign trainer for ${trainerModalClient.name}`}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setIsTrainerModalOpen(false)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-[#252525] flex items-center justify-between shrink-0">
+              <div className="min-w-0">
+                <span className="font-label text-[#F03B2E] block">COACH ASSIGNMENT</span>
+                <h3 className="mm-page-title text-lg sm:text-xl truncate">{trainerModalClient.name}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsTrainerModalOpen(false)}
+                aria-label="Close modal"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmTrainerModal} className="flex flex-col flex-1 min-h-0">
+              <div className="p-5 overflow-y-auto overscroll-contain space-y-4">
+                {trainerAssignError && (
+                  <div className="p-3 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E] text-xs text-[#F5F5F5]">
+                    {trainerAssignError}
+                  </div>
+                )}
+
+                <div className="p-3 rounded-lg bg-[#111111] border border-[#252525] text-xs">
+                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Current Trainer</span>
+                  <span className="font-bold text-[#F5F5F5] mt-0.5 block">
+                    {trainerModalClient.trainer?.name || 'No Trainer Assigned'}
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">
+                    Select Active Trainer ({trainerModalClient.branch?.city || 'Branch'})
+                  </label>
+                  <select
+                    value={selectedTrainerId}
+                    onChange={(e) => setSelectedTrainerId(e.target.value)}
+                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                  >
+                    <option value="">No Trainer Assigned (Self-Managed)</option>
+                    {activeTrainers.map((t) => (
                       <option key={t.id} value={t.id}>
-                        {t.name} ({t.branch?.city})
+                        {t.name} — {t.branch?.city || 'HQ'} ({t.specialization})
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
-            </div>
 
-            {/* Active Membership Details */}
-            <div className="bg-[#181818] border border-[#303030] rounded-xl p-4 flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-mono uppercase text-[#EB3E2E] font-bold">MEMBERSHIP</span>
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                    clientDetailData.activeMembership
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                      : 'bg-[#252525] text-[#B8B8B8]'
-                  }`}
+              <div className="px-5 py-4 border-t border-[#252525] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsTrainerModalOpen(false)}
+                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold uppercase bg-[#202020] text-[#B8B8B8] cursor-pointer w-full sm:w-auto"
                 >
-                  {clientDetailData.activeMembership ? 'ACTIVE' : 'NOT ENROLLED'}
-                </span>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={assigningTrainer}
+                  className="min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold uppercase bg-[#F03B2E] hover:bg-[#FF493B] text-white cursor-pointer w-full sm:w-auto"
+                >
+                  {assigningTrainer ? 'Saving...' : 'Confirm Assignment'}
+                </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
 
-              {clientDetailData.activeMembership ? (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div>
-                    <span className="text-[10px] text-[#B8B8B8] block uppercase">Plan</span>
-                    <p className="font-bold text-[#F5F5F5]">{clientDetailData.activeMembership.planName}</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#B8B8B8] block uppercase">Start Date</span>
-                    <p className="font-mono text-[#F5F5F5]">
-                      {new Date(clientDetailData.activeMembership.startDate).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#B8B8B8] block uppercase">Expiry Date</span>
-                    <p className="font-mono text-green-400 font-bold">
-                      {new Date(clientDetailData.activeMembership.expiryDate).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#B8B8B8] block uppercase">Price</span>
-                    <p className="font-bold text-[#EB3E2E]">
-                      ₹{clientDetailData.activeMembership.finalAmount || clientDetailData.activeMembership.amount || 0}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs opacity-75">
-                    <div>
-                      <span className="text-[10px] text-[#B8B8B8] block uppercase">Plan</span>
-                      <p className="font-bold text-[#858585]">—</p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-[#B8B8B8] block uppercase">Start Date</span>
-                      <p className="font-mono text-[#858585]">—</p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-[#B8B8B8] block uppercase">Expiry Date</span>
-                      <p className="font-mono text-[#858585]">—</p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-[#B8B8B8] block uppercase">Status</span>
-                      <p className="font-bold text-[#B8B8B8]">NOT ENROLLED</p>
-                    </div>
-                  </div>
-                  <div className="pt-2 border-t border-[#252525] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <p className="text-xs text-[#B8B8B8] italic">
-                      No membership has been purchased or assigned.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const defaultPlan = plans[0];
-                        setAssignForm({
-                          planId: defaultPlan?._id || '',
-                          startDate: new Date().toISOString().slice(0, 10),
-                          amount: defaultPlan?.price || '',
-                        });
-                        setIsAssignModalOpen(true);
-                      }}
-                      className="px-3.5 py-1.5 rounded-lg bg-[#EB3E2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase transition-all shadow-[0_0_10px_rgba(235,62,46,0.2)] shrink-0 self-start sm:self-auto cursor-pointer"
-                    >
-                      Assign Membership
-                    </button>
-                  </div>
-                </div>
-              )}
+      {/* ── EDIT CLIENT MODAL ── */}
+      {isEditModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit Client Profile"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setIsEditModalOpen(false)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-[#252525] flex items-center justify-between shrink-0">
+              <div>
+                <span className="font-label text-[#F03B2E] block">UPDATE ATHLETE</span>
+                <h3 className="mm-page-title text-lg sm:text-xl">EDIT CLIENT DETAILS</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                aria-label="Close edit modal"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            {/* Payments Ledger */}
-            <div className="space-y-2">
-              <span className="text-xs font-mono uppercase text-[#B8B8B8]">PAYMENT TRANSACTIONS LEDGER</span>
-              <div className="bg-[#181818] border border-[#303030] rounded-xl overflow-hidden max-h-40 overflow-y-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-[#303030] bg-[#111111] text-[10px] text-[#B8B8B8]">
-                      <th className="p-2 font-mono">Date</th>
-                      <th className="p-2 font-mono">Tx ID</th>
-                      <th className="p-2 font-mono">Amount</th>
-                      <th className="p-2 font-mono">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#202020]">
-                    {clientDetailData.payments?.length > 0 ? (
-                      clientDetailData.payments.map((p) => (
-                        <tr key={p._id}>
-                          <td className="p-2 font-mono">{new Date(p.date).toLocaleDateString()}</td>
-                          <td className="p-2 font-mono truncate max-w-[100px]">{p.transactionId}</td>
-                          <td className="p-2 font-bold text-[#EB3E2E]">₹{p.amount}</td>
-                          <td className="p-2">
-                            <span className="text-[10px] font-bold text-green-400">{p.status}</span>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={4} className="p-4 text-center text-[#B8B8B8]">
-                          No payment transactions recorded.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Attendance History */}
-            <div className="space-y-2">
-              <span className="text-xs font-mono uppercase text-[#B8B8B8]">RECENT ATTENDANCE VISITS</span>
-              <div className="bg-[#181818] border border-[#303030] rounded-xl p-3 flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                {clientDetailData.attendances?.length > 0 ? (
-                  clientDetailData.attendances.map((a) => (
-                    <span
-                      key={a._id}
-                      className="px-2 py-1 bg-[#111111] border border-[#303030] rounded text-[11px] font-mono text-[#F5F5F5]"
-                    >
-                      {new Date(a.date).toLocaleDateString()} •{' '}
-                      {new Date(a.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-xs text-[#B8B8B8] italic">No attendance visits recorded.</span>
+            <form onSubmit={handleSaveEdit} className="flex flex-col flex-1 min-h-0">
+              <div className="p-5 overflow-y-auto overscroll-contain space-y-3 flex-1">
+                {editError && (
+                  <div className="p-3 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E] text-xs text-[#F5F5F5]">
+                    {editError}
+                  </div>
                 )}
+
+                <div>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Email</label>
+                    <input
+                      type="email"
+                      required
+                      value={editForm.email}
+                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      required
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Branch</label>
+                  <select
+                    value={editForm.branchId}
+                    onChange={(e) => setEditForm({ ...editForm, branchId: e.target.value })}
+                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                  >
+                    {branches.map((b) => (
+                      <option key={b._id} value={b._id}>
+                        {b.city} Branch
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Fitness Goal</label>
+                    <select
+                      value={editForm.fitnessGoal}
+                      onChange={(e) => setEditForm({ ...editForm, fitnessGoal: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
+                    >
+                      <option value="Muscle Building">Muscle Building</option>
+                      <option value="Weight Loss">Weight Loss</option>
+                      <option value="Strength Training">Strength Training</option>
+                      <option value="General Fitness">General Fitness</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Experience</label>
+                    <select
+                      value={editForm.experienceLevel}
+                      onChange={(e) => setEditForm({ ...editForm, experienceLevel: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
+                    >
+                      <option value="Beginner">Beginner</option>
+                      <option value="Intermediate">Intermediate</option>
+                      <option value="Advanced">Advanced</option>
+                    </select>
+                  </div>
+                </div>
               </div>
-            </div>
+
+              <div className="px-5 py-4 border-t border-[#252525] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold uppercase bg-[#202020] text-[#B8B8B8] cursor-pointer w-full sm:w-auto"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold uppercase bg-[#F03B2E] hover:bg-[#FF493B] text-white cursor-pointer w-full sm:w-auto"
+                >
+                  {savingEdit ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
       {/* ── ADD CLIENT MODAL ── */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
-            <h3
-              className="text-lg font-bold uppercase tracking-tight text-[#F5F5F5] mb-4"
-              style={{ fontFamily: "'Oswald', sans-serif" }}
-            >
-              Add New Client
-            </h3>
-
-            <form onSubmit={handleCreateClientSubmit} className="space-y-3">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add New Client"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setIsAddModalOpen(false)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[92dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-[#252525] flex items-center justify-between shrink-0">
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={addForm.name}
-                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                  placeholder="e.g. S. Karthik"
-                />
+                <span className="font-label text-[#F03B2E] block">NEW REGISTRATION</span>
+                <h3 className="mm-page-title text-lg sm:text-xl">ADD NEW CLIENT</h3>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                aria-label="Close modal"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleCreateClientSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="p-5 overflow-y-auto overscroll-contain space-y-3.5 flex-1">
+                {addError && (
+                  <div className="p-3 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E] text-xs text-[#F5F5F5]">
+                    {addError}
+                  </div>
+                )}
+
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Email</label>
-                  <input
-                    type="email"
-                    required
-                    value={addForm.email}
-                    onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
-                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                    placeholder="karthik@domain.com"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Full Name *</label>
                   <input
                     type="text"
                     required
-                    value={addForm.phone}
-                    onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
-                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                    placeholder="9876543210"
+                    value={addForm.name}
+                    onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                    placeholder="e.g. S. Karthik"
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Branch</label>
-                  <select
-                    value={addForm.branchId}
-                    onChange={(e) => setAddForm({ ...addForm, branchId: e.target.value })}
-                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                  >
-                    {branches.map((b) => (
-                      <option key={b._id} value={b._id}>
-                        {b.city}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Temporary Password</label>
-                  <input
-                    type="text"
-                    value={addForm.password}
-                    onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
-                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Fitness Goal</label>
-                  <select
-                    value={addForm.fitnessGoal}
-                    onChange={(e) => setAddForm({ ...addForm, fitnessGoal: e.target.value })}
-                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                  >
-                    <option value="Muscle Building">Muscle Building</option>
-                    <option value="Weight Loss">Weight Loss</option>
-                    <option value="Strength Training">Strength Training</option>
-                    <option value="General Fitness">General Fitness</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">
-                    Assign Coach (OPTIONAL)
-                  </label>
-                  <select
-                    value={addForm.trainerId}
-                    onChange={(e) => setAddForm({ ...addForm, trainerId: e.target.value })}
-                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                  >
-                    <option value="">None (Self-Managed Athlete)</option>
-                    {trainersList.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} ({t.branch?.city})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Initial Membership Assignment */}
-              <div className="pt-2 border-t border-[#303030]">
-                <span className="text-[11px] font-mono uppercase text-[#EB3E2E] font-bold block mb-2">
-                  OPTIONAL INITIAL MEMBERSHIP PASS
-                </span>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] text-[#B8B8B8] mb-1">Select Membership Plan</label>
-                    <select
-                      value={addForm.planId || ''}
-                      onChange={(e) => {
-                        const pId = e.target.value;
-                        if (!pId) {
-                          setAddForm({
-                            ...addForm,
-                            planId: '',
-                            membershipPlanName: '',
-                            durationMonths: 1,
-                            membershipAmount: 0,
-                          });
-                          return;
-                        }
-                        const p = plans.find((pl) => pl._id === pId);
-                        const bp = p?.branchPricing?.find(
-                          (b) => (b.branchId?._id || b.branchId || '').toString() === (addForm.branchId || '').toString()
-                        );
-                        const cost = bp?.finalPrice !== undefined ? bp.finalPrice : (p?.price || 0);
-                        setAddForm({
-                          ...addForm,
-                          planId: pId,
-                          membershipPlanName: p?.name || '',
-                          durationMonths: p?.durationMonths || 1,
-                          membershipAmount: cost,
-                        });
-                      }}
-                      className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
-                    >
-                      <option value="">None (No initial pass)</option>
-                      {plans.map((p) => {
-                        const bp = p.branchPricing?.find(
-                          (b) => (b.branchId?._id || b.branchId || '').toString() === (addForm.branchId || '').toString()
-                        );
-                        const cost = bp?.finalPrice !== undefined ? bp.finalPrice : (p.price || 0);
-                        return (
-                          <option key={p._id} value={p._id}>
-                            {p.name} (₹{cost.toLocaleString()})
-                          </option>
-                        );
-                      })}
-                    </select>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Email *</label>
+                    <input
+                      type="email"
+                      required
+                      value={addForm.email}
+                      onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                      placeholder="karthik@domain.com"
+                    />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-[#B8B8B8] mb-1">Fee Amount (₹)</label>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone *</label>
                     <input
-                      type="number"
-                      value={addForm.membershipAmount}
-                      onChange={(e) => setAddForm({ ...addForm, membershipAmount: e.target.value })}
-                      className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5]"
+                      type="tel"
+                      inputMode="tel"
+                      required
+                      value={addForm.phone}
+                      onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                      placeholder="9876543210"
                     />
                   </div>
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Branch *</label>
+                    <select
+                      required
+                      value={addForm.branchId}
+                      onChange={(e) => setAddForm({ ...addForm, branchId: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                    >
+                      {branches.map((b) => (
+                        <option key={b._id} value={b._id}>
+                          {b.city}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">
+                      Temporary Password *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      minLength={8}
+                      value={addForm.password}
+                      onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Fitness Goal</label>
+                    <select
+                      value={addForm.fitnessGoal}
+                      onChange={(e) => setAddForm({ ...addForm, fitnessGoal: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                    >
+                      <option value="Muscle Building">Muscle Building</option>
+                      <option value="Weight Loss">Weight Loss</option>
+                      <option value="Strength Training">Strength Training</option>
+                      <option value="General Fitness">General Fitness</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">
+                      Assign Coach (Optional)
+                    </label>
+                    <select
+                      value={addForm.trainerId}
+                      onChange={(e) => setAddForm({ ...addForm, trainerId: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                    >
+                      <option value="">None (No Trainer Assigned)</option>
+                      {activeTrainers.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.branch?.city})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Initial Membership Assignment */}
+                <div className="pt-2 border-t border-[#303030]">
+                  <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold block mb-2">
+                    OPTIONAL INITIAL MEMBERSHIP PASS
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] text-[#B8B8B8] mb-1">Select Membership Plan</label>
+                      <select
+                        value={addForm.planId || ''}
+                        onChange={(e) => {
+                          const pId = e.target.value;
+                          if (!pId) {
+                            setAddForm({
+                              ...addForm,
+                              planId: '',
+                              membershipPlanName: '',
+                              durationMonths: 1,
+                              membershipAmount: 0,
+                            });
+                            return;
+                          }
+                          const p = plans.find((pl) => pl._id === pId);
+                          const bp = p?.branchPricing?.find(
+                            (b) => (b.branchId?._id || b.branchId || '').toString() === (addForm.branchId || '').toString()
+                          );
+                          const cost = bp?.finalPrice !== undefined ? bp.finalPrice : (p?.price || 0);
+                          setAddForm({
+                            ...addForm,
+                            planId: pId,
+                            membershipPlanName: p?.name || '',
+                            durationMonths: p?.durationMonths || 1,
+                            membershipAmount: cost,
+                          });
+                        }}
+                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
+                      >
+                        <option value="">None (No initial pass)</option>
+                        {plans.map((p) => {
+                          const bp = p.branchPricing?.find(
+                            (b) => (b.branchId?._id || b.branchId || '').toString() === (addForm.branchId || '').toString()
+                          );
+                          const cost = bp?.finalPrice !== undefined ? bp.finalPrice : (p.price || 0);
+                          return (
+                            <option key={p._id} value={p._id}>
+                              {p.name} (₹{cost.toLocaleString()})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-[#B8B8B8] mb-1">Fee Amount (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        disabled={!addForm.planId}
+                        value={addForm.membershipAmount}
+                        onChange={(e) => setAddForm({ ...addForm, membershipAmount: e.target.value })}
+                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3">
+              <div className="px-5 py-4 border-t border-[#252525] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0 bg-[#181818]">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] cursor-pointer"
+                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] cursor-pointer w-full sm:w-auto"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white cursor-pointer"
+                  disabled={submittingAdd}
+                  className="min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#F03B2E] hover:bg-[#FF493B] text-white cursor-pointer w-full sm:w-auto"
                 >
-                  Create Client
+                  {submittingAdd ? 'Creating...' : 'Create Client'}
                 </button>
               </div>
             </form>
@@ -1036,46 +2203,74 @@ export default function Clients() {
 
       {/* ── RESET PASSWORD MODAL ── */}
       {isPasswordModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-sm p-6 relative">
-            <h3
-              className="text-base font-bold uppercase tracking-tight text-[#F5F5F5] mb-3"
-              style={{ fontFamily: "'Oswald', sans-serif" }}
-            >
-              Reset Client Password
-            </h3>
-            <p className="text-xs text-[#B8B8B8] mb-4">
-              Enter a new secure password (minimum 8 characters) for this account.
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Reset Client Password"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setIsPasswordModalOpen(false)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm p-5 sm:p-6 space-y-4 shadow-2xl pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span className="font-label text-[#F03B2E] block mb-0.5">ACCOUNT SECURITY</span>
+                <h3 className="mm-page-title text-lg">RESET CLIENT PASSWORD</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPasswordModalOpen(false);
+                  setNewPassword('');
+                }}
+                aria-label="Close modal"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-[#B8B8B8]">
+              Enter a new password (minimum 8 characters) for{' '}
+              <strong className="text-[#F5F5F5]">{passwordTargetClient?.name || 'this client'}</strong>.
             </p>
 
-            <form onSubmit={handleResetPassword} className="space-y-4">
-              <div>
-                <input
-                  type="text"
-                  required
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="New password (min 8 chars)"
-                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                />
+            {passwordError && (
+              <div className="p-3 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E] text-xs text-[#F5F5F5]">
+                {passwordError}
               </div>
+            )}
 
-              <div className="flex items-center justify-end gap-2">
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <input
+                type="text"
+                required
+                minLength={8}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="New password (min 8 chars)"
+                className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+              />
+
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setIsPasswordModalOpen(false);
                     setNewPassword('');
                   }}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#202020] text-[#B8B8B8]"
+                  className="min-h-[44px] px-4 py-2 rounded-lg text-xs font-bold uppercase bg-[#202020] text-[#B8B8B8] cursor-pointer w-full sm:w-auto"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] text-white"
+                  disabled={savingPassword}
+                  className="min-h-[44px] px-4 py-2 rounded-lg text-xs font-bold uppercase bg-[#F03B2E] hover:bg-[#FF493B] text-white cursor-pointer w-full sm:w-auto"
                 >
-                  Update Password
+                  {savingPassword ? 'Updating...' : 'Update Password'}
                 </button>
               </div>
             </form>
@@ -1085,87 +2280,116 @@ export default function Clients() {
 
       {/* ── ASSIGN MEMBERSHIP MODAL ── */}
       {isAssignModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-md p-6 relative">
-            <h3
-              className="text-base font-bold uppercase tracking-tight text-[#F5F5F5] mb-2"
-              style={{ fontFamily: "'Oswald', sans-serif" }}
-            >
-              Assign Membership Pass
-            </h3>
-            <p className="text-xs text-[#B8B8B8] mb-4">
-              Select an active membership plan to assign to{' '}
-              <strong className="text-[#F5F5F5]">{clientDetailData?.client?.name || 'this client'}</strong>.
-            </p>
-
-            <form onSubmit={handleAssignMembership} className="space-y-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Assign Membership Pass"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setIsAssignModalOpen(false)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-[#252525] flex items-center justify-between shrink-0">
               <div>
-                <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
-                  Membership Plan
-                </label>
-                <select
-                  required
-                  value={assignForm.planId}
-                  onChange={(e) => {
-                    const chosen = plans.find((p) => p._id === e.target.value);
-                    setAssignForm({
-                      ...assignForm,
-                      planId: e.target.value,
-                      amount: chosen?.price || '',
-                    });
-                  }}
-                  className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
-                >
-                  <option value="">Select a plan</option>
-                  {plans.map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.name} ({p.durationMonths ? `${p.durationMonths} Mo` : `${p.durationDays} Days`} — ₹{p.price})
-                    </option>
-                  ))}
-                </select>
+                <span className="font-label text-[#F03B2E] block">MEMBERSHIP PASS</span>
+                <h3 className="mm-page-title text-lg sm:text-xl">ASSIGN MEMBERSHIP</h3>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsAssignModalOpen(false)}
+                aria-label="Close modal"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleAssignMembership} className="flex flex-col flex-1 min-h-0">
+              <div className="p-5 overflow-y-auto overscroll-contain space-y-4 flex-1">
+                <p className="text-xs text-[#B8B8B8]">
+                  Select an active membership plan to assign to{' '}
+                  <strong className="text-[#F5F5F5]">
+                    {assignTargetClient?.name || clientDetailData?.client?.name || 'this client'}
+                  </strong>
+                  .
+                </p>
+
+                {assignError && (
+                  <div className="p-3 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E] text-xs text-[#F5F5F5]">
+                    {assignError}
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
-                    Start Date
+                    Membership Plan
                   </label>
-                  <input
-                    type="date"
+                  <select
                     required
-                    value={assignForm.startDate}
-                    onChange={(e) => setAssignForm({ ...assignForm, startDate: e.target.value })}
-                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none font-mono"
-                  />
+                    value={assignForm.planId}
+                    onChange={(e) => {
+                      const chosen = plans.find((p) => p._id === e.target.value);
+                      setAssignForm({
+                        ...assignForm,
+                        planId: e.target.value,
+                        amount: chosen?.price || '',
+                      });
+                    }}
+                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                  >
+                    <option value="">Select a plan</option>
+                    {plans.map((p) => (
+                      <option key={p._id} value={p._id}>
+                        {p.name} ({p.durationMonths ? `${p.durationMonths} Mo` : `${p.durationDays} Days`} — ₹{p.price})
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
-                    Amount Paid (₹)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="Auto from plan"
-                    value={assignForm.amount}
-                    onChange={(e) => setAssignForm({ ...assignForm, amount: e.target.value })}
-                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none font-mono"
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
+                      Start Date
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={assignForm.startDate}
+                      onChange={(e) => setAssignForm({ ...assignForm, startDate: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
+                      Amount Paid (₹)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Auto from plan"
+                      value={assignForm.amount}
+                      onChange={(e) => setAssignForm({ ...assignForm, amount: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="px-5 py-4 border-t border-[#252525] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   disabled={assignLoading}
                   onClick={() => setIsAssignModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#2c2c2c] text-[#B8B8B8] transition-colors"
+                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#2c2c2c] text-[#B8B8B8] transition-colors cursor-pointer w-full sm:w-auto"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={assignLoading}
-                  className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white font-semibold transition-all shadow-[0_0_15px_rgba(235,62,46,0.25)]"
+                  className="min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#F03B2E] hover:bg-[#FF493B] text-white font-semibold transition-all cursor-pointer w-full sm:w-auto"
                 >
                   {assignLoading ? 'Assigning...' : 'Confirm Assignment'}
                 </button>

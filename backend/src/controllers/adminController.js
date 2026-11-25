@@ -599,7 +599,17 @@ const getBranchDetails = async (req, res, next) => {
 
 const getClients = async (req, res, next) => {
   try {
-    const { search, branchId, membershipStatus, accountStatus, page = 1, limit = 20, sortBy = 'createdAt', order = 'desc' } = req.query;
+    const {
+      search,
+      branchId,
+      membershipStatus,
+      accountStatus,
+      trainerId,
+      page = 1,
+      limit = 20,
+      sortBy = 'createdAt',
+      order = 'desc',
+    } = req.query;
 
     const query = { role: 'CLIENT' };
 
@@ -620,22 +630,31 @@ const getClients = async (req, res, next) => {
       ];
     }
 
-    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    const parsedPage = Math.max(1, parseInt(page, 10) || 1);
+    const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 15));
     const sortOrder = order === 'asc' ? 1 : -1;
+    const hasPostFilter =
+      (membershipStatus && membershipStatus !== 'ALL') ||
+      (trainerId && trainerId !== 'ALL');
 
-    const clients = await User.find(query)
+    let clientsQuery = User.find(query)
       .sort({ [sortBy]: sortOrder })
-      .skip(skip)
-      .limit(parseInt(limit, 10))
       .populate('branchId', 'name city');
 
-    const total = await User.countDocuments(query);
+    const totalUnfiltered = await User.countDocuments(query);
+    if (!hasPostFilter) {
+      clientsQuery = clientsQuery
+        .skip((parsedPage - 1) * parsedLimit)
+        .limit(parsedLimit);
+    }
+
+    const clients = await clientsQuery;
     const now = new Date();
 
     // Attach active membership & profile info to each client
     const clientList = await Promise.all(
       clients.map(async (c) => {
-        const profile = await ClientProfile.findOne({ userId: c._id }).populate('trainerId', 'name email phone');
+        const profile = await ClientProfile.findOne({ userId: c._id }).populate('trainerId', 'name email phone status');
 
         // Genuinely ACTIVE membership check
         const activeMembership = await Membership.findOne({
@@ -661,7 +680,12 @@ const getClients = async (req, res, next) => {
             isExpired: false,
           };
         } else if (latestMembership) {
-          const isExpired = latestMembership.status === 'EXPIRED' || new Date(latestMembership.expiryDate) < now;
+          const isCancelled = latestMembership.status === 'CANCELLED';
+          const isPending = latestMembership.status === 'PENDING' || latestMembership.status === 'PENDING_PAYMENT';
+          const isExpired =
+            !isCancelled &&
+            !isPending &&
+            (latestMembership.status === 'EXPIRED' || new Date(latestMembership.expiryDate) < now);
           membershipPayload = {
             id: latestMembership._id,
             planName: latestMembership.planName,
@@ -671,6 +695,16 @@ const getClients = async (req, res, next) => {
             isExpired,
           };
         }
+
+        const assignedTrainer =
+          profile?.trainerId && profile.trainerId.status === 'ACTIVE'
+            ? {
+                _id: profile.trainerId._id,
+                name: profile.trainerId.name,
+                email: profile.trainerId.email,
+                phone: profile.trainerId.phone,
+              }
+            : null;
 
         return {
           id: c._id,
@@ -682,28 +716,45 @@ const getClients = async (req, res, next) => {
           createdAt: c.createdAt,
           fitnessGoal: profile?.fitnessGoal || 'General Fitness',
           experienceLevel: profile?.experienceLevel || 'Beginner',
-          trainer: profile?.trainerId || null,
+          trainer: assignedTrainer,
           hasActiveMembership: Boolean(activeMembership),
           membership: membershipPayload,
         };
       })
     );
 
-    // Filter by membershipStatus in-memory if requested
     let filteredList = clientList;
     if (membershipStatus && membershipStatus !== 'ALL') {
-      filteredList = clientList.filter((c) => {
+      filteredList = filteredList.filter((c) => {
         if (membershipStatus === 'NO_MEMBERSHIP') return !c.membership;
+        if (membershipStatus === 'PENDING') {
+          return c.membership && (c.membership.status === 'PENDING' || c.membership.status === 'PENDING_PAYMENT');
+        }
         return c.membership && c.membership.status === membershipStatus;
       });
     }
 
+    if (trainerId && trainerId !== 'ALL') {
+      if (trainerId === 'UNASSIGNED') {
+        filteredList = filteredList.filter((c) => !c.trainer);
+      } else if (mongoose.Types.ObjectId.isValid(trainerId)) {
+        filteredList = filteredList.filter((c) => String(c.trainer?._id || '') === String(trainerId));
+      }
+    }
+
+    const total = hasPostFilter ? filteredList.length : totalUnfiltered;
+    const totalPages = Math.max(1, Math.ceil(total / parsedLimit));
+    const pagedClients = hasPostFilter
+      ? filteredList.slice((parsedPage - 1) * parsedLimit, parsedPage * parsedLimit)
+      : filteredList;
+
     res.status(200).json({
       success: true,
       total,
-      page: parseInt(page, 10),
-      totalPages: Math.ceil(total / parseInt(limit, 10)),
-      clients: filteredList,
+      page: parsedPage,
+      limit: parsedLimit,
+      totalPages,
+      clients: pagedClients,
     });
   } catch (err) {
     next(err);
@@ -800,7 +851,7 @@ const createClient = async (req, res, next) => {
     });
 
     // 2. Create Client Profile
-    await ClientProfile.create({
+    const clientProfile = await ClientProfile.create({
       userId: user._id,
       branchId,
       fitnessGoal: fitnessGoal || 'General Fitness',
@@ -954,8 +1005,28 @@ const assignTrainer = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Client profile not found' });
     }
 
+    let nextTrainerId = null;
+    if (trainerId) {
+      if (!mongoose.Types.ObjectId.isValid(trainerId)) {
+        return res.status(400).json({ success: false, message: 'Invalid trainer ID provided.' });
+      }
+      const activeTrainer = await User.findOne({ _id: trainerId, role: 'TRAINER', status: 'ACTIVE' });
+      if (!activeTrainer) {
+        return res.status(400).json({
+          success: false,
+          message: 'Selected trainer must have an ACTIVE account before assignment.',
+        });
+      }
+      nextTrainerId = activeTrainer._id;
+    }
+
     const oldTrainerId = profile.trainerId;
-    profile.trainerId = trainerId && mongoose.Types.ObjectId.isValid(trainerId) ? trainerId : null;
+    profile.trainerId = nextTrainerId;
+    if (nextTrainerId) {
+      profile.trainingPreference = 'PERSONAL_TRAINER';
+    } else {
+      profile.trainingPreference = 'SELF_TRAINED';
+    }
     await profile.save();
 
     // Update active clients counts on trainers
@@ -1690,33 +1761,46 @@ const calculateBranchFinalPrice = (basePrice, joiningFee = 0, discountType = 'NO
 
 const getMembershipPlans = async (req, res, next) => {
   try {
-    const { search, branchId, planType, status, page = 1, limit = 20 } = req.query;
-    const query = {};
+    const { search, branchId, planType, status, durationDays, page = 1, limit = 50 } = req.query;
+    const andConditions = [];
 
     if (search && search.trim()) {
       const term = search.trim();
-      query.$or = [
-        { name: { $regex: term, $options: 'i' } },
-        { code: { $regex: term, $options: 'i' } },
-        { description: { $regex: term, $options: 'i' } },
-      ];
+      andConditions.push({
+        $or: [
+          { name: { $regex: term, $options: 'i' } },
+          { code: { $regex: term, $options: 'i' } },
+          { description: { $regex: term, $options: 'i' } },
+        ],
+      });
     }
 
     if (planType && planType !== 'ALL') {
-      query.planType = planType;
+      andConditions.push({ planType });
     }
 
     if (status && status !== 'ALL') {
-      query.isActive = status === 'ACTIVE';
+      andConditions.push({ isActive: status === 'ACTIVE' });
+    }
+
+    if (durationDays && durationDays !== 'ALL') {
+      const parsedDays = parseInt(durationDays, 10);
+      if (parsedDays > 0) {
+        andConditions.push({ durationDays: parsedDays });
+      }
     }
 
     if (branchId && branchId !== 'ALL' && mongoose.Types.ObjectId.isValid(branchId)) {
-      query.$or = [
-        { 'branchPricing.branchId': branchId, 'branchPricing.isAvailable': true },
-        { branchId: branchId },
-        { branchId: null },
-      ];
+      andConditions.push({
+        $or: [
+          { branchPricing: { $elemMatch: { branchId, isAvailable: true } } },
+          { branchId: branchId },
+          { branchId: null },
+        ],
+      });
     }
+
+    const query = andConditions.length > 0 ? { $and: andConditions } : {};
 
     const allPlans = await MembershipPlan.find();
     const totalPlans = allPlans.length;
@@ -1803,6 +1887,7 @@ const createMembershipPlan = async (req, res, next) => {
       benefits,
       features,
       branchPricing,
+      isActive = true,
     } = req.body;
 
     if (!name || !name.trim()) {
@@ -1849,7 +1934,7 @@ const createMembershipPlan = async (req, res, next) => {
       benefits: benefitsList,
       features: benefitsList,
       branchPricing: processedPricing,
-      isActive: true,
+      isActive: Boolean(isActive),
       createdBy: req.user ? req.user._id : null,
       updatedBy: req.user ? req.user._id : null,
     });
