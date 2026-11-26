@@ -48,6 +48,11 @@ const getKolkataStartOfToday = () => {
   return new Date(`${dateStr}T00:00:00+05:30`);
 };
 
+const getKolkataEndOfToday = () => {
+  const { dateStr } = getKolkataDateParts();
+  return new Date(`${dateStr}T23:59:59.999+05:30`);
+};
+
 const getKolkataStartOfMonth = (offsetMonths = 0) => {
   const { year, month } = getKolkataDateParts();
   let targetMonth = month - offsetMonths;
@@ -130,6 +135,7 @@ const getDashboardOverview = async (req, res, next) => {
       : {};
     const now = new Date();
     const startOfToday = getKolkataStartOfToday();
+    const endOfToday = getKolkataEndOfToday();
     const startOfMonth = getKolkataStartOfMonth(0);
     const startOfPrevMonth = getKolkataStartOfMonth(1);
     const endOfPrevMonth = getKolkataEndOfMonth(1);
@@ -177,7 +183,7 @@ const getDashboardOverview = async (req, res, next) => {
       Membership.distinct('userId', {
         ...branchFilter,
         status: 'ACTIVE',
-        startDate: { $lte: now },
+        startDate: { $lte: endOfToday },
         expiryDate: { $gte: now },
       }),
       Membership.distinct('userId', {
@@ -684,23 +690,27 @@ const getClients = async (req, res, next) => {
 
     const clients = await clientsQuery;
     const now = new Date();
+    const endOfToday = getKolkataEndOfToday();
 
     // Attach active membership & profile info to each client
     const clientList = await Promise.all(
       clients.map(async (c) => {
         const profile = await ClientProfile.findOne({ userId: c._id }).populate('trainerId', 'name email phone status');
+        const membershipIdentityQuery = profile
+          ? { $or: [{ userId: c._id }, { clientProfileId: profile._id }] }
+          : { userId: c._id };
 
         // Genuinely ACTIVE membership check
         const activeMembership = await Membership.findOne({
-          userId: c._id,
+          ...membershipIdentityQuery,
           status: 'ACTIVE',
-          startDate: { $lte: now },
+          startDate: { $lte: endOfToday },
           expiryDate: { $gte: now },
         }).sort({ expiryDate: -1 });
 
         // Latest historical membership if no active membership exists
         const latestMembership = !activeMembership
-          ? await Membership.findOne({ userId: c._id }).sort({ createdAt: -1 })
+          ? await Membership.findOne(membershipIdentityQuery).sort({ createdAt: -1 })
           : null;
 
         let membershipPayload = null;
@@ -775,7 +785,7 @@ const getClients = async (req, res, next) => {
     if (accountStatus && accountStatus !== 'ALL' && accountStatus !== 'NOT_CREATED') walkInQuery._id = null;
     const walkInProfiles = await ClientProfile.find(walkInQuery).populate('branchId', 'name city').populate('trainerId', 'name email phone status').sort({ createdAt: -1 });
     for (const profile of walkInProfiles) {
-      const active = await Membership.findOne({ clientProfileId: profile._id, status: 'ACTIVE', startDate: { $lte: now }, expiryDate: { $gte: now } }).sort({ expiryDate: -1 });
+      const active = await Membership.findOne({ clientProfileId: profile._id, status: 'ACTIVE', startDate: { $lte: endOfToday }, expiryDate: { $gte: now } }).sort({ expiryDate: -1 });
       const latest = active || await Membership.findOne({ clientProfileId: profile._id }).sort({ createdAt: -1 });
       clientList.push({ id: profile._id, userId: null, profileId: profile._id, clientId: profile.clientId || '', name: profile.name, email: profile.email, phone: profile.phone, age: profile.age ?? null, gender: profile.gender || '', address: profile.address || '', status: 'NOT_CREATED', accountAccessStatus: 'NOT_CREATED', branch: profile.branchId, branchId: profile.branchId?._id || profile.branchId || null, createdAt: profile.joiningDate || profile.createdAt, fitnessGoal: profile.fitnessGoal, experienceLevel: profile.experienceLevel, trainer: profile.trainerId?.status === 'ACTIVE' ? profile.trainerId : null, membership: latest ? { id: latest._id, planName: latest.planName, status: latest.status, startDate: latest.startDate, expiryDate: latest.expiryDate, isExpired: latest.status === 'EXPIRED' || new Date(latest.expiryDate) < now } : null });
     }
@@ -829,7 +839,11 @@ const getClientDetails = async (req, res, next) => {
     }
 
     const profile = profileOnly || await ClientProfile.findOne({ userId: id }).populate('trainerId', 'name email phone');
-    const identityQuery = client ? { userId: client._id } : { clientProfileId: profile._id };
+    const identityQuery = client
+      ? profile
+        ? { $or: [{ userId: client._id }, { clientProfileId: profile._id }] }
+        : { userId: client._id }
+      : { clientProfileId: profile._id };
     const memberships = await Membership.find(identityQuery).sort({ createdAt: -1 }).populate('branchId', 'city name');
     const payments = await Payment.find(identityQuery).sort({ date: -1 }).populate('branchId', 'city');
     const attendances = client ? await Attendance.find({ userId: id }).sort({ date: -1 }).limit(30).populate('branchId', 'city') : [];
@@ -838,9 +852,10 @@ const getClientDetails = async (req, res, next) => {
     const progressRecords = client ? await ProgressRecord.find({ userId: id }).sort({ date: -1 }).limit(20) : [];
 
     const now = new Date();
+    const endOfToday = getKolkataEndOfToday();
     // Strictly ACTIVE membership only - never fall back to expired or pending memberships
     const activeMembership = memberships.find(
-      (m) => m.status === 'ACTIVE' && new Date(m.startDate) <= now && new Date(m.expiryDate) >= now
+      (m) => m.status === 'ACTIVE' && new Date(m.startDate) <= endOfToday && new Date(m.expiryDate) >= now
     ) || null;
     const latestMembership = !activeMembership ? memberships[0] || null : null;
 

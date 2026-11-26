@@ -19,6 +19,16 @@ const { resolveClientTrainer } = require('../utils/trainerAssignment');
 const financeService = require('../services/financeService');
 const dashboardCache = require('../utils/dashboardCache');
 
+const getKolkataEndOfToday = () => {
+  const dateStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  return new Date(`${dateStr}T23:59:59.999+05:30`);
+};
+
 /**
  * Helper to calculate days remaining from an expiry date
  */
@@ -45,6 +55,7 @@ const getDashboardSummary = async (req, res, next) => {
     }
 
     const now = new Date();
+    const endOfToday = getKolkataEndOfToday();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
     const dayOfWeek = now.getDay();
@@ -72,7 +83,7 @@ const getDashboardSummary = async (req, res, next) => {
       Membership.findOne({
         userId,
         status: 'ACTIVE',
-        startDate: { $lte: now },
+        startDate: { $lte: endOfToday },
         expiryDate: { $gte: now },
       })
         .select('planName status startDate expiryDate renewalRequested trainingPreference branchId')
@@ -651,11 +662,12 @@ const getMembership = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const now = new Date();
+    const endOfToday = getKolkataEndOfToday();
 
     const activeMembership = await Membership.findOne({
       userId,
       status: 'ACTIVE',
-      startDate: { $lte: now },
+      startDate: { $lte: endOfToday },
       expiryDate: { $gte: now },
     }).populate('branchId', 'name city address phone');
 
@@ -1027,6 +1039,7 @@ const purchaseMembership = async (req, res, next) => {
     const paymentRef = `TXN-MEM-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`;
     const payment = await Payment.create({
       userId,
+      clientProfileId: clientProfile?._id || null,
       branchId,
       transactionId: paymentRef,
       description: `Membership Purchase: ${plan.name} (${trainingPreference === 'PERSONAL_TRAINER' ? `With Coach ${trainerUser?.name}` : 'Self-Trained'})`,
@@ -1039,6 +1052,7 @@ const purchaseMembership = async (req, res, next) => {
     // 2. Create Membership Record with Historical Snapshot
     const membership = await Membership.create({
       userId,
+      clientProfileId: clientProfile?._id || null,
       branchId,
       planId: plan._id,
       planName: plan.name,
