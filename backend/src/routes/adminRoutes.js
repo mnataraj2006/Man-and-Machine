@@ -26,6 +26,7 @@ router.get('/clients', adminController.getClients);
 router.post('/clients', adminController.createClient);
 router.get('/clients/:id', adminController.getClientDetails);
 router.put('/clients/:id', adminController.updateClient);
+router.post('/clients/:id/login-access', adminController.createClientLoginAccess);
 router.put('/clients/:id/status', adminController.updateClientStatus);
 router.put('/clients/:id/assign-trainer', adminController.assignTrainer);
 router.put('/clients/:id/change-branch', adminController.changeClientBranch);

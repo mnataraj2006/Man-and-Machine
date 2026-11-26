@@ -5,9 +5,10 @@ const membershipSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      default: null,
       index: true,
     },
+    clientProfileId: { type: mongoose.Schema.Types.ObjectId, ref: 'ClientProfile', default: null, index: true },
     branchId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Branch',
@@ -27,7 +28,7 @@ const membershipSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['ACTIVE', 'EXPIRED', 'PAUSED', 'CANCELLED', 'PENDING'],
+      enum: ['ACTIVE', 'EXPIRED', 'PAUSED', 'FROZEN', 'CANCELLED', 'PENDING', 'PENDING_PAYMENT'],
       default: 'ACTIVE',
       index: true,
     },

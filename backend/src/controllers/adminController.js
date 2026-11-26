@@ -20,6 +20,7 @@ const financeService = require('../services/financeService');
 const notificationService = require('../services/notificationService');
 const { generateSecureToken, hashToken, getFrontendBaseUrl } = require('../utils/tokenUtils');
 const { sendTrainerInvitation, sendPasswordResetEmail } = require('../utils/emailService');
+const { normalizeIndianPhone } = require('../utils/phone');
 
 // Helper to construct branch query filter
 const getBranchFilter = (branchId) => {
@@ -722,6 +723,20 @@ const getClients = async (req, res, next) => {
       })
     );
 
+    // Profile-only walk-ins have no User document but must remain first-class admin clients.
+    const walkInQuery = { userId: null, ...getBranchFilter(branchId) };
+    if (search?.trim()) {
+      const term = search.trim();
+      walkInQuery.$or = [{ name: { $regex: term, $options: 'i' } }, { phone: { $regex: term, $options: 'i' } }, { email: { $regex: term, $options: 'i' } }];
+    }
+    if (accountStatus && accountStatus !== 'ALL' && accountStatus !== 'NOT_CREATED') walkInQuery._id = null;
+    const walkInProfiles = await ClientProfile.find(walkInQuery).populate('branchId', 'name city').populate('trainerId', 'name email phone status').sort({ createdAt: -1 });
+    for (const profile of walkInProfiles) {
+      const active = await Membership.findOne({ clientProfileId: profile._id, status: 'ACTIVE', startDate: { $lte: now }, expiryDate: { $gte: now } }).sort({ expiryDate: -1 });
+      const latest = active || await Membership.findOne({ clientProfileId: profile._id }).sort({ createdAt: -1 });
+      clientList.push({ id: profile._id, profileId: profile._id, name: profile.name, email: profile.email, phone: profile.phone, status: 'NOT_CREATED', accountAccessStatus: 'NOT_CREATED', branch: profile.branchId, createdAt: profile.joiningDate || profile.createdAt, fitnessGoal: profile.fitnessGoal, experienceLevel: profile.experienceLevel, trainer: profile.trainerId?.status === 'ACTIVE' ? profile.trainerId : null, membership: latest ? { id: latest._id, planName: latest.planName, status: latest.status, startDate: latest.startDate, expiryDate: latest.expiryDate, isExpired: latest.status === 'EXPIRED' || new Date(latest.expiryDate) < now } : null });
+    }
+
     let filteredList = clientList;
     if (membershipStatus && membershipStatus !== 'ALL') {
       filteredList = filteredList.filter((c) => {
@@ -763,18 +778,21 @@ const getClients = async (req, res, next) => {
 const getClientDetails = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const client = await User.findOne({ _id: id, role: 'CLIENT' }).populate('branchId');
-    if (!client) {
+    let profileOnly = null;
+    let client = await User.findOne({ _id: id, role: 'CLIENT' }).populate('branchId');
+    if (!client) profileOnly = await ClientProfile.findOne({ _id: id, userId: null }).populate('branchId').populate('trainerId', 'name email phone');
+    if (!client && !profileOnly) {
       return res.status(404).json({ success: false, message: 'Client not found' });
     }
 
-    const profile = await ClientProfile.findOne({ userId: id }).populate('trainerId', 'name email phone');
-    const memberships = await Membership.find({ userId: id }).sort({ createdAt: -1 }).populate('branchId', 'city name');
-    const payments = await Payment.find({ userId: id }).sort({ date: -1 }).populate('branchId', 'city');
-    const attendances = await Attendance.find({ userId: id }).sort({ date: -1 }).limit(30).populate('branchId', 'city');
-    const workouts = await WorkoutPlan.find({ assignedTo: id }).sort({ createdAt: -1 });
-    const workoutSessions = await WorkoutSession.find({ userId: id }).sort({ date: -1 }).limit(10);
-    const progressRecords = await ProgressRecord.find({ userId: id }).sort({ date: -1 }).limit(20);
+    const profile = profileOnly || await ClientProfile.findOne({ userId: id }).populate('trainerId', 'name email phone');
+    const identityQuery = client ? { userId: client._id } : { clientProfileId: profile._id };
+    const memberships = await Membership.find(identityQuery).sort({ createdAt: -1 }).populate('branchId', 'city name');
+    const payments = await Payment.find(identityQuery).sort({ date: -1 }).populate('branchId', 'city');
+    const attendances = client ? await Attendance.find({ userId: id }).sort({ date: -1 }).limit(30).populate('branchId', 'city') : [];
+    const workouts = client ? await WorkoutPlan.find({ assignedTo: id }).sort({ createdAt: -1 }) : [];
+    const workoutSessions = client ? await WorkoutSession.find({ userId: id }).sort({ date: -1 }).limit(10) : [];
+    const progressRecords = client ? await ProgressRecord.find({ userId: id }).sort({ date: -1 }).limit(20) : [];
 
     const now = new Date();
     // Strictly ACTIVE membership only - never fall back to expired or pending memberships
@@ -786,15 +804,16 @@ const getClientDetails = async (req, res, next) => {
     res.status(200).json({
       success: true,
       client: {
-        id: client._id,
-        name: client.name,
-        email: client.email,
-        phone: client.phone,
-        status: client.status,
-        branch: client.branchId,
-        createdAt: client.createdAt,
-        whatsappOptIn: Boolean(client.whatsappOptIn),
-        whatsappOptInAt: client.whatsappOptInAt,
+        id: client?._id || profile._id,
+        name: client?.name || profile.name,
+        email: client?.email || profile.email,
+        phone: client?.phone || profile.phone,
+        status: client?.status || 'NOT_CREATED',
+        accountAccessStatus: profile?.accountAccessStatus || 'ACTIVE',
+        branch: client?.branchId || profile.branchId,
+        createdAt: client?.createdAt || profile.joiningDate,
+        whatsappOptIn: Boolean(client?.whatsappOptIn),
+        whatsappOptInAt: client?.whatsappOptInAt,
       },
       profile: profile || null,
       activeMembership,
@@ -813,154 +832,22 @@ const getClientDetails = async (req, res, next) => {
 
 const createClient = async (req, res, next) => {
   try {
-    const {
-      name,
-      email,
-      phone,
-      password,
-      branchId,
-      fitnessGoal,
-      experienceLevel,
-      trainerId,
-      membershipPlanName,
-      durationMonths = 1,
-      membershipAmount = 0,
-      startDate,
-    } = req.body;
-
-    if (!name || !email || !phone || !password || !branchId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name, email, phone, password, and branch are required.',
-      });
+    const { name, email = '', phone = '', branchId, createLoginAccess = false, fitnessGoal, experienceLevel, trainerId, registrationDate, gender, dateOfBirth, address, emergencyContact, notes } = req.body;
+    if (!name?.trim() || !branchId || !mongoose.Types.ObjectId.isValid(branchId)) return res.status(400).json({ success: false, message: 'Full name and a valid branch are required.' });
+    const normalizedPhone = phone ? normalizeIndianPhone(phone) : null;
+    if (phone && !normalizedPhone) return res.status(400).json({ success: false, message: 'Enter a valid Indian phone number or leave it blank.' });
+    const cleanEmail = email ? String(email).trim().toLowerCase() : '';
+    const duplicate = await ClientProfile.findOne({ $or: [...(normalizedPhone ? [{ phone: normalizedPhone }] : []), ...(cleanEmail ? [{ email: cleanEmail }] : [])] }).populate('userId', 'name email phone');
+    if (duplicate) return res.status(409).json({ success: false, message: 'A matching client profile already exists. Verify the existing client before registering again.', existingClient: { id: duplicate._id, name: duplicate.name || duplicate.userId?.name, phone: duplicate.phone || duplicate.userId?.phone, email: duplicate.email || duplicate.userId?.email } });
+    if (createLoginAccess && !cleanEmail) return res.status(400).json({ success: false, message: 'A valid email is required to create login access and send a secure invitation.' });
+    let user = null;
+    if (createLoginAccess) {
+      if (await User.findOne({ email: cleanEmail })) return res.status(409).json({ success: false, message: 'This email is already linked to an account.' });
+      const rawToken = generateSecureToken();
+      user = await User.create({ name: name.trim(), email: cleanEmail, phone: normalizedPhone || '', branchId, role: 'CLIENT', status: 'PENDING_ACTIVATION', activationTokenHash: hashToken(rawToken), activationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), activationSentAt: new Date() });
     }
-
-    const existing = await User.findOne({ email: email.toLowerCase().trim() });
-    if (existing) {
-      return res.status(400).json({ success: false, message: 'A user with this email already exists' });
-    }
-
-    // 1. Create User
-    const user = await User.create({
-      name: name.trim(),
-      email: email.toLowerCase().trim(),
-      phone: phone.trim(),
-      password,
-      branchId,
-      role: 'CLIENT',
-      status: 'ACTIVE',
-    });
-
-    // 2. Create Client Profile
-    const clientProfile = await ClientProfile.create({
-      userId: user._id,
-      branchId,
-      fitnessGoal: fitnessGoal || 'General Fitness',
-      experienceLevel: experienceLevel || 'Beginner',
-      trainerId: trainerId && mongoose.Types.ObjectId.isValid(trainerId) ? trainerId : null,
-      joiningDate: startDate ? new Date(startDate) : new Date(),
-    });
-
-    // 3. Optional Initial Membership
-    let membership = null;
-    if (membershipPlanName || req.body.planId) {
-      let plan = null;
-      if (req.body.planId) {
-        plan = await MembershipPlan.findById(req.body.planId);
-      } else if (membershipPlanName) {
-        plan = await MembershipPlan.findOne({ name: membershipPlanName });
-      }
-
-      let snapshot = {
-        planId: plan ? plan._id : null,
-        planName: plan ? plan.name : (membershipPlanName ? membershipPlanName.trim() : 'Custom Pass'),
-        branchId,
-        durationDays: plan?.durationDays || (parseInt(durationMonths, 10) * 30) || 30,
-        durationMonths: plan?.durationMonths || parseInt(durationMonths, 10) || 1,
-        basePrice: 0,
-        joiningFee: 0,
-        discountType: 'NONE',
-        discountValue: 0,
-        finalAmount: Number(membershipAmount) || 0,
-      };
-
-      if (plan) {
-        const branchConfig = plan.branchPricing?.find(
-          (bp) => bp.branchId.toString() === branchId.toString()
-        );
-        if (branchConfig && branchConfig.isAvailable) {
-          snapshot.basePrice = branchConfig.basePrice;
-          snapshot.joiningFee = branchConfig.joiningFee;
-          snapshot.discountType = branchConfig.discountType;
-          snapshot.discountValue = branchConfig.discountValue;
-          snapshot.finalAmount = Number(membershipAmount) || branchConfig.finalPrice;
-        } else if (plan.price) {
-          snapshot.basePrice = plan.price;
-          snapshot.finalAmount = Number(membershipAmount) || plan.price;
-        }
-      }
-
-      const sDate = startDate ? new Date(startDate) : new Date();
-      const expDate = new Date(sDate.getTime() + snapshot.durationDays * 24 * 60 * 60 * 1000);
-
-      membership = await Membership.create({
-        userId: user._id,
-        branchId,
-        planId: snapshot.planId,
-        planName: snapshot.planName,
-        durationDays: snapshot.durationDays,
-        durationMonths: snapshot.durationMonths,
-        basePrice: snapshot.basePrice,
-        joiningFee: snapshot.joiningFee,
-        discountType: snapshot.discountType,
-        discountValue: snapshot.discountValue,
-        finalAmount: snapshot.finalAmount,
-        amount: snapshot.finalAmount,
-        startDate: sDate,
-        expiryDate: expDate,
-        status: 'ACTIVE',
-      });
-
-      if (clientProfile) {
-        clientProfile.membershipStatus = 'ACTIVE';
-        clientProfile.membershipExpiryDate = expDate;
-        await clientProfile.save();
-      }
-
-      if (snapshot.finalAmount > 0) {
-        let discountAmt = 0;
-        if (snapshot.discountType === 'FIXED') discountAmt = snapshot.discountValue || 0;
-        else if (snapshot.discountType === 'PERCENTAGE') {
-          discountAmt = ((snapshot.basePrice + snapshot.joiningFee) * (snapshot.discountValue || 0)) / 100;
-        }
-        const { payment } = await financeService.createInvoiceAndOptionalPayment({
-          clientId: user._id,
-          branchId,
-          membershipId: membership._id,
-          category: 'MEMBERSHIP_PURCHASE',
-          description: `Membership Purchase: ${snapshot.planName}`,
-          subtotal: snapshot.basePrice || snapshot.finalAmount,
-          joiningFee: snapshot.joiningFee || 0,
-          discount: discountAmt,
-          totalAmount: snapshot.finalAmount,
-          paidAmount: req.body.paymentStatus === 'PENDING' ? 0 : snapshot.finalAmount,
-          paymentMethod: req.body.paymentMethod || 'CASH',
-          invoiceDate: sDate,
-          createdBy: req.user ? req.user._id : null,
-        });
-        if (payment) {
-          membership.paymentId = payment._id;
-          await membership.save();
-        }
-      }
-    }
-
-    res.status(201).json({
-      success: true,
-      message: 'Client created successfully',
-      client: user.toSafeObject(),
-      membership,
-    });
+    const profile = await ClientProfile.create({ userId: user?._id || null, name: name.trim(), email: cleanEmail, phone: normalizedPhone || '', branchId, gender, dateOfBirth: dateOfBirth || null, address, emergencyContact, notes, fitnessGoal: fitnessGoal || 'General Fitness', experienceLevel: experienceLevel || 'Beginner', trainerId: trainerId && mongoose.Types.ObjectId.isValid(trainerId) ? trainerId : null, joiningDate: registrationDate ? new Date(registrationDate) : new Date(), registrationSource: 'ADMIN_REGISTERED', accountAccessStatus: user ? 'INVITATION_PENDING' : 'NOT_CREATED' });
+    res.status(201).json({ success: true, message: user ? 'Client profile created. Account invitation is pending.' : 'Walk-in client profile created without login access.', client: { id: profile._id, profileId: profile._id, userId: user?._id || null, name: profile.name, email: profile.email, phone: profile.phone, accountAccessStatus: profile.accountAccessStatus } });
   } catch (err) {
     next(err);
   }
@@ -972,33 +859,50 @@ const updateClient = async (req, res, next) => {
     const { name, phone, email, branchId, fitnessGoal, experienceLevel, whatsappOptIn } = req.body;
 
     const user = await User.findOne({ _id: id, role: 'CLIENT' });
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Client not found' });
-    }
+    const walkInProfile = user ? null : await ClientProfile.findOne({ _id: id, userId: null });
+    if (!user && !walkInProfile) return res.status(404).json({ success: false, message: 'Client not found' });
 
-    if (name) user.name = name.trim();
-    if (phone) user.phone = phone.trim();
-    if (email) user.email = email.toLowerCase().trim();
-    if (branchId && mongoose.Types.ObjectId.isValid(branchId)) user.branchId = branchId;
-    if (typeof whatsappOptIn === 'boolean') {
+    if (user && name) user.name = name.trim();
+    if (user && phone) user.phone = phone.trim();
+    if (user && email) user.email = email.toLowerCase().trim();
+    if (user && branchId && mongoose.Types.ObjectId.isValid(branchId)) user.branchId = branchId;
+    if (user && typeof whatsappOptIn === 'boolean') {
       user.whatsappOptIn = whatsappOptIn;
       user.whatsappOptInAt = whatsappOptIn ? new Date() : user.whatsappOptInAt;
       user.whatsappOptOutAt = whatsappOptIn ? null : new Date();
     }
-    await user.save();
+    if (user) await user.save();
 
-    let profile = await ClientProfile.findOne({ userId: id });
+    let profile = walkInProfile || await ClientProfile.findOne({ userId: id });
     if (profile) {
+      if (name) profile.name = name.trim();
+      if (phone) profile.phone = phone.trim();
+      if (email) profile.email = email.toLowerCase().trim();
       if (fitnessGoal) profile.fitnessGoal = fitnessGoal;
       if (experienceLevel) profile.experienceLevel = experienceLevel;
       if (branchId && mongoose.Types.ObjectId.isValid(branchId)) profile.branchId = branchId;
       await profile.save();
     }
 
-    res.status(200).json({ success: true, message: 'Client updated successfully', client: user.toSafeObject() });
+    res.status(200).json({ success: true, message: 'Client updated successfully', client: user ? user.toSafeObject() : { id: profile._id, name: profile.name, email: profile.email, phone: profile.phone, status: 'NOT_CREATED' } });
   } catch (err) {
     next(err);
   }
+};
+
+const createClientLoginAccess = async (req, res, next) => {
+  try {
+    const profile = await ClientProfile.findById(req.params.id);
+    if (!profile) return res.status(404).json({ success: false, message: 'Client profile not found.' });
+    if (profile.userId) return res.status(409).json({ success: false, message: 'Login access already exists for this client.' });
+    if (!profile.email) return res.status(400).json({ success: false, message: 'A valid email is required for the current secure activation method.' });
+    if (await User.findOne({ email: profile.email })) return res.status(409).json({ success: false, message: 'This email is already linked to an account.' });
+    const rawToken = generateSecureToken();
+    const user = await User.create({ name: profile.name, email: profile.email, phone: profile.phone || '', branchId: profile.branchId, role: 'CLIENT', status: 'PENDING_ACTIVATION', activationTokenHash: hashToken(rawToken), activationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), activationSentAt: new Date() });
+    profile.userId = user._id; profile.accountAccessStatus = 'INVITATION_PENDING'; await profile.save();
+    const activationUrl = `${getFrontendBaseUrl()}/activate-account/${rawToken}`;
+    res.status(201).json({ success: true, message: 'Login access created. Share the secure, single-use activation link through an approved channel.', accountAccessStatus: profile.accountAccessStatus, manualActivationUrl: activationUrl });
+  } catch (err) { next(err); }
 };
 
 const updateClientStatus = async (req, res, next) => {
@@ -2250,6 +2154,7 @@ const createClientMembership = async (req, res, next) => {
   try {
     const {
       userId,
+      clientProfileId,
       branchId,
       planId,
       planName,
@@ -2259,14 +2164,15 @@ const createClientMembership = async (req, res, next) => {
       startDate,
     } = req.body;
 
-    if (!userId || (!planId && !planName)) {
-      return res.status(400).json({ success: false, message: 'User ID and Plan are required.' });
+    if ((!userId && !clientProfileId) || (!planId && !planName)) {
+      return res.status(400).json({ success: false, message: 'Client and membership plan are required.' });
     }
 
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ success: false, message: 'Client not found.' });
+    const profile = clientProfileId ? await ClientProfile.findById(clientProfileId) : await ClientProfile.findOne({ userId });
+    const user = userId ? await User.findById(userId) : profile?.userId ? await User.findById(profile.userId) : null;
+    if (!profile && !user) return res.status(404).json({ success: false, message: 'Client not found.' });
 
-    const targetBranchId = branchId || user.branchId;
+    const targetBranchId = branchId || profile?.branchId || user?.branchId;
     if (!targetBranchId) {
       return res.status(400).json({ success: false, message: 'Client must be associated with a valid gym branch.' });
     }
@@ -2329,17 +2235,19 @@ const createClientMembership = async (req, res, next) => {
     const sDate = startDate ? new Date(startDate) : new Date();
     const expDate = new Date(sDate.getTime() + snapshot.durationDays * 24 * 60 * 60 * 1000);
 
-    const isDeferredPayment = req.body.paymentStatus === 'PENDING';
+    const isDeferredPayment = req.body.paymentStatus === 'PENDING' || req.body.paymentStatus === 'PENDING_PAYMENT';
     const initialPaid =
       req.body.paidAmount !== undefined
         ? Number(req.body.paidAmount)
         : isDeferredPayment
         ? 0
         : snapshot.finalAmount;
-    const memStatus = initialPaid >= snapshot.finalAmount || !isDeferredPayment ? 'ACTIVE' : 'PENDING';
+    const allowAccessWithBalance = req.body.allowAccessWithBalance === true;
+    const memStatus = snapshot.finalAmount === 0 || initialPaid >= snapshot.finalAmount || allowAccessWithBalance ? 'ACTIVE' : 'PENDING_PAYMENT';
 
     const membership = await Membership.create({
-      userId,
+      userId: user?._id || null,
+      clientProfileId: profile?._id || null,
       branchId: targetBranchId,
       planId: snapshot.planId,
       planName: snapshot.planName,
@@ -2366,7 +2274,8 @@ const createClientMembership = async (req, res, next) => {
         discountAmt = ((snapshot.basePrice + snapshot.joiningFee) * (snapshot.discountValue || 0)) / 100;
       }
       const finRes = await financeService.createInvoiceAndOptionalPayment({
-        clientId: userId,
+        clientId: user?._id || null,
+        clientProfileId: profile?._id || null,
         branchId: targetBranchId,
         membershipId: membership._id,
         category: 'MEMBERSHIP_PURCHASE',
@@ -3350,6 +3259,7 @@ module.exports = {
   getClients,
   getClientDetails,
   createClient,
+  createClientLoginAccess,
   updateClient,
   updateClientStatus,
   assignTrainer,

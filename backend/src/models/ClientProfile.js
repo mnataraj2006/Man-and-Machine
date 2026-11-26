@@ -5,8 +5,8 @@ const clientProfileSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
-      unique: true,
+      default: null,
+      sparse: true,
       index: true,
     },
     branchId: {
@@ -64,6 +64,16 @@ const clientProfileSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    name: { type: String, trim: true, default: '' },
+    phone: { type: String, trim: true, default: '' },
+    email: { type: String, trim: true, lowercase: true, default: '' },
+    gender: { type: String, trim: true, default: '' },
+    dateOfBirth: { type: Date, default: null },
+    address: { type: String, trim: true, default: '' },
+    emergencyContact: { type: String, trim: true, default: '' },
+    notes: { type: String, trim: true, default: '' },
+    registrationSource: { type: String, enum: ['SELF_REGISTERED', 'ADMIN_REGISTERED'], default: 'SELF_REGISTERED' },
+    accountAccessStatus: { type: String, enum: ['ACTIVE', 'NOT_CREATED', 'INVITATION_PENDING'], default: 'ACTIVE', index: true },
   },
   {
     timestamps: true,

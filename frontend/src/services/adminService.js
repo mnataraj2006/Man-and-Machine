@@ -108,6 +108,10 @@ class AdminService {
     });
   }
 
+  async createClientLoginAccess(id) {
+    return this.request(`/clients/${id}/login-access`, { method: 'POST' });
+  }
+
   async updateClientStatus(id, status) {
     return this.request(`/clients/${id}/status`, {
       method: 'PUT',

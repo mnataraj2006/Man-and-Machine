@@ -101,7 +101,7 @@ export default function Clients() {
     name: '',
     email: '',
     phone: '',
-    password: 'Password@123',
+    createLoginAccess: false,
     branchId: '',
     fitnessGoal: 'Muscle Building',
     experienceLevel: 'Intermediate',
@@ -494,7 +494,7 @@ export default function Clients() {
       name: '',
       email: '',
       phone: '',
-      password: 'Password@123',
+      createLoginAccess: false,
       branchId: branches[0]?._id || '',
       fitnessGoal: 'Muscle Building',
       experienceLevel: 'Intermediate',
@@ -561,7 +561,7 @@ export default function Clients() {
       const branchId = clientObj?.branch?._id || clientObj?.branch || branches[0]?._id;
 
       await adminService.createClientMembership({
-        userId: clientId,
+        ...(clientObj?.accountAccessStatus === 'NOT_CREATED' || clientObj?.status === 'NOT_CREATED' ? { clientProfileId: clientId } : { userId: clientId }),
         branchId,
         planId: assignForm.planId,
         planName: selectedPlan?.name,
@@ -2026,10 +2026,10 @@ export default function Clients() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Email *</label>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Email (Optional)</label>
                     <input
                       type="email"
-                      required
+                      required={addForm.createLoginAccess}
                       value={addForm.email}
                       onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
                       className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
@@ -2037,11 +2037,10 @@ export default function Clients() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone *</label>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone (Optional)</label>
                     <input
                       type="tel"
                       inputMode="tel"
-                      required
                       value={addForm.phone}
                       onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
                       className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
@@ -2066,19 +2065,10 @@ export default function Clients() {
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">
-                      Temporary Password *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      minLength={8}
-                      value={addForm.password}
-                      onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
-                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
-                    />
-                  </div>
+                  <label className="flex items-center gap-2 min-h-[44px] px-3 rounded-xl bg-[#111111] border border-[#303030] text-xs text-[#F5F5F5] cursor-pointer">
+                    <input type="checkbox" checked={addForm.createLoginAccess} onChange={(e) => setAddForm({ ...addForm, createLoginAccess: e.target.checked })} />
+                    Create online login access (requires email)
+                  </label>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2114,8 +2104,8 @@ export default function Clients() {
                   </div>
                 </div>
 
-                {/* Initial Membership Assignment */}
-                <div className="pt-2 border-t border-[#303030]">
+                {/* Membership is deliberately assigned after profile registration so payment can be recorded correctly. */}
+                {false && <div className="pt-2 border-t border-[#303030]">
                   <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold block mb-2">
                     OPTIONAL INITIAL MEMBERSHIP PASS
                   </span>
@@ -2177,7 +2167,7 @@ export default function Clients() {
                       />
                     </div>
                   </div>
-                </div>
+                </div>}
               </div>
 
               <div className="px-5 py-4 border-t border-[#252525] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0 bg-[#181818]">

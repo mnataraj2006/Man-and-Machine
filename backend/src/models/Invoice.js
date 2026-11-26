@@ -33,11 +33,12 @@ const invoiceSchema = new mongoose.Schema(
   {
     invoiceNumber: {
       type: String,
-      required: true,
+      default: null,
       unique: true,
       trim: true,
       index: true,
     },
+    clientProfileId: { type: mongoose.Schema.Types.ObjectId, ref: 'ClientProfile', default: null, index: true },
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

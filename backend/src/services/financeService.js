@@ -258,6 +258,7 @@ const recalculateInvoiceFromPayments = async (invoiceId, actorId = null, reason 
  */
 const createInvoiceAndOptionalPayment = async ({
   clientId,
+  clientProfileId = null,
   branchId,
   membershipId = null,
   trainerBookingId = null,
@@ -385,6 +386,7 @@ const createInvoiceAndOptionalPayment = async ({
   const invoice = await Invoice.create({
     invoiceNumber,
     clientId,
+    clientProfileId,
     membershipId,
     trainerBookingId,
     branchId,
@@ -443,6 +445,7 @@ const createInvoiceAndOptionalPayment = async ({
     });
     linkedPayment = await Payment.create({
       userId: clientId,
+      clientProfileId,
       branchId,
       invoiceId: invoice._id,
       membershipId,
