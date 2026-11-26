@@ -922,10 +922,9 @@ export default function DashboardHome({ onNavigate }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Email</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Email (Optional)</label>
                   <input
                     type="email"
-                    required
                     value={clientForm.email}
                     onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })}
                     className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"
@@ -933,10 +932,9 @@ export default function DashboardHome({ onNavigate }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone</label>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone (Optional)</label>
                   <input
                     type="text"
-                    required
                     value={clientForm.phone}
                     onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })}
                     className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#EB3E2E] focus:outline-none"

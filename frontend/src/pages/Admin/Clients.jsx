@@ -131,6 +131,7 @@ export default function Clients() {
     email: '',
     phone: '',
     gender: '',
+    age: '',
     dateOfBirth: '',
     address: '',
     emergencyContact: '',
@@ -141,6 +142,15 @@ export default function Clients() {
     fitnessGoal: 'General Fitness',
     experienceLevel: 'Beginner',
     trainerId: '',
+    assignMembershipNow: true,
+    planId: '',
+    startDate: new Date().toISOString().slice(0, 10),
+    durationDays: 30,
+    amount: '',
+    paymentMethod: 'CASH',
+    paymentStatus: 'PAID',
+    paidAmount: '',
+    allowAccessWithBalance: true,
   });
 
   const [editForm, setEditForm] = useState({
@@ -148,6 +158,7 @@ export default function Clients() {
     phone: '',
     email: '',
     gender: '',
+    age: '',
     dateOfBirth: '',
     address: '',
     emergencyContact: '',
@@ -385,6 +396,7 @@ export default function Clients() {
       phone: c.phone || '',
       email: c.email || '',
       gender: profile?.gender || c.gender || '',
+      age: profile?.age ?? c.age ?? '',
       dateOfBirth: profile?.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().slice(0, 10) : '',
       address: profile?.address || c.address || '',
       emergencyContact: profile?.emergencyContact || c.emergencyContact || '',
@@ -543,21 +555,37 @@ export default function Clients() {
     setAddError(null);
     setAddDuplicateClient(null);
     setNewlyCreatedClient(null);
+    const defaultBranchId = branches[0]?._id || '';
+    const branchPlans = getActivePlansForBranch(defaultBranchId);
+    const firstPlan = branchPlans[0] || null;
+    const firstPrice = firstPlan ? getPlanPricingForBranch(firstPlan, defaultBranchId).finalPrice : '';
+    const firstDays = firstPlan ? firstPlan.durationDays || (firstPlan.durationMonths || 1) * 30 : 30;
+    const todayStr = new Date().toISOString().slice(0, 10);
     setAddForm({
       name: '',
       email: '',
       phone: '',
       gender: '',
+      age: '',
       dateOfBirth: '',
       address: '',
       emergencyContact: '',
-      registrationDate: new Date().toISOString().slice(0, 10),
+      registrationDate: todayStr,
       notes: '',
       createLoginAccess: false,
-      branchId: branches[0]?._id || '',
+      branchId: defaultBranchId,
       fitnessGoal: 'General Fitness',
       experienceLevel: 'Beginner',
       trainerId: '',
+      assignMembershipNow: true,
+      planId: firstPlan?._id || '',
+      startDate: todayStr,
+      durationDays: firstDays,
+      amount: firstPrice,
+      paymentMethod: 'CASH',
+      paymentStatus: 'PAID',
+      paidAmount: firstPrice,
+      allowAccessWithBalance: true,
     });
     setIsAddModalOpen(true);
   };
@@ -569,14 +597,53 @@ export default function Clients() {
     try {
       setSubmittingAdd(true);
       const res = await adminService.createClient(addForm);
+      const createdProfileId = res.client?.profileId || res.client?.id;
+      let assignedMembership = null;
+      let generatedInvoice = null;
+      let generatedPayment = null;
+
+      if (addForm.assignMembershipNow && addForm.planId && createdProfileId) {
+        const totalFee = Number(addForm.amount || 0);
+        const computedPaid =
+          addForm.paymentStatus === 'PENDING'
+            ? 0
+            : addForm.paymentStatus === 'PARTIAL'
+            ? Math.min(totalFee, Math.max(0, Number(addForm.paidAmount || 0)))
+            : totalFee;
+
+        const memRes = await adminService.createClientMembership({
+          ...(res.client?.userId ? { userId: res.client.userId } : { clientProfileId: createdProfileId }),
+          branchId: addForm.branchId,
+          planId: addForm.planId,
+          durationDays: Number(addForm.durationDays) || 30,
+          amount: totalFee,
+          startDate: addForm.startDate,
+          paymentMethod: addForm.paymentMethod,
+          paymentStatus: addForm.paymentStatus,
+          paidAmount: computedPaid,
+          allowAccessWithBalance: addForm.allowAccessWithBalance,
+        });
+        assignedMembership = memRes.membership || null;
+        generatedInvoice = memRes.invoice || null;
+        generatedPayment = memRes.payment || null;
+      }
+
       setPage(1);
       await fetchClients();
-      showFeedback('success', res.message || 'Client registered successfully.');
+      showFeedback(
+        'success',
+        assignedMembership
+          ? `Client ${res.client?.clientId || ''} registered and membership assigned.`
+          : res.message || 'Client registered successfully.'
+      );
       const branchObj = branches.find((b) => b._id === addForm.branchId);
       setNewlyCreatedClient({
         ...res.client,
         id: res.client?.id || res.client?.profileId,
         branch: branchObj || { _id: addForm.branchId },
+        membership: assignedMembership,
+        invoice: generatedInvoice,
+        payment: generatedPayment,
       });
     } catch (err) {
       if (err.status === 409 && err.data?.existingClient) {
@@ -2239,7 +2306,7 @@ export default function Clients() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Gender</label>
                     <select
@@ -2252,6 +2319,18 @@ export default function Clients() {
                       <option value="Female">Female</option>
                       <option value="Other">Other</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Age (Optional)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="120"
+                      value={editForm.age}
+                      onChange={(e) => setEditForm({ ...editForm, age: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                      placeholder="e.g. 26"
+                    />
                   </div>
                   <div>
                     <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Date of Birth</label>
@@ -2391,11 +2470,18 @@ export default function Clients() {
             </div>
 
             {newlyCreatedClient ? (
-              <div className="p-5 space-y-4">
+              <div className="p-5 space-y-4 overflow-y-auto">
                 <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
-                  <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <span>Registration Complete</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>Registration Complete</span>
+                    </div>
+                    {newlyCreatedClient.clientId && (
+                      <span className="px-2.5 py-0.5 rounded bg-[#111111] border border-emerald-500/30 font-mono text-xs font-bold text-emerald-300">
+                        {newlyCreatedClient.clientId}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm font-bold text-[#F5F5F5]">{newlyCreatedClient.name}</p>
                   <p className="text-xs text-[#B8B8B8]">
@@ -2404,29 +2490,86 @@ export default function Clients() {
                   </p>
                 </div>
 
-                <p className="text-xs text-[#B8B8B8]">
-                  Would you like to assign a membership plan and record payment now, or finish without a membership?
-                </p>
+                {newlyCreatedClient.membership ? (
+                  <div className="p-4 rounded-xl bg-[#111111] border border-[#303030] space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono uppercase text-[#858585]">Membership Plan</span>
+                      <span className="font-bold text-[#F5F5F5]">{newlyCreatedClient.membership.planName}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono uppercase text-[#858585]">Validity</span>
+                      <span className="font-mono text-[#B8B8B8]">
+                        {new Date(newlyCreatedClient.membership.startDate).toLocaleDateString()} →{' '}
+                        {new Date(newlyCreatedClient.membership.expiryDate).toLocaleDateString()}
+                      </span>
+                    </div>
+                    {newlyCreatedClient.invoice && (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono uppercase text-[#858585]">Invoice / Status</span>
+                          <span className="font-mono text-[#F5F5F5]">
+                            {newlyCreatedClient.invoice.invoiceNumber} ({newlyCreatedClient.invoice.status})
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono uppercase text-[#858585]">Paid / Balance</span>
+                          <span className="font-mono">
+                            <span className="text-emerald-400">₹{newlyCreatedClient.invoice.paidAmount || 0}</span>
+                            {' / '}
+                            <span className={(newlyCreatedClient.invoice.balanceAmount || 0) > 0 ? 'text-amber-400' : 'text-[#858585]'}>
+                              ₹{newlyCreatedClient.invoice.balanceAmount || 0}
+                            </span>
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    {newlyCreatedClient.payment?.receiptNumber && (
+                      <div className="flex items-center justify-between pt-1 border-t border-[#252525]">
+                        <span className="font-mono uppercase text-[#858585]">Receipt No.</span>
+                        <span className="font-mono font-bold text-emerald-400">{newlyCreatedClient.payment.receiptNumber}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[#B8B8B8]">
+                    Would you like to assign a membership plan and record payment now, or finish without a membership?
+                  </p>
+                )}
 
                 <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2">
+                  {newlyCreatedClient.payment && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = newlyCreatedClient;
+                        setIsAddModalOpen(false);
+                        handleOpenClientDetails(target.id);
+                      }}
+                      className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] border border-[#303030] text-[#F5F5F5] cursor-pointer w-full sm:w-auto"
+                    >
+                      View Client & Receipt
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setIsAddModalOpen(false)}
                     className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] cursor-pointer w-full sm:w-auto"
                   >
-                    Done (No Membership Yet)
+                    {newlyCreatedClient.membership ? 'Done' : 'Done (No Membership Yet)'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const target = newlyCreatedClient;
-                      setIsAddModalOpen(false);
-                      handleOpenAssignMembershipModal(target);
-                    }}
-                    className="min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#F03B2E] hover:bg-[#FF493B] text-white cursor-pointer w-full sm:w-auto"
-                  >
-                    Assign Membership
-                  </button>
+                  {!newlyCreatedClient.membership && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = newlyCreatedClient;
+                        setIsAddModalOpen(false);
+                        handleOpenAssignMembershipModal(target);
+                      }}
+                      className="min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#F03B2E] hover:bg-[#FF493B] text-white cursor-pointer w-full sm:w-auto"
+                    >
+                      Assign Membership
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -2525,7 +2668,7 @@ export default function Clients() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Gender (Optional)</label>
                       <select
@@ -2538,6 +2681,18 @@ export default function Clients() {
                         <option value="Female">Female</option>
                         <option value="Other">Other</option>
                       </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Age (Optional)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="120"
+                        value={addForm.age}
+                        onChange={(e) => setAddForm({ ...addForm, age: e.target.value })}
+                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                        placeholder="e.g. 26"
+                      />
                     </div>
                     <div>
                       <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Date of Birth (Optional)</label>
@@ -2624,6 +2779,148 @@ export default function Clients() {
                       className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
                       placeholder="Walk-in remarks, medical notes, preferences..."
                     />
+                  </div>
+
+                  {/* Integrated Membership & Payment Workflow */}
+                  <div className="p-3.5 rounded-xl bg-[#111111] border border-[#303030] space-y-3">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#F5F5F5]">
+                        Assign Membership & Record Payment Now
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={addForm.assignMembershipNow}
+                        onChange={(e) => setAddForm({ ...addForm, assignMembershipNow: e.target.checked })}
+                      />
+                    </label>
+
+                    {addForm.assignMembershipNow && (
+                      <div className="space-y-3 pt-2 border-t border-[#252525]">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Membership Plan *</label>
+                            <select
+                              required={addForm.assignMembershipNow}
+                              value={addForm.planId}
+                              onChange={(e) => {
+                                const selected = plans.find((p) => p._id === e.target.value);
+                                const price = selected ? getPlanPricingForBranch(selected, addForm.branchId).finalPrice : '';
+                                const days = selected ? selected.durationDays || (selected.durationMonths || 1) * 30 : 30;
+                                setAddForm({
+                                  ...addForm,
+                                  planId: e.target.value,
+                                  durationDays: days,
+                                  amount: price,
+                                  paidAmount: addForm.paymentStatus === 'PAID' ? price : addForm.paidAmount,
+                                });
+                              }}
+                              className="w-full min-h-[44px] bg-[#181818] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                            >
+                              <option value="">Select Plan</option>
+                              {getActivePlansForBranch(addForm.branchId).map((p) => (
+                                <option key={p._id} value={p._id}>
+                                  {p.name} (₹{getPlanPricingForBranch(p, addForm.branchId).finalPrice})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Start Date</label>
+                            <input
+                              type="date"
+                              value={addForm.startDate}
+                              onChange={(e) => setAddForm({ ...addForm, startDate: e.target.value })}
+                              className="w-full min-h-[44px] bg-[#181818] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Duration (Days)</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={addForm.durationDays}
+                              onChange={(e) => setAddForm({ ...addForm, durationDays: e.target.value })}
+                              className="w-full min-h-[44px] bg-[#181818] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Membership Fee (₹)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={addForm.amount}
+                              onChange={(e) => {
+                                const fee = e.target.value;
+                                setAddForm({
+                                  ...addForm,
+                                  amount: fee,
+                                  paidAmount: addForm.paymentStatus === 'PAID' ? fee : addForm.paidAmount,
+                                });
+                              }}
+                              className="w-full min-h-[44px] bg-[#181818] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Payment Method</label>
+                            <select
+                              value={addForm.paymentMethod}
+                              onChange={(e) => setAddForm({ ...addForm, paymentMethod: e.target.value })}
+                              className="w-full min-h-[44px] bg-[#181818] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                            >
+                              <option value="CASH">Cash</option>
+                              <option value="UPI">UPI</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Payment Status</label>
+                            <select
+                              value={addForm.paymentStatus}
+                              onChange={(e) => {
+                                const st = e.target.value;
+                                setAddForm({
+                                  ...addForm,
+                                  paymentStatus: st,
+                                  paidAmount: st === 'PAID' ? addForm.amount : st === 'PENDING' ? 0 : addForm.paidAmount,
+                                });
+                              }}
+                              className="w-full min-h-[44px] bg-[#181818] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                            >
+                              <option value="PAID">Paid (Full)</option>
+                              <option value="PARTIAL">Partial Payment</option>
+                              <option value="PENDING">Pending (Pay Later)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {addForm.paymentStatus === 'PARTIAL' && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+                            <div>
+                              <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Amount Received (₹)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max={Number(addForm.amount || 0)}
+                                value={addForm.paidAmount}
+                                onChange={(e) => setAddForm({ ...addForm, paidAmount: e.target.value })}
+                                className="w-full min-h-[44px] bg-[#181818] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                              />
+                            </div>
+                            <div className="min-h-[44px] px-3 py-2 rounded-xl bg-[#181818] border border-[#303030] flex items-center justify-between text-xs">
+                              <span className="text-[#858585] font-mono">Remaining Balance:</span>
+                              <span className="font-mono font-bold text-amber-400">
+                                ₹{Math.max(0, Number(addForm.amount || 0) - Number(addForm.paidAmount || 0))}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

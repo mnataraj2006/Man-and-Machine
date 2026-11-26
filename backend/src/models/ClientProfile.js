@@ -73,6 +73,7 @@ const clientProfileSchema = new mongoose.Schema(
     phone: { type: String, trim: true, default: '' },
     email: { type: String, trim: true, lowercase: true, default: '' },
     gender: { type: String, trim: true, default: '' },
+    age: { type: Number, min: 1, max: 120, default: null },
     dateOfBirth: { type: Date, default: null },
     address: { type: String, trim: true, default: '' },
     emergencyContact: { type: String, trim: true, default: '' },

@@ -777,7 +777,7 @@ const getClients = async (req, res, next) => {
     for (const profile of walkInProfiles) {
       const active = await Membership.findOne({ clientProfileId: profile._id, status: 'ACTIVE', startDate: { $lte: now }, expiryDate: { $gte: now } }).sort({ expiryDate: -1 });
       const latest = active || await Membership.findOne({ clientProfileId: profile._id }).sort({ createdAt: -1 });
-      clientList.push({ id: profile._id, userId: null, profileId: profile._id, clientId: profile.clientId || '', name: profile.name, email: profile.email, phone: profile.phone, status: 'NOT_CREATED', accountAccessStatus: 'NOT_CREATED', branch: profile.branchId, branchId: profile.branchId?._id || profile.branchId || null, createdAt: profile.joiningDate || profile.createdAt, fitnessGoal: profile.fitnessGoal, experienceLevel: profile.experienceLevel, trainer: profile.trainerId?.status === 'ACTIVE' ? profile.trainerId : null, membership: latest ? { id: latest._id, planName: latest.planName, status: latest.status, startDate: latest.startDate, expiryDate: latest.expiryDate, isExpired: latest.status === 'EXPIRED' || new Date(latest.expiryDate) < now } : null });
+      clientList.push({ id: profile._id, userId: null, profileId: profile._id, clientId: profile.clientId || '', name: profile.name, email: profile.email, phone: profile.phone, age: profile.age ?? null, gender: profile.gender || '', address: profile.address || '', status: 'NOT_CREATED', accountAccessStatus: 'NOT_CREATED', branch: profile.branchId, branchId: profile.branchId?._id || profile.branchId || null, createdAt: profile.joiningDate || profile.createdAt, fitnessGoal: profile.fitnessGoal, experienceLevel: profile.experienceLevel, trainer: profile.trainerId?.status === 'ACTIVE' ? profile.trainerId : null, membership: latest ? { id: latest._id, planName: latest.planName, status: latest.status, startDate: latest.startDate, expiryDate: latest.expiryDate, isExpired: latest.status === 'EXPIRED' || new Date(latest.expiryDate) < now } : null });
     }
 
     let filteredList = clientList;
@@ -876,7 +876,7 @@ const getClientDetails = async (req, res, next) => {
 
 const createClient = async (req, res, next) => {
   try {
-    const { name, email = '', phone = '', branchId, createLoginAccess = false, fitnessGoal, experienceLevel, trainerId, registrationDate, gender, dateOfBirth, address, emergencyContact, notes } = req.body;
+    const { name, email = '', phone = '', branchId, createLoginAccess = false, fitnessGoal, experienceLevel, trainerId, registrationDate, gender, age, dateOfBirth, address, emergencyContact, notes } = req.body;
     if (!name?.trim() || !branchId || !mongoose.Types.ObjectId.isValid(branchId)) return res.status(400).json({ success: false, message: 'Full name and a valid branch are required.' });
     const normalizedPhone = phone ? normalizeIndianPhone(phone) : null;
     if (phone && !normalizedPhone) return res.status(400).json({ success: false, message: 'Enter a valid Indian phone number or leave it blank.' });
@@ -896,8 +896,9 @@ const createClient = async (req, res, next) => {
       const rawToken = generateSecureToken();
       user = await User.create({ name: name.trim(), email: cleanEmail, phone: normalizedPhone || '', branchId, role: 'CLIENT', status: 'PENDING_ACTIVATION', activationTokenHash: hashToken(rawToken), activationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), activationSentAt: new Date() });
     }
-    const profile = await ClientProfile.create({ userId: user?._id || null, name: name.trim(), email: cleanEmail, phone: normalizedPhone || '', branchId, gender, dateOfBirth: dateOfBirth || null, address, emergencyContact, notes, fitnessGoal: fitnessGoal || 'General Fitness', experienceLevel: experienceLevel || 'Beginner', trainerId: trainerId && mongoose.Types.ObjectId.isValid(trainerId) ? trainerId : null, joiningDate: registrationDate ? new Date(registrationDate) : new Date(), registrationSource: 'ADMIN_REGISTERED', accountAccessStatus: user ? 'INVITATION_PENDING' : 'NOT_CREATED' });
-    res.status(201).json({ success: true, message: user ? 'Client profile created. Account invitation is pending.' : 'Walk-in client profile created without login access.', client: { id: profile._id, profileId: profile._id, clientId: profile.clientId, userId: user?._id || null, name: profile.name, email: profile.email, phone: profile.phone, accountAccessStatus: profile.accountAccessStatus } });
+    const parsedAge = age !== undefined && age !== '' && age !== null ? Number(age) : null;
+    const profile = await ClientProfile.create({ userId: user?._id || null, name: name.trim(), email: cleanEmail, phone: normalizedPhone || '', branchId, gender, age: Number.isFinite(parsedAge) ? parsedAge : null, dateOfBirth: dateOfBirth || null, address, emergencyContact, notes, fitnessGoal: fitnessGoal || 'General Fitness', experienceLevel: experienceLevel || 'Beginner', trainerId: trainerId && mongoose.Types.ObjectId.isValid(trainerId) ? trainerId : null, joiningDate: registrationDate ? new Date(registrationDate) : new Date(), registrationSource: 'ADMIN_REGISTERED', accountAccessStatus: user ? 'INVITATION_PENDING' : 'NOT_CREATED' });
+    res.status(201).json({ success: true, message: user ? 'Client profile created. Account invitation is pending.' : 'Walk-in client profile created without login access.', client: { id: profile._id, profileId: profile._id, clientId: profile.clientId, userId: user?._id || null, name: profile.name, email: profile.email, phone: profile.phone, age: profile.age, gender: profile.gender, address: profile.address, accountAccessStatus: profile.accountAccessStatus } });
   } catch (err) {
     next(err);
   }
@@ -906,7 +907,7 @@ const createClient = async (req, res, next) => {
 const updateClient = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, phone, email, branchId, fitnessGoal, experienceLevel, whatsappOptIn, gender, dateOfBirth, address, emergencyContact, notes } = req.body;
+    const { name, phone, email, branchId, fitnessGoal, experienceLevel, whatsappOptIn, gender, age, dateOfBirth, address, emergencyContact, notes } = req.body;
 
     const user = await User.findOne({ _id: id, role: 'CLIENT' });
     const walkInProfile = user ? null : await ClientProfile.findOne({ _id: id, userId: null });
@@ -931,6 +932,10 @@ const updateClient = async (req, res, next) => {
       if (fitnessGoal) profile.fitnessGoal = fitnessGoal;
       if (experienceLevel) profile.experienceLevel = experienceLevel;
       if (gender !== undefined) profile.gender = gender;
+      if (age !== undefined) {
+        const parsedAge = age !== '' && age !== null ? Number(age) : null;
+        profile.age = Number.isFinite(parsedAge) ? parsedAge : null;
+      }
       if (dateOfBirth !== undefined) profile.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
       if (address !== undefined) profile.address = address;
       if (emergencyContact !== undefined) profile.emergencyContact = emergencyContact;
@@ -2277,14 +2282,18 @@ const createClientMembership = async (req, res, next) => {
         snapshot.joiningFee = branchConfig.joiningFee;
         snapshot.discountType = branchConfig.discountType;
         snapshot.discountValue = branchConfig.discountValue;
-        snapshot.finalAmount = Number(amount) || branchConfig.finalPrice;
+        snapshot.finalAmount = amount !== undefined && amount !== '' ? Number(amount) : branchConfig.finalPrice;
       } else {
         snapshot.basePrice = plan.price || 0;
-        snapshot.finalAmount = Number(amount) || plan.price || 0;
+        snapshot.finalAmount = amount !== undefined && amount !== '' ? Number(amount) : plan.price || 0;
       }
 
-      snapshot.durationDays = plan.durationDays || (plan.durationMonths * 30) || 30;
-      snapshot.durationMonths = plan.durationMonths || Math.max(1, Math.round(snapshot.durationDays / 30));
+      snapshot.durationDays = durationDays && Number(durationDays) > 0
+        ? Number(durationDays)
+        : plan.durationDays || (plan.durationMonths * 30) || 30;
+      snapshot.durationMonths = durationMonths && Number(durationMonths) > 0
+        ? Number(durationMonths)
+        : plan.durationMonths || Math.max(1, Math.round(snapshot.durationDays / 30));
     } else {
       if (durationDays) snapshot.durationDays = Number(durationDays);
       if (durationMonths) snapshot.durationMonths = Number(durationMonths);
@@ -2326,6 +2335,7 @@ const createClientMembership = async (req, res, next) => {
     });
 
     let generatedInvoice = null;
+    let generatedPayment = null;
     if (snapshot.finalAmount > 0) {
       let discountAmt = 0;
       if (snapshot.discountType === 'FIXED') discountAmt = snapshot.discountValue || 0;
@@ -2350,6 +2360,7 @@ const createClientMembership = async (req, res, next) => {
         createdBy: req.user ? req.user._id : null,
       });
       generatedInvoice = finRes.invoice;
+      generatedPayment = finRes.payment || null;
       if (finRes.payment) {
         membership.paymentId = finRes.payment._id;
         await membership.save();
@@ -2361,6 +2372,7 @@ const createClientMembership = async (req, res, next) => {
       message: 'Membership assigned successfully',
       membership,
       invoice: generatedInvoice,
+      payment: generatedPayment,
     });
   } catch (err) {
     next(err);
