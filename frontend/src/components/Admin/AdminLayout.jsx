@@ -10,6 +10,7 @@ import {
   CalendarCheck,
   Receipt,
   Megaphone,
+  MessageCircle,
   Settings,
   LogOut,
   Menu,
@@ -80,6 +81,7 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
       children: financeSubItems,
     },
     { label: 'Announcements', path: '/admin/notifications', icon: Megaphone },
+    { label: 'WhatsApp', path: '/admin/settings/whatsapp', icon: MessageCircle },
     { label: 'Settings', path: '/admin/settings', icon: Settings },
   ];
 

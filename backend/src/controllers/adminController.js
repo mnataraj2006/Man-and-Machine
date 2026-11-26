@@ -17,6 +17,7 @@ const Exercise = require('../models/Exercise');
 const TrainerBooking = require('../models/TrainerBooking');
 const TrainingAppointment = require('../models/TrainingAppointment');
 const financeService = require('../services/financeService');
+const notificationService = require('../services/notificationService');
 const { generateSecureToken, hashToken, getFrontendBaseUrl } = require('../utils/tokenUtils');
 const { sendTrainerInvitation, sendPasswordResetEmail } = require('../utils/emailService');
 
@@ -792,6 +793,8 @@ const getClientDetails = async (req, res, next) => {
         status: client.status,
         branch: client.branchId,
         createdAt: client.createdAt,
+        whatsappOptIn: Boolean(client.whatsappOptIn),
+        whatsappOptInAt: client.whatsappOptInAt,
       },
       profile: profile || null,
       activeMembership,
@@ -966,7 +969,7 @@ const createClient = async (req, res, next) => {
 const updateClient = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, phone, email, branchId, fitnessGoal, experienceLevel } = req.body;
+    const { name, phone, email, branchId, fitnessGoal, experienceLevel, whatsappOptIn } = req.body;
 
     const user = await User.findOne({ _id: id, role: 'CLIENT' });
     if (!user) {
@@ -977,6 +980,11 @@ const updateClient = async (req, res, next) => {
     if (phone) user.phone = phone.trim();
     if (email) user.email = email.toLowerCase().trim();
     if (branchId && mongoose.Types.ObjectId.isValid(branchId)) user.branchId = branchId;
+    if (typeof whatsappOptIn === 'boolean') {
+      user.whatsappOptIn = whatsappOptIn;
+      user.whatsappOptInAt = whatsappOptIn ? new Date() : user.whatsappOptInAt;
+      user.whatsappOptOutAt = whatsappOptIn ? null : new Date();
+    }
     await user.save();
 
     let profile = await ClientProfile.findOne({ userId: id });
@@ -2889,6 +2897,11 @@ const recordOfflinePayment = async (req, res, next) => {
       createdBy: req.user ? req.user._id : null,
       existingPayment: payment,
     });
+
+    // Notify after both the payment and its source-of-truth invoice have been committed.
+    setImmediate(() => notificationService.queuePaymentConfirmation({
+      client: user, invoice, payment, triggeredBy: req.user?._id,
+    }).catch((error) => console.error('WhatsApp offline-payment notification could not be queued:', error.message)));
 
     res.status(201).json({
       success: true,

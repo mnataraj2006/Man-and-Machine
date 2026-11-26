@@ -1,0 +1,13 @@
+const express = require('express');
+const { protect, authorize } = require('../middleware/authMiddleware');
+const { createRateLimiter } = require('../middleware/rateLimitMiddleware');
+const c = require('../controllers/whatsappController');
+const router = express.Router();
+router.get('/webhook', c.verifyWebhook);
+router.post('/webhook', createRateLimiter({ windowMs: 60000, max: 300, keyPrefix: 'wa-webhook' }), c.receiveWebhook);
+router.use(protect, authorize('ADMIN'));
+router.get('/connection', c.publicConnection); router.post('/connection/test', createRateLimiter({ windowMs: 60000, max: 10, keyPrefix: 'wa-test' }), c.testConnection);
+router.get('/templates', c.getTemplates); router.post('/templates', c.saveTemplate); router.put('/templates/:id', c.updateTemplate);
+router.get('/logs', c.getLogs); router.post('/logs/:id/retry', c.retryMessage); router.get('/summary', c.getSummary);
+router.get('/automation', c.getAutomations); router.put('/automation/:key', c.updateAutomation);
+module.exports = router;

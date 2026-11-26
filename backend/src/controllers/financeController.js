@@ -7,6 +7,7 @@ const User = require('../models/User');
 const Branch = require('../models/Branch');
 const Notification = require('../models/Notification');
 const financeService = require('../services/financeService');
+const notificationService = require('../services/notificationService');
 
 const buildBranchQuery = (branchId) => {
   if (!branchId || branchId === 'ALL' || branchId === 'all') return {};
@@ -133,7 +134,7 @@ const getInvoices = async (req, res, next) => {
         .sort({ invoiceDate: -1, createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('clientId', 'name email phone')
+        .populate('clientId', 'name email phone whatsappOptIn')
         .populate('branchId', 'name city code address phone')
         .populate('createdBy', 'name email role')
         .populate('membershipId', 'planName startDate expiryDate status')
@@ -390,7 +391,7 @@ const recordInvoicePayment = async (req, res, next) => {
 
     const [populatedInvoice, populatedPayment, config] = await Promise.all([
       Invoice.findById(invoice._id)
-        .populate('clientId', 'name email phone')
+        .populate('clientId', 'name email phone whatsappOptIn')
         .populate('branchId', 'name city code address phone')
         .lean(),
       Payment.findById(payment._id)
@@ -400,6 +401,15 @@ const recordInvoicePayment = async (req, res, next) => {
         .lean(),
       FinanceConfig.getOrCreateConfig(),
     ]);
+
+    // This is intentionally detached from the paid transaction: a provider outage cannot undo payment.
+    setImmediate(() => notificationService.queuePaymentConfirmation({
+      client: populatedInvoice.clientId,
+      branch: populatedInvoice.branchId,
+      invoice: populatedInvoice,
+      payment: populatedPayment,
+      triggeredBy: req.user._id,
+    }).catch((error) => console.error('WhatsApp payment notification could not be queued:', error.message)));
 
     res.status(201).json({
       success: true,

@@ -98,6 +98,10 @@ const userSchema = new mongoose.Schema(
         default: 'dark',
       },
     },
+    // Consent is deliberately stored with the client identity, not with a provider account.
+    whatsappOptIn: { type: Boolean, default: false },
+    whatsappOptInAt: { type: Date, default: null },
+    whatsappOptOutAt: { type: Date, default: null },
   },
   {
     timestamps: true,

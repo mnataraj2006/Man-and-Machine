@@ -44,6 +44,7 @@ import AdminAttendance from './pages/Admin/Attendance.jsx';
 import AdminPayments from './pages/Admin/Payments.jsx';
 import AdminNotifications from './pages/Admin/Notifications.jsx';
 import AdminSettings from './pages/Admin/Settings.jsx';
+import WhatsAppSettings from './pages/Admin/WhatsApp.jsx';
 import AdminFinanceSummary from './pages/Admin/Finance/FinanceSummary.jsx';
 import AdminAllInvoices from './pages/Admin/Finance/AllInvoices.jsx';
 import AdminTodayInvoices from './pages/Admin/Finance/TodayInvoices.jsx';
@@ -240,6 +241,14 @@ export default function App() {
       adminContent = <AdminNotifications onNavigate={navigate} />;
     } else if (currentPath === '/admin/settings') {
       adminContent = <AdminSettings onNavigate={navigate} onLogout={() => navigate('/login')} />;
+    } else if (currentPath === '/admin/settings/whatsapp') {
+      adminContent = <WhatsAppSettings initialTab="connection" />;
+    } else if (currentPath === '/admin/settings/whatsapp/templates') {
+      adminContent = <WhatsAppSettings initialTab="templates" />;
+    } else if (currentPath === '/admin/settings/whatsapp/automation') {
+      adminContent = <WhatsAppSettings initialTab="automation" />;
+    } else if (currentPath === '/admin/settings/whatsapp/logs' || currentPath === '/admin/whatsapp/logs') {
+      adminContent = <WhatsAppSettings initialTab="logs" />;
     } else {
       adminContent = <AdminDashboardHome onNavigate={navigate} />;
     }

@@ -12,6 +12,7 @@ const clientRoutes = require('./routes/clientRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const trainerRoutes = require('./routes/trainerRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
+const whatsappRoutes = require('./routes/whatsappRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -59,7 +60,8 @@ const corsOptions = {
 
 // Middlewares
 app.use(cors(corsOptions));
-app.use(express.json());
+// Preserve the exact bytes used to validate signed WhatsApp webhook callbacks.
+app.use(express.json({ verify: (req, res, buffer) => { if (req.originalUrl === '/api/whatsapp/webhook') req.rawBody = Buffer.from(buffer); } }));
 app.use(express.urlencoded({ extended: true }));
 
 // Health Check Endpoint
@@ -212,6 +214,8 @@ app.use('/api/client', clientRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/trainer', trainerRoutes);
 app.use('/api/settings', settingsRoutes);
+// Public only for Meta's signed webhook verification/callback; all management routes are ADMIN-only.
+app.use('/api/whatsapp', whatsappRoutes);
 
 // Root route
 app.get('/', (req, res) => {

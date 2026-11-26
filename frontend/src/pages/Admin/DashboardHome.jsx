@@ -18,9 +18,11 @@ import {
   AlertCircle,
   ArrowRight,
   ExternalLink,
+  MessageCircle,
 } from 'lucide-react';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
 import adminService from '../../services/adminService.js';
+import whatsappService from '../../services/whatsappService.js';
 
 export default function DashboardHome({ onNavigate }) {
   const { selectedBranch, branches } = useAdmin();
@@ -30,6 +32,7 @@ export default function DashboardHome({ onNavigate }) {
   const [range, setRange] = useState('thisMonth');
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [whatsappSummary, setWhatsappSummary] = useState(null);
 
   // Quick Action Modal states
   const [quickAction, setQuickAction] = useState(null); // 'ADD_CLIENT' | 'ADD_TRAINER' | 'CREATE_MEMBERSHIP' | 'RECORD_PAYMENT'
@@ -86,6 +89,7 @@ export default function DashboardHome({ onNavigate }) {
     try {
       const res = await adminService.getDashboardOverview(selectedBranch, range);
       setData(res);
+      whatsappService.summary().then((result) => setWhatsappSummary(result.summary)).catch(() => setWhatsappSummary(null));
 
       // Also fetch a quick client list for dropdowns in quick action modals
       const clientsRes = await adminService.getClients({ limit: 50 });
@@ -563,6 +567,12 @@ export default function DashboardHome({ onNavigate }) {
             <span className="text-[11px] text-[#EB3E2E]/90 mt-0.5">Configured in catalog &rarr;</span>
           </div>
         </div>
+      </div>
+
+      <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-[#F03B2E]/10 border border-[#F03B2E]/30 flex items-center justify-center"><MessageCircle className="w-5 h-5 text-[#F03B2E]" /></div><div><p className="text-sm font-bold text-[#F5F5F5]">WhatsApp</p><p className="text-xs text-[#858585]">{whatsappSummary ? 'Today’s communication activity' : 'No WhatsApp messages sent yet.'}</p></div></div>
+        <div className="grid grid-cols-4 gap-4 text-center text-xs"><div><b className="block text-[#F5F5F5]">{whatsappSummary?.messagesToday || 0}</b><span className="text-[#858585]">Sent</span></div><div><b className="block text-green-400">{whatsappSummary?.delivered || 0}</b><span className="text-[#858585]">Delivered</span></div><div><b className="block text-[#F5F5F5]">{whatsappSummary?.read || 0}</b><span className="text-[#858585]">Read</span></div><div><b className="block text-red-400">{whatsappSummary?.failed || 0}</b><span className="text-[#858585]">Failed</span></div></div>
+        <button type="button" onClick={() => onNavigate?.('/admin/settings/whatsapp/logs')} className="text-xs font-bold uppercase text-[#F03B2E]">View Logs</button>
       </div>
 
       {/* ── CHARTS & ANALYTICS SECTION ── */}
