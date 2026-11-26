@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import { getChartTheme } from '../../utils/chartTheme.js';
 import {
@@ -273,7 +274,7 @@ export default function DashboardHome({ onNavigate }) {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setQuickAction('ADD_CLIENT')}
+            onClick={() => onNavigate?.('/admin/clients?add=1')}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EB3E2E] hover:bg-[#FF493B] text-white transition-all cursor-pointer shadow-lg shadow-[#EB3E2E]/10"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -891,10 +892,11 @@ export default function DashboardHome({ onNavigate }) {
         </div>
       </div>
 
-      {/* ── QUICK ACTION MODALS ── */}
-
-      {/* Modal 1: Add Client */}
-      {quickAction === 'ADD_CLIENT' && (
+      {/* ── QUICK ACTION MODALS (portaled to body so fixed positioning is always viewport-centered) ── */}
+      {quickAction && createPortal(
+        <>
+          {/* Modal 1: Add Client */}
+          {quickAction === 'ADD_CLIENT' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-[#181818] border border-[#303030] rounded-2xl w-full max-w-md p-6 relative">
             <h3
@@ -1350,6 +1352,9 @@ export default function DashboardHome({ onNavigate }) {
             </form>
           </div>
         </div>
+      )}
+        </>,
+        document.body
       )}
     </div>
   );

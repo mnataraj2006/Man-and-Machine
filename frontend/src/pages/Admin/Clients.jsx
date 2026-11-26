@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Search,
   Download,
@@ -176,6 +177,14 @@ export default function Clients() {
     setBranchFilter(selectedBranch);
     setPage(1);
   }, [selectedBranch]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('add') === '1' && branches.length > 0 && !isAddModalOpen) {
+      handleOpenAddModal();
+      window.history.replaceState({}, '', '/admin/clients');
+    }
+  }, [branches]);
 
   const anyOverlayOpen = Boolean(
     selectedClientId ||
@@ -2440,7 +2449,7 @@ export default function Clients() {
       )}
 
       {/* ── ADD CLIENT MODAL ── */}
-      {isAddModalOpen && (
+      {isAddModalOpen && createPortal(
         <div
           role="dialog"
           aria-modal="true"
@@ -2943,7 +2952,8 @@ export default function Clients() {
               </form>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── RESET PASSWORD MODAL ── */}
