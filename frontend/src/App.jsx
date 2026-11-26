@@ -31,6 +31,7 @@ import Trainer from './pages/Client/Trainer.jsx';
 import Notifications from './pages/Client/Notifications.jsx';
 import Profile from './pages/Client/Profile.jsx';
 import Settings from './pages/Client/Settings.jsx';
+import ClientBiometricAccess from './pages/Client/BiometricAccess.jsx';
 
 // Admin Application Suite
 import AdminLayout from './components/Admin/AdminLayout.jsx';
@@ -170,6 +171,8 @@ export default function App() {
       clientContent = <WorkoutDetail workoutId={workoutId} onNavigate={navigate} />;
     } else if (currentPath === '/client/attendance') {
       clientContent = <Attendance onNavigate={navigate} />;
+    } else if (currentPath === '/client/biometric') {
+      clientContent = <ClientBiometricAccess onNavigate={navigate} />;
     } else if (currentPath === '/client/progress') {
       clientContent = <Progress onNavigate={navigate} />;
     } else if (currentPath === '/client/membership' || currentPath === '/client/membership/plans') {

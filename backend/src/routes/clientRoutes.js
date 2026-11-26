@@ -53,4 +53,10 @@ router.put('/notifications/read-all', clientController.markAllNotificationsAsRea
 // 10. Settings
 router.put('/settings/password', clientController.changePassword);
 
+// 11. Biometric Self-Enrollment
+router.get('/biometric/status', clientController.getBiometricStatus);
+router.post('/biometric/consent', clientController.recordBiometricConsent);
+router.post('/biometric/consent/withdraw', clientController.withdrawBiometricConsent);
+router.post('/biometric/capture', clientController.submitBiometricCapture);
+
 module.exports = router;

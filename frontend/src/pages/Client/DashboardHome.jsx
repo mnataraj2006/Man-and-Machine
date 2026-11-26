@@ -15,6 +15,7 @@ import {
   Activity,
   CheckCircle2,
   CreditCard,
+  Fingerprint,
 } from 'lucide-react';
 import clientService from '../../services/clientService.js';
 
@@ -22,6 +23,7 @@ export default function DashboardHome({ onNavigate }) {
   const { resolvedTheme } = useTheme();
   const chartTheme = getChartTheme(resolvedTheme);
   const [data, setData] = useState(null);
+  const [bioStatus, setBioStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -29,8 +31,12 @@ export default function DashboardHome({ onNavigate }) {
     try {
       setLoading(true);
       setError(null);
-      const res = await clientService.getDashboardSummary();
+      const [res, bioRes] = await Promise.all([
+        clientService.getDashboardSummary(),
+        clientService.getBiometricStatus().catch(() => null),
+      ]);
       setData(res);
+      setBioStatus(bioRes);
     } catch (err) {
       setError(err.message || 'Failed to load dashboard metrics.');
     } finally {
@@ -221,6 +227,39 @@ export default function DashboardHome({ onNavigate }) {
           </div>
         </div>
       </div>
+
+      {/* ── BIOMETRIC REGISTRATION INVITATION CARD ── */}
+      {bioStatus?.eligible && bioStatus?.enrollment?.status !== 'ENROLLED' && (
+        <div className="p-5 rounded-2xl bg-[#181818] border border-[#F03B2E]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-[#F03B2E]/15 border border-[#F03B2E]/35 flex items-center justify-center text-[#F03B2E] shrink-0">
+              <Fingerprint className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-[#F03B2E] font-bold block">
+                {bioStatus.enrollment?.status && !['NOT_STARTED', 'INVITED'].includes(bioStatus.enrollment.status)
+                  ? `BIOMETRIC STATUS: ${bioStatus.enrollment.status.replace(/_/g, ' ')}`
+                  : 'BIOMETRIC ENROLLMENT AVAILABLE'}
+              </span>
+              <h3 className="font-display text-lg font-bold uppercase text-[#F5F5F5]">
+                Complete Your Biometric Registration
+              </h3>
+              <p className="text-xs text-[#B8B8B8] mt-0.5">
+                Register your face securely to enjoy quick and convenient check-ins at Man &amp; Machine.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleNav('/client/biometric')}
+            className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#F03B2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase tracking-wider shrink-0 cursor-pointer"
+          >
+            {['NOT_STARTED', 'INVITED', 'REJECTED', 'FAILED'].includes(bioStatus.enrollment?.status || 'INVITED')
+              ? 'Start Face Registration'
+              : 'View Biometric Status'}
+          </button>
+        </div>
+      )}
 
       {/* ── 3. TODAY'S WORKOUT & WEEKLY ACTIVITY ROW ── */}
       {isTrainerAssigned ? (

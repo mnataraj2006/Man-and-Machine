@@ -16,6 +16,7 @@ import {
   X,
   MapPin,
   ExternalLink,
+  Fingerprint,
 } from 'lucide-react';
 import authService from '../../services/auth.js';
 import clientService from '../../services/clientService.js';
@@ -67,6 +68,7 @@ export default function ClientLayout({ children, currentPath, onNavigate, onLogo
   const navItems = [
     { label: 'Dashboard', path: '/client/dashboard', icon: LayoutDashboard },
     { label: 'Attendance', path: '/client/attendance', icon: CalendarCheck },
+    { label: 'Biometric Access', path: '/client/biometric', icon: Fingerprint },
     {
       label: hasActiveMembership ? 'Membership' : 'Get Membership',
       path: '/client/membership',

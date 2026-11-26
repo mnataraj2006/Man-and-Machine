@@ -108,6 +108,10 @@ const biometricDeviceSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
+    supportsRemoteEnrollment: {
+      type: Boolean,
+      default: false,
+    },
     // Server-side ADMS key (never exposed to frontend)
     admsSecretKey: {
       type: String,

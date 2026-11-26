@@ -135,6 +135,31 @@ export default function BiometricDevices() {
   const [attTotalPages, setAttTotalPages] = useState(1);
   const [attTotal, setAttTotal] = useState(0);
 
+  // Enrollment Management & Migration state
+  const [enrOverview, setEnrOverview] = useState(null);
+  const [enrollments, setEnrollments] = useState([]);
+  const [enrLoading, setEnrLoading] = useState(false);
+  const [enrStatusFilter, setEnrStatusFilter] = useState('ALL');
+  const [enrSearch, setEnrSearch] = useState('');
+  const [selectedEnrollmentDetail, setSelectedEnrollmentDetail] = useState(null);
+
+  // Manual & Remote Enrollment Form
+  const [manualForm, setManualForm] = useState({
+    clientProfileId: '',
+    deviceId: '',
+    biometricUserId: '',
+    captureType: 'FACE',
+    verifiedByDevice: false,
+  });
+  const [manualBusy, setManualBusy] = useState(false);
+
+  // Migration state
+  const [migDeviceId, setMigDeviceId] = useState('');
+  const [migRawIds, setMigRawIds] = useState('');
+  const [migAnalysis, setMigAnalysis] = useState(null);
+  const [migBusy, setMigBusy] = useState(false);
+  const [migAssignMap, setMigAssignMap] = useState({});
+
   const showToast = (type, message) => {
     setFeedback({ type, message });
     setTimeout(() => setFeedback((curr) => (curr?.message === message ? null : curr)), 4500);
@@ -190,6 +215,30 @@ export default function BiometricDevices() {
     }
   }, [activeTab, fetchAttendance]);
 
+  const fetchEnrollmentsData = useCallback(async () => {
+    setEnrLoading(true);
+    try {
+      const [ovRes, listRes, cRes] = await Promise.all([
+        biometricService.getEnrollmentOverview({ branchId: branchFilter }),
+        biometricService.listEnrollments({ branchId: branchFilter, status: enrStatusFilter, search: enrSearch }),
+        clientsList.length ? Promise.resolve({ clients: clientsList }) : adminService.getClients({ limit: 150 }).catch(() => ({ clients: [] })),
+      ]);
+      setEnrOverview(ovRes.overview || null);
+      setEnrollments(listRes.enrollments || []);
+      if (cRes.clients && clientsList.length === 0) setClientsList(cRes.clients);
+    } catch (err) {
+      showToast('error', err.message || 'Failed to load enrollment data');
+    } finally {
+      setEnrLoading(false);
+    }
+  }, [branchFilter, enrStatusFilter, enrSearch, clientsList]);
+
+  useEffect(() => {
+    if (['enrollments', 'manual', 'migration'].includes(activeTab)) {
+      fetchEnrollmentsData();
+    }
+  }, [activeTab, fetchEnrollmentsData]);
+
   // Near real-time polling (every 10 seconds)
   useEffect(() => {
     if (!autoRefresh) return undefined;
@@ -197,7 +246,99 @@ export default function BiometricDevices() {
       fetchDevices();
       if (activeTab === 'attendance') fetchAttendance();
     }, 10000);
-    return () => clearInterval(timer);
+    const handleManualEnroll = async (e) => {
+    e.preventDefault();
+    if (!manualForm.clientProfileId || !manualForm.deviceId) {
+      showToast('error', 'Please select both a member and a biometric device.');
+      return;
+    }
+    setManualBusy(true);
+    try {
+      await biometricService.completeManualEnrollment(manualForm);
+      showToast('success', 'Manual physical enrollment confirmed and mapped.');
+      setManualForm({ clientProfileId: '', deviceId: manualForm.deviceId, biometricUserId: '', captureType: 'FACE', verifiedByDevice: false });
+      fetchEnrollmentsData();
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setManualBusy(false);
+    }
+  };
+
+  const handleRemoteEnroll = async () => {
+    if (!manualForm.clientProfileId || !manualForm.deviceId) {
+      showToast('error', 'Please select both a member and a biometric device.');
+      return;
+    }
+    setManualBusy(true);
+    try {
+      await biometricService.initiateRemoteEnrollment(manualForm);
+      showToast('success', 'Remote enrollment initiated. Waiting for physical device capture.');
+      fetchEnrollmentsData();
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setManualBusy(false);
+    }
+  };
+
+  const handleApproveEnrollment = async (enr) => {
+    try {
+      await biometricService.approveEnrollment(enr._id, {});
+      showToast('success', 'Enrollment approved and queued for physical X2008 capture.');
+      fetchEnrollmentsData();
+      if (selectedEnrollmentDetail?._id === enr._id) setSelectedEnrollmentDetail(null);
+    } catch (err) {
+      showToast('error', err.message);
+    }
+  };
+
+  const handleRejectEnrollment = async (enr) => {
+    const reason = window.prompt('Enter rejection reason (member will be notified to retake):', 'Lighting or face alignment unclear');
+    if (!reason) return;
+    try {
+      await biometricService.rejectEnrollment(enr._id, reason);
+      showToast('success', 'Enrollment request rejected.');
+      fetchEnrollmentsData();
+      if (selectedEnrollmentDetail?._id === enr._id) setSelectedEnrollmentDetail(null);
+    } catch (err) {
+      showToast('error', err.message);
+    }
+  };
+
+  const handleAnalyzeMigration = async (e) => {
+    e.preventDefault();
+    if (!migDeviceId || !migRawIds.trim()) {
+      showToast('error', 'Select a device and enter biometric user IDs.');
+      return;
+    }
+    setMigBusy(true);
+    try {
+      const ids = migRawIds.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+      const res = await biometricService.analyzeMigration({ deviceId: migDeviceId, biometricUserIds: ids });
+      setMigAnalysis(res);
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setMigBusy(false);
+    }
+  };
+
+  const handleMapMigrationRow = async (bioId) => {
+    const clientProfileId = migAssignMap[bioId];
+    if (!clientProfileId || !migDeviceId) return;
+    try {
+      await biometricService.mapUser({ deviceId: migDeviceId, biometricUserId: bioId, clientProfileId });
+      showToast('success', `Mapped Biometric ID ${bioId}.`);
+      const ids = migRawIds.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+      const res = await biometricService.analyzeMigration({ deviceId: migDeviceId, biometricUserIds: ids });
+      setMigAnalysis(res);
+    } catch (err) {
+      showToast('error', err.message);
+    }
+  };
+
+  return () => clearInterval(timer);
   }, [autoRefresh, activeTab, fetchDevices, fetchAttendance]);
 
   const openDeviceDetail = async (id) => {
@@ -376,6 +517,98 @@ export default function BiometricDevices() {
     });
   };
 
+  const handleManualEnroll = async (e) => {
+    e.preventDefault();
+    if (!manualForm.clientProfileId || !manualForm.deviceId) {
+      showToast('error', 'Please select both a member and a biometric device.');
+      return;
+    }
+    setManualBusy(true);
+    try {
+      await biometricService.completeManualEnrollment(manualForm);
+      showToast('success', 'Manual physical enrollment confirmed and mapped.');
+      setManualForm({ clientProfileId: '', deviceId: manualForm.deviceId, biometricUserId: '', captureType: 'FACE', verifiedByDevice: false });
+      fetchEnrollmentsData();
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setManualBusy(false);
+    }
+  };
+
+  const handleRemoteEnroll = async () => {
+    if (!manualForm.clientProfileId || !manualForm.deviceId) {
+      showToast('error', 'Please select both a member and a biometric device.');
+      return;
+    }
+    setManualBusy(true);
+    try {
+      await biometricService.initiateRemoteEnrollment(manualForm);
+      showToast('success', 'Remote enrollment initiated. Waiting for physical device capture.');
+      fetchEnrollmentsData();
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setManualBusy(false);
+    }
+  };
+
+  const handleApproveEnrollment = async (enr) => {
+    try {
+      await biometricService.approveEnrollment(enr._id, {});
+      showToast('success', 'Enrollment approved and queued for physical X2008 capture.');
+      fetchEnrollmentsData();
+      if (selectedEnrollmentDetail?._id === enr._id) setSelectedEnrollmentDetail(null);
+    } catch (err) {
+      showToast('error', err.message);
+    }
+  };
+
+  const handleRejectEnrollment = async (enr) => {
+    const reason = window.prompt('Enter rejection reason (member will be notified to retake):', 'Lighting or face alignment unclear');
+    if (!reason) return;
+    try {
+      await biometricService.rejectEnrollment(enr._id, reason);
+      showToast('success', 'Enrollment request rejected.');
+      fetchEnrollmentsData();
+      if (selectedEnrollmentDetail?._id === enr._id) setSelectedEnrollmentDetail(null);
+    } catch (err) {
+      showToast('error', err.message);
+    }
+  };
+
+  const handleAnalyzeMigration = async (e) => {
+    e.preventDefault();
+    if (!migDeviceId || !migRawIds.trim()) {
+      showToast('error', 'Select a device and enter biometric user IDs.');
+      return;
+    }
+    setMigBusy(true);
+    try {
+      const ids = migRawIds.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+      const res = await biometricService.analyzeMigration({ deviceId: migDeviceId, biometricUserIds: ids });
+      setMigAnalysis(res);
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setMigBusy(false);
+    }
+  };
+
+  const handleMapMigrationRow = async (bioId) => {
+    const clientProfileId = migAssignMap[bioId];
+    if (!clientProfileId || !migDeviceId) return;
+    try {
+      await biometricService.mapUser({ deviceId: migDeviceId, biometricUserId: bioId, clientProfileId });
+      showToast('success', `Mapped Biometric ID ${bioId}.`);
+      const ids = migRawIds.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+      const res = await biometricService.analyzeMigration({ deviceId: migDeviceId, biometricUserIds: ids });
+      setMigAnalysis(res);
+    } catch (err) {
+      showToast('error', err.message);
+    }
+  };
+
   return (
     <div className="space-y-6 min-w-0">
       {/* Header */}
@@ -448,29 +681,27 @@ export default function BiometricDevices() {
 
       {/* Tabs + Branch Filter */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('devices')}
-            className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border cursor-pointer ${
-              activeTab === 'devices'
-                ? 'bg-[#F03B2E] text-white border-[#F03B2E]'
-                : 'bg-[#181818] text-[#B8B8B8] border-[#303030]'
-            }`}
-          >
-            Branch Devices ({devices.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('attendance')}
-            className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border cursor-pointer ${
-              activeTab === 'attendance'
-                ? 'bg-[#F03B2E] text-white border-[#F03B2E]'
-                : 'bg-[#181818] text-[#B8B8B8] border-[#303030]'
-            }`}
-          >
-            Biometric Attendance
-          </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {[
+            { key: 'devices', label: `Branch Devices (${devices.length})` },
+            { key: 'enrollments', label: 'Enrollment Requests' },
+            { key: 'manual', label: 'Member Enrollment' },
+            { key: 'migration', label: 'Existing Users Migration' },
+            { key: 'attendance', label: 'Biometric Attendance' },
+          ].map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setActiveTab(t.key)}
+              className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border cursor-pointer ${
+                activeTab === t.key
+                  ? 'bg-[#F03B2E] text-white border-[#F03B2E]'
+                  : 'bg-[#181818] text-[#B8B8B8] border-[#303030]'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
         <select
@@ -516,7 +747,99 @@ export default function BiometricDevices() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {devices.map((d) => {
               const pill = getStatusPill(d.effectiveStatus);
-              return (
+              const handleManualEnroll = async (e) => {
+    e.preventDefault();
+    if (!manualForm.clientProfileId || !manualForm.deviceId) {
+      showToast('error', 'Please select both a member and a biometric device.');
+      return;
+    }
+    setManualBusy(true);
+    try {
+      await biometricService.completeManualEnrollment(manualForm);
+      showToast('success', 'Manual physical enrollment confirmed and mapped.');
+      setManualForm({ clientProfileId: '', deviceId: manualForm.deviceId, biometricUserId: '', captureType: 'FACE', verifiedByDevice: false });
+      fetchEnrollmentsData();
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setManualBusy(false);
+    }
+  };
+
+  const handleRemoteEnroll = async () => {
+    if (!manualForm.clientProfileId || !manualForm.deviceId) {
+      showToast('error', 'Please select both a member and a biometric device.');
+      return;
+    }
+    setManualBusy(true);
+    try {
+      await biometricService.initiateRemoteEnrollment(manualForm);
+      showToast('success', 'Remote enrollment initiated. Waiting for physical device capture.');
+      fetchEnrollmentsData();
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setManualBusy(false);
+    }
+  };
+
+  const handleApproveEnrollment = async (enr) => {
+    try {
+      await biometricService.approveEnrollment(enr._id, {});
+      showToast('success', 'Enrollment approved and queued for physical X2008 capture.');
+      fetchEnrollmentsData();
+      if (selectedEnrollmentDetail?._id === enr._id) setSelectedEnrollmentDetail(null);
+    } catch (err) {
+      showToast('error', err.message);
+    }
+  };
+
+  const handleRejectEnrollment = async (enr) => {
+    const reason = window.prompt('Enter rejection reason (member will be notified to retake):', 'Lighting or face alignment unclear');
+    if (!reason) return;
+    try {
+      await biometricService.rejectEnrollment(enr._id, reason);
+      showToast('success', 'Enrollment request rejected.');
+      fetchEnrollmentsData();
+      if (selectedEnrollmentDetail?._id === enr._id) setSelectedEnrollmentDetail(null);
+    } catch (err) {
+      showToast('error', err.message);
+    }
+  };
+
+  const handleAnalyzeMigration = async (e) => {
+    e.preventDefault();
+    if (!migDeviceId || !migRawIds.trim()) {
+      showToast('error', 'Select a device and enter biometric user IDs.');
+      return;
+    }
+    setMigBusy(true);
+    try {
+      const ids = migRawIds.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+      const res = await biometricService.analyzeMigration({ deviceId: migDeviceId, biometricUserIds: ids });
+      setMigAnalysis(res);
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setMigBusy(false);
+    }
+  };
+
+  const handleMapMigrationRow = async (bioId) => {
+    const clientProfileId = migAssignMap[bioId];
+    if (!clientProfileId || !migDeviceId) return;
+    try {
+      await biometricService.mapUser({ deviceId: migDeviceId, biometricUserId: bioId, clientProfileId });
+      showToast('success', `Mapped Biometric ID ${bioId}.`);
+      const ids = migRawIds.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+      const res = await biometricService.analyzeMigration({ deviceId: migDeviceId, biometricUserIds: ids });
+      setMigAnalysis(res);
+    } catch (err) {
+      showToast('error', err.message);
+    }
+  };
+
+  return (
                 <div
                   key={d._id}
                   onClick={() => openDeviceDetail(d._id)}
@@ -793,6 +1116,345 @@ export default function BiometricDevices() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── ENROLLMENT REQUESTS & OVERVIEW TAB ── */}
+      {activeTab === 'enrollments' && (
+        <div className="space-y-4">
+          {enrOverview && (
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+              {[
+                { label: 'Total Members', value: enrOverview.totalMembers },
+                { label: 'Enrolled', value: enrOverview.enrolledCount },
+                { label: 'Pending', value: enrOverview.pendingCount },
+                { label: 'Review Requests', value: enrOverview.requestsCount },
+                { label: 'Failed / Rejected', value: enrOverview.failedCount },
+                { label: 'Completion %', value: `${enrOverview.completionPercentage}%` },
+              ].map((k, idx) => (
+                <div key={idx} className="bg-[#181818] border border-[#303030] rounded-2xl p-3.5">
+                  <span className="text-[10px] font-mono uppercase text-[#858585] block">{k.label}</span>
+                  <span className="text-xl font-bold font-mono text-[#F5F5F5] mt-1 block">{k.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="bg-[#111111] border border-[#303030] rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input
+              type="text"
+              value={enrSearch}
+              onChange={(e) => setEnrSearch(e.target.value)}
+              placeholder="Search member name, Client ID (MM...), phone, Bio ID..."
+              className="min-h-[44px] px-3.5 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5]"
+            />
+            <select
+              value={enrStatusFilter}
+              onChange={(e) => setEnrStatusFilter(e.target.value)}
+              className="min-h-[44px] px-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5]"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="CAPTURE_SUBMITTED">Capture Submitted (Needs Review)</option>
+              <option value="AWAITING_PHYSICAL_ENROLLMENT">Awaiting Physical Enrollment</option>
+              <option value="ENROLLED">Enrolled</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="FAILED">Failed</option>
+            </select>
+          </div>
+
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl overflow-hidden">
+            {enrLoading ? (
+              <div className="py-12 text-center text-xs text-[#B8B8B8]">Loading enrollment requests...</div>
+            ) : enrollments.length === 0 ? (
+              <div className="py-12 text-center text-xs text-[#858585] italic">
+                No biometric enrollment requests match the selected filters.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-[#303030] bg-[#111111] text-[10px] font-mono uppercase text-[#B8B8B8]">
+                      <th className="py-3 px-4">Member</th>
+                      <th className="py-3 px-4">Client ID</th>
+                      <th className="py-3 px-4">Branch</th>
+                      <th className="py-3 px-4">Method</th>
+                      <th className="py-3 px-4">Capture</th>
+                      <th className="py-3 px-4">Device Status</th>
+                      <th className="py-3 px-4">Overall</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#252525]">
+                    {enrollments.map((enr) => (
+                      <tr key={enr._id} className="hover:bg-[#202020]">
+                        <td className="py-3 px-4 font-bold text-[#F5F5F5]">{enr.clientProfileId?.name || '—'}</td>
+                        <td className="py-3 px-4 font-mono text-[#F03B2E] font-bold">{enr.clientProfileId?.clientId || '—'}</td>
+                        <td className="py-3 px-4">{enr.branchId?.city || '—'}</td>
+                        <td className="py-3 px-4 font-mono">{enr.enrollmentMethod}</td>
+                        <td className="py-3 px-4 font-mono">{enr.mobileCaptureStatus}</td>
+                        <td className="py-3 px-4 font-mono">{enr.deviceEnrollmentStatus}</td>
+                        <td className="py-3 px-4 font-mono font-bold text-amber-400">{enr.status}</td>
+                        <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                          {['CAPTURE_SUBMITTED', 'PENDING_REVIEW'].includes(enr.status) && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleApproveEnrollment(enr)}
+                                className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold uppercase cursor-pointer"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRejectEnrollment(enr)}
+                                className="px-2.5 py-1 rounded bg-[#F03B2E]/20 text-[#FF493B] border border-[#F03B2E]/40 text-[11px] font-bold uppercase cursor-pointer"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {enr.status !== 'ENROLLED' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setManualForm({
+                                  enrollmentId: enr._id,
+                                  clientProfileId: enr.clientProfileId?._id || '',
+                                  deviceId: enr.assignedDeviceId?._id || devices[0]?._id || '',
+                                  biometricUserId: enr.biometricUserId || '',
+                                  captureType: 'FACE',
+                                  verifiedByDevice: false,
+                                });
+                                setActiveTab('manual');
+                              }}
+                              className="px-2.5 py-1 rounded bg-[#202020] hover:bg-[#303030] border border-[#303030] text-[#F5F5F5] text-[11px] font-bold uppercase cursor-pointer"
+                            >
+                              Complete on Device
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── MANUAL & REMOTE ENROLLMENT TAB (METHODS A & B) ── */}
+      {activeTab === 'manual' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <form onSubmit={handleManualEnroll} className="bg-[#181818] border border-[#303030] rounded-2xl p-5 space-y-4 text-xs">
+            <div>
+              <span className="text-[10px] font-mono uppercase text-[#F03B2E] font-bold block">METHOD A &amp; B</span>
+              <h3 className="mm-page-title text-lg">PHYSICAL &amp; REMOTE ENROLLMENT</h3>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Select Member *</label>
+              <select
+                required
+                value={manualForm.clientProfileId}
+                onChange={(e) => setManualForm({ ...manualForm, clientProfileId: e.target.value })}
+                className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5]"
+              >
+                <option value="">Choose a Man &amp; Machine member</option>
+                {clientsList.map((c) => (
+                  <option key={c.profileId || c.id} value={c.profileId || c.id}>
+                    {c.clientId || '—'} — {c.name} ({c.phone || 'No phone'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Biometric Device *</label>
+                <select
+                  required
+                  value={manualForm.deviceId}
+                  onChange={(e) => setManualForm({ ...manualForm, deviceId: e.target.value })}
+                  className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5]"
+                >
+                  <option value="">Select device</option>
+                  {devices.map((d) => (
+                    <option key={d._id} value={d._id}>
+                      {d.branchId?.city} — {d.deviceName} ({d.model})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Biometric User ID (Auto if blank)</label>
+                <input
+                  type="text"
+                  value={manualForm.biometricUserId}
+                  onChange={(e) => setManualForm({ ...manualForm, biometricUserId: e.target.value })}
+                  placeholder="e.g. 1001"
+                  className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5] font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Capture Type</label>
+                <select
+                  value={manualForm.captureType}
+                  onChange={(e) => setManualForm({ ...manualForm, captureType: e.target.value })}
+                  className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5]"
+                >
+                  <option value="FACE">Face</option>
+                  <option value="FINGERPRINT">Fingerprint</option>
+                  <option value="BOTH">Face + Fingerprint</option>
+                </select>
+              </div>
+              <label className="flex items-center gap-2 min-h-[44px] px-3 rounded-xl bg-[#111111] border border-[#303030] text-[#F5F5F5] cursor-pointer self-end">
+                <input
+                  type="checkbox"
+                  checked={manualForm.verifiedByDevice}
+                  onChange={(e) => setManualForm({ ...manualForm, verifiedByDevice: e.target.checked })}
+                />
+                <span>Verified on X2008 User List</span>
+              </label>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <button
+                type="submit"
+                disabled={manualBusy}
+                className="flex-1 min-h-[44px] px-4 py-2 rounded-xl bg-[#F03B2E] hover:bg-[#FF493B] text-white font-bold uppercase cursor-pointer"
+              >
+                {manualBusy ? 'Saving...' : 'Confirm Manual Enrollment'}
+              </button>
+              <button
+                type="button"
+                disabled={manualBusy}
+                onClick={handleRemoteEnroll}
+                className="flex-1 min-h-[44px] px-4 py-2 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-[#F5F5F5] font-bold uppercase cursor-pointer"
+              >
+                Initiate Remote Face Enrollment
+              </button>
+            </div>
+          </form>
+
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl p-5 space-y-3 text-xs text-[#B8B8B8]">
+            <h4 className="font-display text-base font-bold uppercase text-[#F5F5F5]">
+              eSSL X2008 Physical Enrollment Guide
+            </h4>
+            <ol className="space-y-2 list-decimal list-inside leading-relaxed">
+              <li>Select the member and branch device on the left.</li>
+              <li>On the physical eSSL X2008, open <strong>Menu → User Mgt → New User</strong>.</li>
+              <li>Enter the exact <strong>Biometric User ID</strong> shown/assigned in Man &amp; Machine.</li>
+              <li>Capture the member&apos;s <strong>Face (Face VX3.5)</strong> or <strong>Fingerprint (Finger VX10.0)</strong> on the terminal and save.</li>
+              <li>Click <strong>Confirm Manual Enrollment</strong> to store the permanent Member ↔ Biometric ID mapping.</li>
+            </ol>
+            <p className="text-[11px] text-[#858585] pt-2 border-t border-[#252525]">
+              Note: Standard ADMS push firmware (ZMM510-NF24VB-Ver1.3.13) does not support remote unattended face capture; clicking Remote Enrollment will honestly report firmware capability.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── EXISTING BIOMETRIC USERS MIGRATION TAB ── */}
+      {activeTab === 'migration' && (
+        <div className="space-y-4">
+          <form onSubmit={handleAnalyzeMigration} className="bg-[#181818] border border-[#303030] rounded-2xl p-5 space-y-4 text-xs">
+            <div>
+              <span className="text-[10px] font-mono uppercase text-[#F03B2E] font-bold block">NON-DESTRUCTIVE MIGRATION</span>
+              <h3 className="mm-page-title text-lg">MAP EXISTING X2008 FACE RECORDS</h3>
+              <p className="text-[#B8B8B8] mt-1">
+                Paste comma- or newline-separated Biometric User IDs exported/read from your eSSL X2008 (e.g. 248 existing face users) to detect unmapped IDs and link them to Man &amp; Machine members without deleting or overwriting device records.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <select
+                required
+                value={migDeviceId}
+                onChange={(e) => setMigDeviceId(e.target.value)}
+                className="min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5]"
+              >
+                <option value="">Select Target Device</option>
+                {devices.map((d) => (
+                  <option key={d._id} value={d._id}>{d.branchId?.city} — {d.deviceName}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                required
+                value={migRawIds}
+                onChange={(e) => setMigRawIds(e.target.value)}
+                placeholder="Paste Biometric User IDs: 1, 2, 3, 101, 102..."
+                className="sm:col-span-2 min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5] font-mono"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={migBusy}
+              className="min-h-[44px] px-5 py-2 rounded-xl bg-[#F03B2E] text-white font-bold uppercase cursor-pointer"
+            >
+              {migBusy ? 'Analyzing...' : 'Analyze Device User IDs'}
+            </button>
+          </form>
+
+          {migAnalysis && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="bg-[#181818] border border-[#303030] rounded-xl p-3.5">
+                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Total Device Users</span>
+                  <span className="text-xl font-bold font-mono text-[#F5F5F5]">{migAnalysis.totalDeviceUsers}</span>
+                </div>
+                <div className="bg-[#181818] border border-[#303030] rounded-xl p-3.5">
+                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Successfully Mapped</span>
+                  <span className="text-xl font-bold font-mono text-emerald-400">{migAnalysis.successfullyMapped}</span>
+                </div>
+                <div className="bg-[#181818] border border-[#303030] rounded-xl p-3.5">
+                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Unmapped</span>
+                  <span className="text-xl font-bold font-mono text-amber-400">{migAnalysis.unmappedCount}</span>
+                </div>
+                <div className="bg-[#181818] border border-[#303030] rounded-xl p-3.5">
+                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Duplicate IDs</span>
+                  <span className="text-xl font-bold font-mono text-[#FF493B]">{migAnalysis.duplicateIds?.length || 0}</span>
+                </div>
+              </div>
+
+              {migAnalysis.unmapped.length > 0 && (
+                <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 space-y-2.5">
+                  <h4 className="text-xs font-mono uppercase text-[#F03B2E] font-bold">Unmapped Device User IDs</h4>
+                  {migAnalysis.unmapped.map((bioId) => (
+                    <div key={bioId} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-[#111111] border border-[#252525] text-xs">
+                      <span className="font-mono font-bold text-[#F5F5F5]">Device Bio ID: {bioId}</span>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={migAssignMap[bioId] || ''}
+                          onChange={(e) => setMigAssignMap({ ...migAssignMap, [bioId]: e.target.value })}
+                          className="min-h-[38px] bg-[#181818] border border-[#303030] rounded-lg px-2.5 text-xs text-[#F5F5F5]"
+                        >
+                          <option value="">Select Member</option>
+                          {clientsList.map((c) => (
+                            <option key={c.profileId || c.id} value={c.profileId || c.id}>
+                              {c.clientId || '—'} — {c.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => handleMapMigrationRow(bioId)}
+                          className="min-h-[38px] px-3 py-1.5 rounded-lg bg-[#F03B2E] text-white text-[11px] font-bold uppercase cursor-pointer"
+                        >
+                          Map
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

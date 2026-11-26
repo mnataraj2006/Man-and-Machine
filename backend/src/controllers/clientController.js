@@ -1959,6 +1959,51 @@ const changePassword = async (req, res, next) => {
   }
 };
 
+const biometricEnrollmentService = require('../services/biometricEnrollmentService');
+
+const getBiometricStatus = async (req, res, next) => {
+  try {
+    const data = await biometricEnrollmentService.getClientBiometricStatus(req.user._id);
+    res.status(200).json({ success: true, ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const recordBiometricConsent = async (req, res, next) => {
+  try {
+    const data = await biometricEnrollmentService.recordClientConsent(req.user._id, {
+      agreed: req.body.agreed,
+      ipAddress: req.ip || '',
+    });
+    res.status(201).json({ success: true, message: 'Biometric consent recorded.', ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const withdrawBiometricConsent = async (req, res, next) => {
+  try {
+    const data = await biometricEnrollmentService.withdrawClientConsent(req.user._id);
+    res.status(200).json({ success: true, message: 'Biometric consent withdrawn.', ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const submitBiometricCapture = async (req, res, next) => {
+  try {
+    const enrollment = await biometricEnrollmentService.submitMobileCapture(req.user._id, req.body);
+    res.status(201).json({
+      success: true,
+      message: 'Mobile face pre-enrollment submitted for review.',
+      enrollment,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getDashboardSummary,
   getClientProfile,
@@ -1986,4 +2031,8 @@ module.exports = {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   changePassword,
+  getBiometricStatus,
+  recordBiometricConsent,
+  withdrawBiometricConsent,
+  submitBiometricCapture,
 };

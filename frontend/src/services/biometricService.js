@@ -79,6 +79,46 @@ class BiometricService {
     const qs = new URLSearchParams(clean).toString();
     return this.request(`/attendance${qs ? `?${qs}` : ''}`);
   }
+
+  getEnrollmentOverview(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return this.request(`/enrollments/overview${qs ? `?${qs}` : ''}`);
+  }
+
+  listEnrollments(params = {}) {
+    const clean = {};
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '' && v !== 'ALL') clean[k] = v;
+    });
+    const qs = new URLSearchParams(clean).toString();
+    return this.request(`/enrollments${qs ? `?${qs}` : ''}`);
+  }
+
+  getEnrollmentDetails(id) {
+    return this.request(`/enrollments/${id}`);
+  }
+
+  completeManualEnrollment(payload) {
+    const ep = payload.enrollmentId ? `/enrollments/${payload.enrollmentId}/manual-complete` : '/enrollments/manual';
+    return this.request(ep, { method: 'POST', body: JSON.stringify(payload) });
+  }
+
+  initiateRemoteEnrollment(payload) {
+    const ep = payload.enrollmentId ? `/enrollments/${payload.enrollmentId}/remote-enroll` : '/enrollments/remote-enroll';
+    return this.request(ep, { method: 'POST', body: JSON.stringify(payload) });
+  }
+
+  approveEnrollment(id, payload = {}) {
+    return this.request(`/enrollments/${id}/approve`, { method: 'POST', body: JSON.stringify(payload) });
+  }
+
+  rejectEnrollment(id, reason) {
+    return this.request(`/enrollments/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
+  }
+
+  analyzeMigration(payload) {
+    return this.request('/migration/analyze', { method: 'POST', body: JSON.stringify(payload) });
+  }
 }
 
 export default new BiometricService();

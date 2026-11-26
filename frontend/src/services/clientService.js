@@ -320,6 +320,47 @@ export const clientService = {
     }
     return res.json();
   },
+
+  // ── 11. Biometric Self-Enrollment ─────────────────────────
+  getBiometricStatus: async () => {
+    const res = await fetch(`${BASE_URL}/client/biometric/status`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to load biometric status');
+    return res.json();
+  },
+
+  recordBiometricConsent: async (agreed) => {
+    const res = await fetch(`${BASE_URL}/client/biometric/consent`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ agreed }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to record consent');
+    return data;
+  },
+
+  withdrawBiometricConsent: async () => {
+    const res = await fetch(`${BASE_URL}/client/biometric/consent/withdraw`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to withdraw consent');
+    return data;
+  },
+
+  submitBiometricCapture: async (payload) => {
+    const res = await fetch(`${BASE_URL}/client/biometric/capture`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to submit capture');
+    return data;
+  },
 };
 
 export default clientService;

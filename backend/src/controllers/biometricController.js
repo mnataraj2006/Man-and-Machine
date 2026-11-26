@@ -1,4 +1,5 @@
 const biometricDeviceService = require('../services/biometricDeviceService');
+const biometricEnrollmentService = require('../services/biometricEnrollmentService');
 
 const getDevices = async (req, res, next) => {
   try {
@@ -110,6 +111,108 @@ const getAttendance = async (req, res, next) => {
   }
 };
 
+const getEnrollmentOverview = async (req, res, next) => {
+  try {
+    const data = await biometricEnrollmentService.getEnrollmentOverview(req.query);
+    res.status(200).json({ success: true, overview: data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const listEnrollments = async (req, res, next) => {
+  try {
+    const data = await biometricEnrollmentService.listEnrollments(req.query);
+    res.status(200).json({ success: true, ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getEnrollmentDetails = async (req, res, next) => {
+  try {
+    const data = await biometricEnrollmentService.getEnrollmentDetails(req.params.id);
+    res.status(200).json({ success: true, ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const completeManualEnrollment = async (req, res, next) => {
+  try {
+    const enrollment = await biometricEnrollmentService.completeManualEnrollment(
+      { ...req.body, enrollmentId: req.params.id || req.body.enrollmentId },
+      req.user
+    );
+    res.status(200).json({
+      success: true,
+      message: 'Biometric enrollment confirmed and mapped.',
+      enrollment,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const initiateRemoteEnrollment = async (req, res, next) => {
+  try {
+    const enrollment = await biometricEnrollmentService.initiateRemoteEnrollment(
+      { ...req.body, enrollmentId: req.params.id || req.body.enrollmentId },
+      req.user
+    );
+    res.status(200).json({
+      success: true,
+      message: 'Remote enrollment initiated. Waiting for device capture.',
+      enrollment,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const approveEnrollment = async (req, res, next) => {
+  try {
+    const enrollment = await biometricEnrollmentService.approveEnrollment(
+      req.params.id,
+      req.user,
+      req.body
+    );
+    res.status(200).json({
+      success: true,
+      message: 'Enrollment approved and queued for physical device capture.',
+      enrollment,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const rejectEnrollment = async (req, res, next) => {
+  try {
+    const enrollment = await biometricEnrollmentService.rejectEnrollment(
+      req.params.id,
+      req.user,
+      req.body
+    );
+    res.status(200).json({
+      success: true,
+      message: 'Enrollment request rejected.',
+      enrollment,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const analyzeMigration = async (req, res, next) => {
+  try {
+    const summary = await biometricEnrollmentService.analyzeMigration(req.body);
+    res.status(200).json({ success: true, ...summary });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getDevices,
   registerDevice,
@@ -121,4 +224,12 @@ module.exports = {
   mapUser,
   unmapUser,
   getAttendance,
+  getEnrollmentOverview,
+  listEnrollments,
+  getEnrollmentDetails,
+  completeManualEnrollment,
+  initiateRemoteEnrollment,
+  approveEnrollment,
+  rejectEnrollment,
+  analyzeMigration,
 };
