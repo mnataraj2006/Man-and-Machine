@@ -195,6 +195,7 @@ const getMyClients = async (req, res, next) => {
 
         return {
           id: cp.userId._id,
+          clientId: cp.clientId || '',
           name: cp.userId.name,
           email: cp.userId.email,
           phone: cp.userId.phone,
@@ -227,6 +228,7 @@ const getMyClients = async (req, res, next) => {
       const q = search.toLowerCase();
       results = results.filter(
         (c) =>
+          c.clientId?.toLowerCase().includes(q) ||
           c.name?.toLowerCase().includes(q) ||
           c.email?.toLowerCase().includes(q) ||
           c.phone?.includes(q)

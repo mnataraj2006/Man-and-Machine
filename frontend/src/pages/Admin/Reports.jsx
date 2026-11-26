@@ -221,6 +221,7 @@ export default function Reports({ initialCategory = null, onNavigate }) {
             <ComparisonBarChart key="b" title="Branch-wise Clients" data={c.branchBreakdown} />,
           ],
           columns: [
+            { key: 'clientId', label: 'Client ID' },
             { key: 'name', label: 'Client' },
             { key: 'phone', label: 'Phone' },
             { key: 'branch', label: 'Branch' },

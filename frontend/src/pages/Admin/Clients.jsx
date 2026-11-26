@@ -335,7 +335,7 @@ export default function Clients() {
 
   const handleExportCSV = () => {
     const exportData = clients.map((c) => ({
-      ID: c.id,
+      ClientID: c.clientId || '—',
       Name: c.name,
       Email: c.email,
       Phone: c.phone,
@@ -881,8 +881,8 @@ export default function Clients() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, phone, or email..."
-              aria-label="Search clients by name, phone, or email"
+              placeholder="Search by Client ID (MM...), name, phone, or email..."
+              aria-label="Search clients by Client ID, name, phone, or email"
               className="w-full min-h-[44px] pl-10 pr-10 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] placeholder-[#858585] focus:border-[#F03B2E] focus:outline-none transition-colors"
             />
             {search && (
@@ -1070,7 +1070,7 @@ export default function Clients() {
                                 )}
                               </div>
                               <span className="text-[10px] text-[#B8B8B8] font-mono">
-                                ID: {(c.id || c._id || '').toString().slice(-6)} • Joined{' '}
+                                <strong className="text-[#F03B2E]">{c.clientId || '—'}</strong> • Joined{' '}
                                 {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '—'}
                               </span>
                             </div>
@@ -1190,6 +1190,9 @@ export default function Clients() {
                           {c.name}
                         </h3>
                         <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#F03B2E]/15 text-[#F03B2E] border border-[#F03B2E]/30">
+                            {c.clientId || '—'}
+                          </span>
                           {renderAccountBadge(c.status)}
                           {(c.accountAccessStatus === 'NOT_CREATED' || c.status === 'NOT_CREATED') && (
                             <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#303030] text-[#B8B8B8] border border-[#404040]">
@@ -1616,7 +1619,7 @@ export default function Clients() {
                       {clientDetailData.client.name}
                     </h3>
                     <span className="text-[11px] text-[#B8B8B8] font-mono truncate">
-                      ID: {String(clientDetailData.client.id).slice(-6)} • Joined{' '}
+                      <strong className="text-[#F03B2E]">{clientDetailData.client.clientId || clientDetailData.profile?.clientId || '—'}</strong> • Joined{' '}
                       {new Date(clientDetailData.client.createdAt).toLocaleDateString()}
                     </span>
                   </div>

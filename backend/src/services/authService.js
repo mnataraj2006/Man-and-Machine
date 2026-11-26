@@ -105,6 +105,7 @@ const registerClient = async ({
     token,
     user: {
       ...user.toSafeObject(),
+      clientId: profile.clientId,
       branch: {
         id: verifiedBranch._id,
         name: verifiedBranch.name,
@@ -112,6 +113,7 @@ const registerClient = async ({
       },
       trainerAssigned: false,
       clientProfile: {
+        clientId: profile.clientId,
         fitnessGoal: profile.fitnessGoal,
         experienceLevel: profile.experienceLevel,
         joiningDate: profile.joiningDate,
@@ -182,6 +184,7 @@ const loginUser = async ({ email, password }) => {
       const trainerCheck = await resolveClientTrainer(clientProfile);
       trainerAssigned = trainerCheck.trainerAssigned;
       clientProfileData = {
+        clientId: clientProfile.clientId || '',
         fitnessGoal: clientProfile.fitnessGoal,
         experienceLevel: clientProfile.experienceLevel,
         joiningDate: clientProfile.joiningDate,
@@ -219,6 +222,7 @@ const loginUser = async ({ email, password }) => {
     token,
     user: {
       ...user.toSafeObject(),
+      clientId: clientProfileData?.clientId || '',
       branch: user.branchId ? {
         id: user.branchId._id,
         name: user.branchId.name,
@@ -253,6 +257,7 @@ const getMemberDetails = async (userId) => {
       const trainerCheck = await resolveClientTrainer(clientProfile);
       trainerAssigned = trainerCheck.trainerAssigned;
       clientProfileData = {
+        clientId: clientProfile.clientId || '',
         fitnessGoal: clientProfile.fitnessGoal,
         experienceLevel: clientProfile.experienceLevel,
         joiningDate: clientProfile.joiningDate,
@@ -289,6 +294,7 @@ const getMemberDetails = async (userId) => {
 
   return {
     ...user.toSafeObject(),
+    clientId: clientProfileData?.clientId || '',
     branch: user.branchId,
     trainerAssigned,
     hasActiveMembership,

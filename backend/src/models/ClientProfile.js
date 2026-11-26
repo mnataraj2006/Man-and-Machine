@@ -1,7 +1,14 @@
 const mongoose = require('mongoose');
+const ClientSequence = require('./ClientSequence');
 
 const clientProfileSchema = new mongoose.Schema(
   {
+    clientId: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      immutable: true,
+    },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -82,7 +89,27 @@ clientProfileSchema.index(
   { userId: 1 },
   { unique: true, partialFilterExpression: { userId: { $type: 'objectId' } } }
 );
+clientProfileSchema.index(
+  { clientId: 1 },
+  { unique: true, partialFilterExpression: { clientId: { $type: 'string' } } }
+);
 clientProfileSchema.index({ branchId: 1, trainerId: 1, createdAt: -1 });
+
+// Automatically assign permanent sequential clientId on creation
+clientProfileSchema.pre('save', async function () {
+  if (this.isNew && !this.clientId) {
+    const session = typeof this.$session === 'function' ? this.$session() : null;
+    this.clientId = await ClientSequence.getNextClientId(session);
+  }
+});
+
+// Prevent clientId modification via findOneAndUpdate / updateOne
+clientProfileSchema.pre(['findOneAndUpdate', 'updateOne'], function () {
+  const update = this.getUpdate();
+  if (!update) return;
+  if (update.clientId !== undefined) delete update.clientId;
+  if (update.$set && update.$set.clientId !== undefined) delete update.$set.clientId;
+});
 
 const ClientProfile = mongoose.model('ClientProfile', clientProfileSchema);
 

@@ -623,10 +623,18 @@ const getClients = async (req, res, next) => {
 
     if (search && search.trim()) {
       const term = search.trim();
+      const matchedProfiles = await ClientProfile.find({
+        clientId: { $regex: term, $options: 'i' },
+        userId: { $ne: null },
+      })
+        .select('userId')
+        .lean();
+      const matchedUserIds = matchedProfiles.map((p) => p.userId).filter(Boolean);
       query.$or = [
         { name: { $regex: term, $options: 'i' } },
         { email: { $regex: term, $options: 'i' } },
         { phone: { $regex: term, $options: 'i' } },
+        ...(matchedUserIds.length > 0 ? [{ _id: { $in: matchedUserIds } }] : []),
       ];
     }
 
@@ -708,6 +716,7 @@ const getClients = async (req, res, next) => {
 
         return {
           id: c._id,
+          clientId: profile?.clientId || '',
           name: c.name,
           email: c.email,
           phone: c.phone,
@@ -727,14 +736,19 @@ const getClients = async (req, res, next) => {
     const walkInQuery = { userId: null, ...getBranchFilter(branchId) };
     if (search?.trim()) {
       const term = search.trim();
-      walkInQuery.$or = [{ name: { $regex: term, $options: 'i' } }, { phone: { $regex: term, $options: 'i' } }, { email: { $regex: term, $options: 'i' } }];
+      walkInQuery.$or = [
+        { clientId: { $regex: term, $options: 'i' } },
+        { name: { $regex: term, $options: 'i' } },
+        { phone: { $regex: term, $options: 'i' } },
+        { email: { $regex: term, $options: 'i' } },
+      ];
     }
     if (accountStatus && accountStatus !== 'ALL' && accountStatus !== 'NOT_CREATED') walkInQuery._id = null;
     const walkInProfiles = await ClientProfile.find(walkInQuery).populate('branchId', 'name city').populate('trainerId', 'name email phone status').sort({ createdAt: -1 });
     for (const profile of walkInProfiles) {
       const active = await Membership.findOne({ clientProfileId: profile._id, status: 'ACTIVE', startDate: { $lte: now }, expiryDate: { $gte: now } }).sort({ expiryDate: -1 });
       const latest = active || await Membership.findOne({ clientProfileId: profile._id }).sort({ createdAt: -1 });
-      clientList.push({ id: profile._id, profileId: profile._id, name: profile.name, email: profile.email, phone: profile.phone, status: 'NOT_CREATED', accountAccessStatus: 'NOT_CREATED', branch: profile.branchId, createdAt: profile.joiningDate || profile.createdAt, fitnessGoal: profile.fitnessGoal, experienceLevel: profile.experienceLevel, trainer: profile.trainerId?.status === 'ACTIVE' ? profile.trainerId : null, membership: latest ? { id: latest._id, planName: latest.planName, status: latest.status, startDate: latest.startDate, expiryDate: latest.expiryDate, isExpired: latest.status === 'EXPIRED' || new Date(latest.expiryDate) < now } : null });
+      clientList.push({ id: profile._id, profileId: profile._id, clientId: profile.clientId || '', name: profile.name, email: profile.email, phone: profile.phone, status: 'NOT_CREATED', accountAccessStatus: 'NOT_CREATED', branch: profile.branchId, createdAt: profile.joiningDate || profile.createdAt, fitnessGoal: profile.fitnessGoal, experienceLevel: profile.experienceLevel, trainer: profile.trainerId?.status === 'ACTIVE' ? profile.trainerId : null, membership: latest ? { id: latest._id, planName: latest.planName, status: latest.status, startDate: latest.startDate, expiryDate: latest.expiryDate, isExpired: latest.status === 'EXPIRED' || new Date(latest.expiryDate) < now } : null });
     }
 
     let filteredList = clientList;
@@ -805,6 +819,7 @@ const getClientDetails = async (req, res, next) => {
       success: true,
       client: {
         id: client?._id || profile._id,
+        clientId: profile?.clientId || '',
         name: client?.name || profile.name,
         email: client?.email || profile.email,
         phone: client?.phone || profile.phone,
@@ -853,7 +868,7 @@ const createClient = async (req, res, next) => {
       user = await User.create({ name: name.trim(), email: cleanEmail, phone: normalizedPhone || '', branchId, role: 'CLIENT', status: 'PENDING_ACTIVATION', activationTokenHash: hashToken(rawToken), activationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), activationSentAt: new Date() });
     }
     const profile = await ClientProfile.create({ userId: user?._id || null, name: name.trim(), email: cleanEmail, phone: normalizedPhone || '', branchId, gender, dateOfBirth: dateOfBirth || null, address, emergencyContact, notes, fitnessGoal: fitnessGoal || 'General Fitness', experienceLevel: experienceLevel || 'Beginner', trainerId: trainerId && mongoose.Types.ObjectId.isValid(trainerId) ? trainerId : null, joiningDate: registrationDate ? new Date(registrationDate) : new Date(), registrationSource: 'ADMIN_REGISTERED', accountAccessStatus: user ? 'INVITATION_PENDING' : 'NOT_CREATED' });
-    res.status(201).json({ success: true, message: user ? 'Client profile created. Account invitation is pending.' : 'Walk-in client profile created without login access.', client: { id: profile._id, profileId: profile._id, userId: user?._id || null, name: profile.name, email: profile.email, phone: profile.phone, accountAccessStatus: profile.accountAccessStatus } });
+    res.status(201).json({ success: true, message: user ? 'Client profile created. Account invitation is pending.' : 'Walk-in client profile created without login access.', client: { id: profile._id, profileId: profile._id, clientId: profile.clientId, userId: user?._id || null, name: profile.name, email: profile.email, phone: profile.phone, accountAccessStatus: profile.accountAccessStatus } });
   } catch (err) {
     next(err);
   }

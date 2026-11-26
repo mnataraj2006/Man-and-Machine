@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "seed:admin": "node src/scripts/seedAdmin.js",
     "migrate:atlas": "node src/scripts/migrateToAtlas.js",
-    "migrate:walk-in-clients": "node src/scripts/migrateClientProfilesForWalkIns.js"
+    "migrate:walk-in-clients": "node src/scripts/migrateClientProfilesForWalkIns.js",
+    "migrate:client-ids": "node src/scripts/migrateClientIds.js"
   },
   "engines": {
     "node": ">=18.0.0"

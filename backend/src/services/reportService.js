@@ -266,6 +266,7 @@ const getMemberReport = async (query, reqUser) => {
 
     return {
       id: p._id,
+      clientId: p.clientId || '—',
       userId: userObj?._id || null,
       name: p.name || userObj?.name || 'Unnamed',
       phone: p.phone || userObj?.phone || '',
