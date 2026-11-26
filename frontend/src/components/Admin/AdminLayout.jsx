@@ -26,6 +26,7 @@ import {
   ArrowDownRight,
   PieChart,
   SlidersHorizontal,
+  Fingerprint,
 } from 'lucide-react';
 import authService from '../../services/auth.js';
 import adminService from '../../services/adminService.js';
@@ -73,6 +74,7 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
     { label: 'Membership Plans', path: '/admin/membership-plans', icon: ClipboardList },
     { label: 'Memberships', path: '/admin/memberships', icon: CreditCard },
     { label: 'Attendance', path: '/admin/attendance', icon: CalendarCheck },
+    { label: 'Biometric Devices', path: '/admin/biometric', icon: Fingerprint },
     { label: 'Payments', path: '/admin/payments', icon: Receipt },
     {
       label: 'Finance',

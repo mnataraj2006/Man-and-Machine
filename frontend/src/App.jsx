@@ -53,6 +53,7 @@ import AdminMonthlyCollections from './pages/Admin/Finance/MonthlyCollections.js
 import AdminExpenses from './pages/Admin/Finance/Expenses.jsx';
 import AdminFinanceConfig from './pages/Admin/Finance/FinanceConfigPage.jsx';
 import AdminReports from './pages/Admin/Reports.jsx';
+import AdminBiometricDevices from './pages/Admin/BiometricDevices.jsx';
 
 // Trainer Application Suite
 import TrainerLayout from './components/Trainer/TrainerLayout.jsx';
@@ -222,6 +223,8 @@ export default function App() {
       adminContent = <AdminMemberships onNavigate={navigate} />;
     } else if (currentPath === '/admin/attendance') {
       adminContent = <AdminAttendance onNavigate={navigate} />;
+    } else if (currentPath === '/admin/biometric' || currentPath.startsWith('/admin/biometric/')) {
+      adminContent = <AdminBiometricDevices onNavigate={navigate} />;
     } else if (currentPath === '/admin/payments') {
       adminContent = <AdminPayments onNavigate={navigate} />;
     } else if (currentPath === '/admin/finance' || currentPath === '/admin/finance/summary') {

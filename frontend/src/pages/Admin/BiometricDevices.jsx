@@ -1,0 +1,1185 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Fingerprint,
+  Plus,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  AlertTriangle,
+  CheckCircle2,
+  Power,
+  Edit,
+  X,
+  Users,
+  Activity,
+  Link2,
+  Trash2,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Cpu,
+} from 'lucide-react';
+import biometricService from '../../services/biometricService.js';
+import adminService from '../../services/adminService.js';
+import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
+
+const formatLastSeen = (lastSeenAt) => {
+  if (!lastSeenAt) return 'Not Connected (Never seen)';
+  const diffSec = Math.max(0, Math.floor((Date.now() - new Date(lastSeenAt).getTime()) / 1000));
+  if (diffSec < 60) return `Last seen ${diffSec}s ago`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `Last seen ${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `Last seen ${diffHr}h ${diffMin % 60}m ago`;
+  return new Date(lastSeenAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+};
+
+const getStatusPill = (effectiveStatus) => {
+  switch (effectiveStatus) {
+    case 'ONLINE':
+      return {
+        dot: 'bg-emerald-400',
+        cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+        label: 'ONLINE (Healthy)',
+      };
+    case 'SYNCING':
+    case 'CONNECTING':
+      return {
+        dot: 'bg-amber-400 animate-pulse',
+        cls: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+        label: effectiveStatus,
+      };
+    case 'DISABLED':
+      return {
+        dot: 'bg-[#858585]',
+        cls: 'bg-[#202020] text-[#858585] border-[#303030]',
+        label: 'DISABLED',
+      };
+    case 'ERROR':
+      return {
+        dot: 'bg-[#F03B2E]',
+        cls: 'bg-[#F03B2E]/15 text-[#FF493B] border-[#F03B2E]/35',
+        label: 'ERROR',
+      };
+    case 'OFFLINE':
+    default:
+      return {
+        dot: 'bg-[#F03B2E]',
+        cls: 'bg-[#F03B2E]/15 text-[#FF493B] border-[#F03B2E]/35',
+        label: 'OFFLINE / NOT CONNECTED',
+      };
+  }
+};
+
+export default function BiometricDevices() {
+  const { branches, selectedBranch } = useAdmin();
+  const [activeTab, setActiveTab] = useState('devices'); // 'devices' | 'attendance'
+  const [branchFilter, setBranchFilter] = useState(selectedBranch || 'ALL');
+  const [autoRefresh, setAutoRefresh] = useState(true);
+
+  const [summary, setSummary] = useState({ totalDevices: 0, online: 0, offline: 0, syncing: 0, attendanceToday: 0 });
+  const [devices, setDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState(null);
+
+  // Device Detail Drawer
+  const [selectedDeviceId, setSelectedDeviceId] = useState(null);
+  const [deviceDetail, setDeviceDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailTab, setDetailTab] = useState('overview'); // 'overview' | 'mappings' | 'logs'
+
+  // Add/Edit Device Modal
+  const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
+  const [editingDevice, setEditingDevice] = useState(null);
+  const [deviceForm, setDeviceForm] = useState({
+    branchId: '',
+    deviceName: '',
+    manufacturer: 'eSSL',
+    model: 'X2008',
+    serialNumber: '',
+    deviceId: 1,
+    macAddress: '',
+    localIp: '',
+    tcpPort: 4370,
+    communicationProtocol: 'ADMS',
+    admsServerAddress: '',
+    admsServerPort: 8081,
+    firmwareVersion: '',
+    userCapacity: 1000,
+    fingerprintCapacity: 5000,
+    faceCapacity: 1500,
+  });
+  const [savingDevice, setSavingDevice] = useState(false);
+  const [deviceModalError, setDeviceModalError] = useState(null);
+
+  // Map User state
+  const [clientsList, setClientsList] = useState([]);
+  const [mapBioId, setMapBioId] = useState('');
+  const [mapClientProfileId, setMapClientProfileId] = useState('');
+  const [mappingBusy, setMappingBusy] = useState(false);
+
+  // Confirm Dialog
+  const [confirmDialog, setConfirmDialog] = useState(null);
+
+  // Biometric Attendance state
+  const [attRecords, setAttRecords] = useState([]);
+  const [attLoading, setAttLoading] = useState(false);
+  const [attDate, setAttDate] = useState(new Date().toISOString().slice(0, 10));
+  const [attDeviceId, setAttDeviceId] = useState('ALL');
+  const [attVerification, setAttVerification] = useState('ALL');
+  const [attMembershipStatus, setAttMembershipStatus] = useState('ALL');
+  const [attStatus, setAttStatus] = useState('ALL');
+  const [attSearch, setAttSearch] = useState('');
+  const [attPage, setAttPage] = useState(1);
+  const [attTotalPages, setAttTotalPages] = useState(1);
+  const [attTotal, setAttTotal] = useState(0);
+
+  const showToast = (type, message) => {
+    setFeedback({ type, message });
+    setTimeout(() => setFeedback((curr) => (curr?.message === message ? null : curr)), 4500);
+  };
+
+  useEffect(() => {
+    setBranchFilter(selectedBranch || 'ALL');
+  }, [selectedBranch]);
+
+  const fetchDevices = useCallback(async () => {
+    try {
+      const res = await biometricService.getDevices({ branchId: branchFilter });
+      setSummary(res.summary || { totalDevices: 0, online: 0, offline: 0, syncing: 0, attendanceToday: 0 });
+      setDevices(res.devices || []);
+    } catch (err) {
+      showToast('error', err.message || 'Failed to load biometric devices');
+    } finally {
+      setLoading(false);
+    }
+  }, [branchFilter]);
+
+  const fetchAttendance = useCallback(async () => {
+    setAttLoading(true);
+    try {
+      const res = await biometricService.getAttendance({
+        branchId: branchFilter,
+        date: attDate,
+        deviceId: attDeviceId,
+        verificationMethod: attVerification,
+        membershipStatus: attMembershipStatus,
+        attendanceStatus: attStatus,
+        search: attSearch,
+        page: attPage,
+        limit: 20,
+      });
+      setAttRecords(res.records || []);
+      setAttTotalPages(res.totalPages || 1);
+      setAttTotal(res.total || 0);
+    } catch (err) {
+      showToast('error', err.message || 'Failed to load biometric attendance');
+    } finally {
+      setAttLoading(false);
+    }
+  }, [branchFilter, attDate, attDeviceId, attVerification, attMembershipStatus, attStatus, attSearch, attPage]);
+
+  useEffect(() => {
+    fetchDevices();
+  }, [fetchDevices]);
+
+  useEffect(() => {
+    if (activeTab === 'attendance') {
+      fetchAttendance();
+    }
+  }, [activeTab, fetchAttendance]);
+
+  // Near real-time polling (every 10 seconds)
+  useEffect(() => {
+    if (!autoRefresh) return undefined;
+    const timer = setInterval(() => {
+      fetchDevices();
+      if (activeTab === 'attendance') fetchAttendance();
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [autoRefresh, activeTab, fetchDevices, fetchAttendance]);
+
+  const openDeviceDetail = async (id) => {
+    setSelectedDeviceId(id);
+    setDetailLoading(true);
+    setDetailTab('overview');
+    try {
+      const [detailRes, clientsRes] = await Promise.all([
+        biometricService.getDeviceDetails(id),
+        adminService.getClients({ limit: 100 }).catch(() => ({ clients: [] })),
+      ]);
+      setDeviceDetail(detailRes);
+      setClientsList(clientsRes.clients || []);
+    } catch (err) {
+      setSelectedDeviceId(null);
+      showToast('error', err.message || 'Failed to load device details');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const openAddModal = () => {
+    setEditingDevice(null);
+    setDeviceModalError(null);
+    setDeviceForm({
+      branchId: branches[0]?._id || '',
+      deviceName: '',
+      manufacturer: 'eSSL',
+      model: 'X2008',
+      serialNumber: '',
+      deviceId: 1,
+      macAddress: '',
+      localIp: '',
+      tcpPort: 4370,
+      communicationProtocol: 'ADMS',
+      admsServerAddress: '',
+      admsServerPort: 8081,
+      firmwareVersion: '',
+      userCapacity: 1000,
+      fingerprintCapacity: 5000,
+      faceCapacity: 1500,
+    });
+    setIsDeviceModalOpen(true);
+  };
+
+  const openEditModal = (d) => {
+    setEditingDevice(d);
+    setDeviceModalError(null);
+    setDeviceForm({
+      branchId: d.branchId?._id || d.branchId || '',
+      deviceName: d.deviceName || '',
+      manufacturer: d.manufacturer || 'eSSL',
+      model: d.model || 'X2008',
+      serialNumber: d.serialNumber || '',
+      deviceId: d.deviceId || 1,
+      macAddress: d.macAddress || '',
+      localIp: d.localIp || '',
+      tcpPort: d.tcpPort || 4370,
+      communicationProtocol: d.communicationProtocol || 'ADMS',
+      admsServerAddress: d.admsServerAddress || '',
+      admsServerPort: d.admsServerPort || 8081,
+      firmwareVersion: d.firmwareVersion || '',
+      userCapacity: d.userCapacity || 1000,
+      fingerprintCapacity: d.fingerprintCapacity || 5000,
+      faceCapacity: d.faceCapacity || 1500,
+    });
+    setIsDeviceModalOpen(true);
+  };
+
+  const handleSaveDevice = async (e) => {
+    e.preventDefault();
+    setDeviceModalError(null);
+    setSavingDevice(true);
+    try {
+      if (editingDevice) {
+        await biometricService.updateDevice(editingDevice._id, deviceForm);
+        showToast('success', 'Device configuration updated.');
+      } else {
+        await biometricService.registerDevice(deviceForm);
+        showToast('success', 'Biometric device registered.');
+      }
+      setIsDeviceModalOpen(false);
+      await fetchDevices();
+      if (selectedDeviceId && editingDevice?._id === selectedDeviceId) {
+        openDeviceDetail(selectedDeviceId);
+      }
+    } catch (err) {
+      setDeviceModalError(err.message || 'Failed to save device');
+    } finally {
+      setSavingDevice(false);
+    }
+  };
+
+  const handleTestConnection = async (id) => {
+    try {
+      const res = await biometricService.testConnection(id);
+      showToast(res.reachable ? 'success' : 'error', res.message);
+      await fetchDevices();
+      if (selectedDeviceId === id) openDeviceDetail(id);
+    } catch (err) {
+      showToast('error', err.message);
+    }
+  };
+
+  const handleSyncDevice = async (id) => {
+    try {
+      const res = await biometricService.syncDevice(id);
+      showToast(res.synced ? 'success' : 'error', res.message);
+      await fetchDevices();
+      if (selectedDeviceId === id) openDeviceDetail(id);
+    } catch (err) {
+      showToast('error', err.message);
+    }
+  };
+
+  const requestToggleDevice = (d) => {
+    const nextActive = !d.isActive;
+    setConfirmDialog({
+      title: nextActive ? 'Enable Biometric Device' : 'Disable Biometric Device',
+      description: nextActive
+        ? `Enable ${d.deviceName} (${d.serialNumber}) to accept ADMS attendance pushes?`
+        : `Disable ${d.deviceName} (${d.serialNumber})? Incoming attendance events will be rejected until re-enabled.`,
+      confirmLabel: nextActive ? 'Enable Device' : 'Disable Device',
+      onConfirm: async () => {
+        try {
+          await biometricService.toggleDevice(d._id, nextActive);
+          setConfirmDialog(null);
+          showToast('success', `Device ${nextActive ? 'enabled' : 'disabled'}.`);
+          await fetchDevices();
+          if (selectedDeviceId === d._id) openDeviceDetail(d._id);
+        } catch (err) {
+          setConfirmDialog(null);
+          showToast('error', err.message);
+        }
+      },
+    });
+  };
+
+  const handleMapUser = async (e) => {
+    e.preventDefault();
+    if (!selectedDeviceId || !mapBioId || !mapClientProfileId) return;
+    setMappingBusy(true);
+    try {
+      await biometricService.mapUser({
+        deviceId: selectedDeviceId,
+        biometricUserId: mapBioId,
+        clientProfileId: mapClientProfileId,
+      });
+      setMapBioId('');
+      setMapClientProfileId('');
+      showToast('success', 'Biometric user mapped to member.');
+      openDeviceDetail(selectedDeviceId);
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setMappingBusy(false);
+    }
+  };
+
+  const requestUnmapUser = (mapping) => {
+    setConfirmDialog({
+      title: 'Unmap Biometric User',
+      description: `Remove mapping for Biometric ID ${mapping.biometricUserId}? Future punches for this ID will appear as UNMAPPED until re-mapped.`,
+      confirmLabel: 'Unmap User',
+      onConfirm: async () => {
+        try {
+          await biometricService.unmapUser(mapping._id);
+          setConfirmDialog(null);
+          showToast('success', 'Mapping removed.');
+          if (selectedDeviceId) openDeviceDetail(selectedDeviceId);
+        } catch (err) {
+          setConfirmDialog(null);
+          showToast('error', err.message);
+        }
+      },
+    });
+  };
+
+  return (
+    <div className="space-y-6 min-w-0">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="mm-page-title text-2xl sm:text-3xl">BIOMETRIC DEVICES &amp; ADMS</h2>
+          <p className="text-xs sm:text-sm text-[#B8B8B8] mt-1">
+            Multi-branch biometric hardware monitoring, user mapping, and live attendance feed.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAutoRefresh((v) => !v)}
+            className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-mono font-bold uppercase border inline-flex items-center gap-2 cursor-pointer ${
+              autoRefresh
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                : 'bg-[#202020] text-[#B8B8B8] border-[#303030]'
+            }`}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${autoRefresh ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
+            <span>{autoRefresh ? 'Live (10s)' : 'Paused'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={openAddModal}
+            className="min-h-[44px] px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#F03B2E] hover:bg-[#FF493B] text-white inline-flex items-center gap-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Device</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Feedback Banner */}
+      {feedback && (
+        <div
+          className={`rounded-xl p-3.5 flex items-center justify-between gap-3 text-xs border ${
+            feedback.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-200'
+              : 'bg-[#F03B2E]/10 border-[#F03B2E]/40 text-[#FF6A5E]'
+          }`}
+        >
+          <span>{feedback.message}</span>
+          <button type="button" onClick={() => setFeedback(null)} className="cursor-pointer">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Summary KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {[
+          { label: 'TOTAL DEVICES', value: summary.totalDevices, tone: 'text-[#F5F5F5]' },
+          { label: 'ONLINE', value: summary.online, tone: 'text-emerald-400' },
+          { label: 'OFFLINE', value: summary.offline, tone: 'text-[#FF493B]' },
+          { label: 'SYNCING', value: summary.syncing, tone: 'text-amber-400' },
+          { label: 'ATTENDANCE TODAY', value: summary.attendanceToday, tone: 'text-[#F03B2E]' },
+        ].map((k, idx) => (
+          <div key={idx} className="bg-[#181818] border border-[#303030] rounded-2xl p-4">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#858585] block">
+              {k.label}
+            </span>
+            <span className={`text-2xl font-bold font-mono mt-1 block ${k.tone}`}>{k.value}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs + Branch Filter */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('devices')}
+            className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border cursor-pointer ${
+              activeTab === 'devices'
+                ? 'bg-[#F03B2E] text-white border-[#F03B2E]'
+                : 'bg-[#181818] text-[#B8B8B8] border-[#303030]'
+            }`}
+          >
+            Branch Devices ({devices.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('attendance')}
+            className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border cursor-pointer ${
+              activeTab === 'attendance'
+                ? 'bg-[#F03B2E] text-white border-[#F03B2E]'
+                : 'bg-[#181818] text-[#B8B8B8] border-[#303030]'
+            }`}
+          >
+            Biometric Attendance
+          </button>
+        </div>
+
+        <select
+          aria-label="Filter by branch"
+          value={branchFilter}
+          onChange={(e) => {
+            setBranchFilter(e.target.value);
+            setAttPage(1);
+          }}
+          className="min-h-[44px] px-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5]"
+        >
+          <option value="ALL">All Branches</option>
+          {branches.map((b) => (
+            <option key={b._id} value={b._id}>
+              {b.city} Branch
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* ── DEVICES GRID ── */}
+      {activeTab === 'devices' && (
+        loading ? (
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl py-12 text-center text-xs text-[#B8B8B8]">
+            Loading biometric hardware status...
+          </div>
+        ) : devices.length === 0 ? (
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl py-12 px-4 text-center space-y-3">
+            <Fingerprint className="w-8 h-8 text-[#F03B2E] mx-auto" />
+            <p className="text-sm font-bold text-[#F5F5F5]">No Biometric Devices Registered</p>
+            <p className="text-xs text-[#858585]">
+              Add your branch eSSL X2008 device to monitor ADMS heartbeats and live attendance.
+            </p>
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="min-h-[44px] px-5 py-2 rounded-xl bg-[#F03B2E] text-white text-xs font-bold uppercase cursor-pointer"
+            >
+              Add First Device
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {devices.map((d) => {
+              const pill = getStatusPill(d.effectiveStatus);
+              return (
+                <div
+                  key={d._id}
+                  onClick={() => openDeviceDetail(d._id)}
+                  className="bg-[#181818] hover:bg-[#202020] border border-[#303030] hover:border-[#F03B2E] rounded-2xl p-5 space-y-4 transition-all cursor-pointer flex flex-col justify-between"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] font-mono uppercase text-[#F03B2E] font-bold block">
+                          {d.branchId?.city || 'Branch'} • ID #{d.deviceId}
+                        </span>
+                        <h3 className="font-display text-lg font-bold uppercase text-[#F5F5F5]">
+                          {d.deviceName}
+                        </h3>
+                        <p className="text-xs text-[#B8B8B8]">
+                          {d.manufacturer} {d.model} • SN: <span className="font-mono">{d.serialNumber}</span>
+                        </p>
+                      </div>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border whitespace-nowrap ${pill.cls}`}>
+                        <span className={`w-2 h-2 rounded-full ${pill.dot}`} />
+                        {pill.label}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-[#111111] border border-[#252525] text-xs space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-[#858585]">Last Seen</span>
+                        <span className="font-mono text-[#F5F5F5]">{formatLastSeen(d.lastSeenAt)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#858585]">Today Check-ins</span>
+                        <span className="font-mono font-bold text-[#F03B2E]">{d.todayAttendanceCount || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#858585]">Protocol / Port</span>
+                        <span className="font-mono text-[#B8B8B8]">
+                          {d.communicationProtocol} : {d.admsServerPort}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="p-2 rounded-lg bg-[#111111] border border-[#252525]">
+                        <span className="text-[10px] text-[#858585] block">Users</span>
+                        <span className="font-mono font-bold text-[#F5F5F5]">{d.userCount || 0}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-[#111111] border border-[#252525]">
+                        <span className="text-[10px] text-[#858585] block">Face</span>
+                        <span className="font-mono font-bold text-[#F5F5F5]">{d.faceCount || 0}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-[#111111] border border-[#252525]">
+                        <span className="text-[10px] text-[#858585] block">Finger</span>
+                        <span className="font-mono font-bold text-[#F5F5F5]">{d.fingerprintCount || 0}</span>
+                      </div>
+                    </div>
+
+                    {(d.effectiveStatus === 'OFFLINE' || d.effectiveStatus === 'ERROR') && (
+                      <div className="p-2.5 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E]/30 text-[11px] text-[#FF6A5E]">
+                        <strong>Device offline:</strong> {d.errorMessage || 'Check device network / ADMS configuration.'}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-[#252525]" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => handleTestConnection(d._id)}
+                      className="flex-1 min-h-[38px] px-2.5 py-1.5 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-[11px] font-bold uppercase text-[#F5F5F5] cursor-pointer"
+                    >
+                      Test
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSyncDevice(d._id)}
+                      className="flex-1 min-h-[38px] px-2.5 py-1.5 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-[11px] font-bold uppercase text-[#F5F5F5] cursor-pointer"
+                    >
+                      Sync
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openDeviceDetail(d._id)}
+                      className="flex-1 min-h-[38px] px-2.5 py-1.5 rounded-lg bg-[#F03B2E]/15 hover:bg-[#F03B2E]/25 border border-[#F03B2E]/35 text-[11px] font-bold uppercase text-[#F5F5F5] cursor-pointer"
+                    >
+                      Manage
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      )}
+
+      {/* ── BIOMETRIC ATTENDANCE TAB ── */}
+      {activeTab === 'attendance' && (
+        <div className="space-y-4">
+          <div className="bg-[#111111] border border-[#303030] rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+            <div className="relative">
+              <Search className="w-4 h-4 text-[#858585] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={attSearch}
+                onChange={(e) => {
+                  setAttSearch(e.target.value);
+                  setAttPage(1);
+                }}
+                placeholder="Search name, MM ID, Bio ID..."
+                className="w-full min-h-[44px] pl-9 pr-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5]"
+              />
+            </div>
+
+            <input
+              type="date"
+              value={attDate}
+              onChange={(e) => {
+                setAttDate(e.target.value);
+                setAttPage(1);
+              }}
+              className="w-full min-h-[44px] px-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] font-mono"
+            />
+
+            <select
+              value={attDeviceId}
+              onChange={(e) => {
+                setAttDeviceId(e.target.value);
+                setAttPage(1);
+              }}
+              className="w-full min-h-[44px] px-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5]"
+            >
+              <option value="ALL">All Devices</option>
+              {devices.map((d) => (
+                <option key={d._id} value={d._id}>
+                  {d.deviceName} ({d.branchId?.city})
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={attVerification}
+              onChange={(e) => {
+                setAttVerification(e.target.value);
+                setAttPage(1);
+              }}
+              className="w-full min-h-[44px] px-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5]"
+            >
+              <option value="ALL">All Methods</option>
+              <option value="FACE">FACE</option>
+              <option value="FINGERPRINT">FINGERPRINT</option>
+              <option value="CARD">CARD</option>
+              <option value="PASSWORD">PASSWORD</option>
+            </select>
+
+            <select
+              value={attStatus}
+              onChange={(e) => {
+                setAttStatus(e.target.value);
+                setAttPage(1);
+              }}
+              className="w-full min-h-[44px] px-3 py-2 bg-[#181818] border border-[#303030] rounded-xl text-xs text-[#F5F5F5]"
+            >
+              <option value="ALL">All Attendance Status</option>
+              <option value="SUCCESS">SUCCESS</option>
+              <option value="FLAGGED_EXPIRED">FLAGGED_EXPIRED</option>
+              <option value="FLAGGED_SUSPENDED">FLAGGED_SUSPENDED</option>
+              <option value="FLAGGED_NO_MEMBERSHIP">FLAGGED_NO_MEMBERSHIP</option>
+              <option value="UNMAPPED_USER">UNMAPPED_USER</option>
+            </select>
+          </div>
+
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl overflow-hidden">
+            {attLoading ? (
+              <div className="py-12 text-center text-xs text-[#B8B8B8]">Loading biometric attendance...</div>
+            ) : attRecords.length === 0 ? (
+              <div className="py-12 text-center text-xs text-[#858585] italic">
+                No biometric attendance events recorded for this date and filter selection.
+              </div>
+            ) : (
+              <>
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-[#303030] bg-[#111111] text-[10px] font-mono uppercase text-[#B8B8B8]">
+                        <th className="py-3 px-4">Member</th>
+                        <th className="py-3 px-4">Member ID</th>
+                        <th className="py-3 px-4">Branch</th>
+                        <th className="py-3 px-4">Device</th>
+                        <th className="py-3 px-4">Verification</th>
+                        <th className="py-3 px-4">Check-in Time</th>
+                        <th className="py-3 px-4">Membership</th>
+                        <th className="py-3 px-4">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#252525]">
+                      {attRecords.map((r) => (
+                        <tr key={r.id} className="hover:bg-[#202020]">
+                          <td className="py-3 px-4 font-bold text-[#F5F5F5]">{r.memberName}</td>
+                          <td className="py-3 px-4 font-mono text-[#F03B2E] font-bold">{r.memberId}</td>
+                          <td className="py-3 px-4">{r.branch}</td>
+                          <td className="py-3 px-4 text-[#B8B8B8]">{r.device}</td>
+                          <td className="py-3 px-4 font-mono">{r.verificationMethod}</td>
+                          <td className="py-3 px-4 font-mono">
+                            {new Date(r.checkInTime).toLocaleTimeString('en-IN', {
+                              timeZone: 'Asia/Kolkata',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </td>
+                          <td className="py-3 px-4 font-mono">{r.membershipStatus}</td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                                r.attendanceStatus === 'SUCCESS'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                  : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                              }`}
+                            >
+                              {r.attendanceStatus}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="lg:hidden divide-y divide-[#252525]">
+                  {attRecords.map((r) => (
+                    <div key={r.id} className="p-4 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[#F5F5F5]">{r.memberName}</span>
+                        <span className="font-mono font-bold text-[#F03B2E]">{r.memberId}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[#B8B8B8] font-mono text-[11px]">
+                        <span>{r.branch} • {r.verificationMethod}</span>
+                        <span>
+                          {new Date(r.checkInTime).toLocaleTimeString('en-IN', {
+                            timeZone: 'Asia/Kolkata',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono text-[#858585]">Membership: {r.membershipStatus}</span>
+                        <span className="text-[10px] font-mono font-bold text-amber-400">{r.attendanceStatus}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {attTotalPages > 1 && (
+              <div className="px-4 py-3 border-t border-[#303030] flex items-center justify-between text-xs text-[#B8B8B8]">
+                <span>Total: {attTotal} • Page {attPage} of {attTotalPages}</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={attPage <= 1}
+                    onClick={() => setAttPage((p) => p - 1)}
+                    className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg bg-[#202020] border border-[#303030] disabled:opacity-40"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={attPage >= attTotalPages}
+                    onClick={() => setAttPage((p) => p + 1)}
+                    className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg bg-[#202020] border border-[#303030] disabled:opacity-40"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── DEVICE DETAIL DRAWER ── */}
+      {selectedDeviceId && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center sm:justify-end"
+          onClick={() => {
+            setSelectedDeviceId(null);
+            setDeviceDetail(null);
+          }}
+        >
+          <div
+            className="w-full sm:max-w-2xl bg-[#111111] border-t sm:border-l border-[#303030] rounded-t-2xl sm:rounded-none h-[92dvh] sm:h-full flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-[#303030] flex items-center justify-between shrink-0">
+              <div className="min-w-0">
+                <span className="text-[10px] font-mono uppercase text-[#F03B2E] font-bold block">
+                  {deviceDetail?.device?.branchId?.city || 'BRANCH'} — BIOMETRIC DEVICE
+                </span>
+                <h3 className="font-display text-lg sm:text-xl font-bold uppercase text-[#F5F5F5] truncate">
+                  {deviceDetail?.device?.deviceName || 'Loading...'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDeviceId(null);
+                  setDeviceDetail(null);
+                }}
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] border border-[#303030] text-[#F5F5F5] cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {detailLoading || !deviceDetail ? (
+              <div className="p-8 text-center text-xs text-[#B8B8B8]">Loading device telemetry...</div>
+            ) : (
+              <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                {/* Drawer Tabs */}
+                <div className="flex gap-2 border-b border-[#252525] pb-3">
+                  {[
+                    { key: 'overview', label: 'Overview & Health' },
+                    { key: 'mappings', label: `User Mappings (${deviceDetail.mappings.length})` },
+                    { key: 'logs', label: `Connection Logs (${deviceDetail.logs.length})` },
+                  ].map((t) => (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => setDetailTab(t.key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase cursor-pointer ${
+                        detailTab === t.key ? 'bg-[#F03B2E] text-white' : 'bg-[#181818] text-[#B8B8B8]'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                {detailTab === 'overview' && (
+                  <div className="space-y-4">
+                    <div className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono uppercase text-[#F03B2E] font-bold">Device Health</span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${getStatusPill(deviceDetail.device.effectiveStatus).cls}`}>
+                          {getStatusPill(deviceDetail.device.effectiveStatus).label}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <span className="text-[10px] text-[#858585] block">Manufacturer / Model</span>
+                          <span className="font-bold text-[#F5F5F5]">{deviceDetail.device.manufacturer} {deviceDetail.device.model}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#858585] block">Serial Number</span>
+                          <span className="font-mono font-bold text-[#F5F5F5]">{deviceDetail.device.serialNumber}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#858585] block">Device ID / MAC</span>
+                          <span className="font-mono text-[#F5F5F5]">#{deviceDetail.device.deviceId} • {deviceDetail.device.macAddress || '—'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#858585] block">Firmware</span>
+                          <span className="font-mono text-[#F5F5F5]">{deviceDetail.device.firmwareVersion || '—'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#858585] block">Protocol / ADMS Port</span>
+                          <span className="font-mono text-[#F5F5F5]">{deviceDetail.device.communicationProtocol} : {deviceDetail.device.admsServerPort}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#858585] block">Local IP / TCP Port</span>
+                          <span className="font-mono text-[#F5F5F5]">{deviceDetail.device.localIp || '—'} : {deviceDetail.device.tcpPort}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#858585] block">Last Seen</span>
+                          <span className="font-mono text-[#F5F5F5]">{formatLastSeen(deviceDetail.device.lastSeenAt)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#858585] block">Last Sync</span>
+                          <span className="font-mono text-[#F5F5F5]">
+                            {deviceDetail.device.lastSyncAt ? new Date(deviceDetail.device.lastSyncAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'Never'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#181818] border border-[#303030] rounded-xl p-4 grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+                      <div>
+                        <span className="text-[10px] text-[#858585] block">Users</span>
+                        <span className="font-mono font-bold text-[#F5F5F5]">{deviceDetail.device.userCount} / {deviceDetail.device.userCapacity}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[#858585] block">Face</span>
+                        <span className="font-mono font-bold text-[#F5F5F5]">{deviceDetail.device.faceCount} / {deviceDetail.device.faceCapacity}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[#858585] block">Fingerprint</span>
+                        <span className="font-mono font-bold text-[#F5F5F5]">{deviceDetail.device.fingerprintCount} / {deviceDetail.device.fingerprintCapacity}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[#858585] block">Today</span>
+                        <span className="font-mono font-bold text-[#F03B2E]">{deviceDetail.device.attendanceToday}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[#858585] block">This Month</span>
+                        <span className="font-mono font-bold text-[#F5F5F5]">{deviceDetail.device.attendanceThisMonth}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleTestConnection(deviceDetail.device._id)}
+                        className="min-h-[42px] px-4 py-2 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase text-[#F5F5F5] cursor-pointer"
+                      >
+                        Test Connection
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSyncDevice(deviceDetail.device._id)}
+                        className="min-h-[42px] px-4 py-2 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase text-[#F5F5F5] cursor-pointer"
+                      >
+                        Sync Device
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(deviceDetail.device)}
+                        className="min-h-[42px] px-4 py-2 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-xs font-bold uppercase text-[#F5F5F5] cursor-pointer"
+                      >
+                        Edit Device
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => requestToggleDevice(deviceDetail.device)}
+                        className={`min-h-[42px] px-4 py-2 rounded-xl border text-xs font-bold uppercase cursor-pointer ${
+                          deviceDetail.device.isActive
+                            ? 'bg-[#F03B2E]/10 text-[#FF493B] border-[#F03B2E]/35'
+                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                        }`}
+                      >
+                        {deviceDetail.device.isActive ? 'Disable Device' : 'Enable Device'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {detailTab === 'mappings' && (
+                  <div className="space-y-4">
+                    <form onSubmit={handleMapUser} className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-3">
+                      <span className="text-xs font-mono uppercase text-[#F03B2E] font-bold block">Map Biometric User ID</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <input
+                          type="text"
+                          required
+                          value={mapBioId}
+                          onChange={(e) => setMapBioId(e.target.value)}
+                          placeholder="Device User ID (e.g. 101)"
+                          className="min-h-[44px] px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5] font-mono"
+                        />
+                        <select
+                          required
+                          value={mapClientProfileId}
+                          onChange={(e) => setMapClientProfileId(e.target.value)}
+                          className="min-h-[44px] px-3 py-2 bg-[#111111] border border-[#303030] rounded-xl text-xs text-[#F5F5F5]"
+                        >
+                          <option value="">Select Member</option>
+                          {clientsList.map((c) => (
+                            <option key={c.profileId || c.id} value={c.profileId || c.id}>
+                              {c.clientId || '—'} — {c.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="submit"
+                          disabled={mappingBusy}
+                          className="min-h-[44px] px-4 py-2 rounded-xl bg-[#F03B2E] text-white text-xs font-bold uppercase cursor-pointer"
+                        >
+                          {mappingBusy ? 'Mapping...' : 'Map User'}
+                        </button>
+                      </div>
+                    </form>
+
+                    <div className="space-y-2">
+                      {deviceDetail.mappings.length === 0 ? (
+                        <p className="text-xs text-[#858585] italic">No biometric user mappings yet.</p>
+                      ) : (
+                        deviceDetail.mappings.map((m) => (
+                          <div key={m._id} className="p-3 rounded-xl bg-[#181818] border border-[#303030] flex items-center justify-between gap-2 text-xs">
+                            <div>
+                              <span className="font-mono font-bold text-[#F03B2E]">Bio ID: {m.biometricUserId}</span>
+                              <span className="mx-2 text-[#858585]">→</span>
+                              <span className="font-bold text-[#F5F5F5]">
+                                {m.clientProfileId?.clientId || ''} {m.clientProfileId?.name}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => requestUnmapUser(m)}
+                              className="px-2.5 py-1 rounded-lg bg-[#202020] hover:bg-[#F03B2E]/20 text-[#FF493B] text-[11px] font-bold uppercase cursor-pointer"
+                            >
+                              Unmap
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {detailTab === 'logs' && (
+                  <div className="space-y-2">
+                    {deviceDetail.logs.length === 0 ? (
+                      <p className="text-xs text-[#858585] italic">No connection or audit logs recorded yet.</p>
+                    ) : (
+                      deviceDetail.logs.map((l) => (
+                        <div key={l._id} className="p-3 rounded-xl bg-[#181818] border border-[#303030] text-xs space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-bold text-[#F03B2E]">{l.category} {l.action ? `• ${l.action}` : ''}</span>
+                            <span className="font-mono text-[10px] text-[#858585]">
+                              {new Date(l.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                            </span>
+                          </div>
+                          <p className="text-[#F5F5F5]">{l.message}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── ADD / EDIT DEVICE MODAL ── */}
+      {isDeviceModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => setIsDeviceModalOpen(false)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[92dvh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-[#252525] flex items-center justify-between">
+              <h3 className="mm-page-title text-lg">{editingDevice ? 'EDIT BIOMETRIC DEVICE' : 'ADD BIOMETRIC DEVICE'}</h3>
+              <button type="button" onClick={() => setIsDeviceModalOpen(false)} className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg bg-[#202020] text-[#F5F5F5]">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveDevice} className="flex-1 overflow-y-auto p-5 space-y-3 text-xs">
+              {deviceModalError && (
+                <div className="p-3 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E] text-[#F5F5F5]">{deviceModalError}</div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Branch *</label>
+                  <select
+                    required
+                    value={deviceForm.branchId}
+                    onChange={(e) => setDeviceForm({ ...deviceForm, branchId: e.target.value })}
+                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5]"
+                  >
+                    {branches.map((b) => (
+                      <option key={b._id} value={b._id}>{b.city}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Device Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={deviceForm.deviceName}
+                    onChange={(e) => setDeviceForm({ ...deviceForm, deviceName: e.target.value })}
+                    placeholder="e.g. Kovilpatti Main Entrance"
+                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Manufacturer</label>
+                  <input type="text" value={deviceForm.manufacturer} onChange={(e) => setDeviceForm({ ...deviceForm, manufacturer: e.target.value })} className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5]" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Model</label>
+                  <input type="text" value={deviceForm.model} onChange={(e) => setDeviceForm({ ...deviceForm, model: e.target.value })} className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5]" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Device ID *</label>
+                  <input type="number" min="1" required value={deviceForm.deviceId} onChange={(e) => setDeviceForm({ ...deviceForm, deviceId: e.target.value })} className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5] font-mono" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Serial Number *</label>
+                  <input
+                    type="text"
+                    required
+                    disabled={Boolean(editingDevice)}
+                    value={deviceForm.serialNumber}
+                    onChange={(e) => setDeviceForm({ ...deviceForm, serialNumber: e.target.value })}
+                    placeholder="TDDB250600919"
+                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5] font-mono disabled:opacity-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">MAC Address</label>
+                  <input type="text" value={deviceForm.macAddress} onChange={(e) => setDeviceForm({ ...deviceForm, macAddress: e.target.value })} placeholder="00:17:51:10:4b:13" className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5] font-mono" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Protocol</label>
+                  <select value={deviceForm.communicationProtocol} onChange={(e) => setDeviceForm({ ...deviceForm, communicationProtocol: e.target.value })} className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5]">
+                    <option value="ADMS">ADMS</option>
+                    <option value="TCP">TCP</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">ADMS Port</label>
+                  <input type="number" value={deviceForm.admsServerPort} onChange={(e) => setDeviceForm({ ...deviceForm, admsServerPort: e.target.value })} className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5] font-mono" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Local IP</label>
+                  <input type="text" value={deviceForm.localIp} onChange={(e) => setDeviceForm({ ...deviceForm, localIp: e.target.value })} placeholder="192.168.0.203" className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5] font-mono" />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-[#252525] flex justify-end gap-2">
+                <button type="button" onClick={() => setIsDeviceModalOpen(false)} className="min-h-[44px] px-4 py-2 rounded-xl bg-[#202020] text-[#B8B8B8] font-bold uppercase cursor-pointer">
+                  Cancel
+                </button>
+                <button type="submit" disabled={savingDevice} className="min-h-[44px] px-5 py-2 rounded-xl bg-[#F03B2E] text-white font-bold uppercase cursor-pointer">
+                  {savingDevice ? 'Saving...' : editingDevice ? 'Save Device' : 'Register Device'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── CONFIRM DIALOG ── */}
+      {confirmDialog && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setConfirmDialog(null)}>
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl max-w-sm w-full p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h4 className="mm-page-title text-lg">{confirmDialog.title}</h4>
+            <p className="text-xs text-[#B8B8B8]">{confirmDialog.description}</p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setConfirmDialog(null)} className="min-h-[40px] px-4 py-2 rounded-xl bg-[#202020] text-xs font-bold uppercase text-[#B8B8B8] cursor-pointer">
+                Cancel
+              </button>
+              <button type="button" onClick={confirmDialog.onConfirm} className="min-h-[40px] px-4 py-2 rounded-xl bg-[#F03B2E] text-xs font-bold uppercase text-white cursor-pointer">
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

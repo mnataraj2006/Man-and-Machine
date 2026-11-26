@@ -14,6 +14,8 @@ const trainerRoutes = require('./routes/trainerRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const whatsappRoutes = require('./routes/whatsappRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const biometricRoutes = require('./routes/biometricRoutes');
+const admsRoutes = require('./routes/admsRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -216,6 +218,9 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/trainer', trainerRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/biometric', biometricRoutes);
+// eSSL / ZKTeco ADMS push protocol endpoints
+app.use('/iclock', admsRoutes);
 // Public only for Meta's signed webhook verification/callback; all management routes are ADMIN-only.
 app.use('/api/whatsapp', whatsappRoutes);
 
@@ -268,6 +273,14 @@ const startServer = async () => {
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
+    const admsPort = Number(process.env.ADMS_PORT);
+    if (admsPort && admsPort !== Number(PORT)) {
+      const admsApp = express();
+      admsApp.use('/iclock', admsRoutes);
+      admsApp.listen(admsPort, () => {
+        console.log(`ADMS Biometric Listener running on port ${admsPort}`);
+      });
+    }
   } catch (error) {
     console.error('Failed to start server due to database connection error');
     process.exit(1);
