@@ -1,4 +1,5 @@
 import authService from './auth.js';
+import { cachedFetch, clearRequestCache } from '../utils/requestCache.js';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -15,42 +16,60 @@ class AdminService {
   }
 
   async request(endpoint, options = {}) {
-    const url = `${API_BASE_URL}/admin${endpoint}`;
-    const headers = { ...this.getAuthHeaders(), ...options.headers };
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs || 25000);
+    const method = (options.method || 'GET').toUpperCase();
+    const isCacheableGet =
+      method === 'GET' &&
+      !options.skipCache &&
+      (endpoint.startsWith('/dashboard') || endpoint === '/branches' || endpoint.startsWith('/membership-plans'));
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-        signal: options.signal || controller.signal,
-      });
-      const data = await response.json().catch(() => ({}));
+    const execute = async () => {
+      const url = `${API_BASE_URL}/admin${endpoint}`;
+      const headers = { ...this.getAuthHeaders(), ...options.headers };
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs || 25000);
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          authService.logout();
-          window.location.href = '/login';
+      try {
+        const response = await fetch(url, {
+          ...options,
+          headers,
+          signal: options.signal || controller.signal,
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            clearRequestCache();
+            authService.logout();
+            window.location.href = '/login';
+          }
+          const apiError = new Error(data.message || `Request failed with status ${response.status}`);
+          apiError.status = response.status;
+          apiError.data = data;
+          throw apiError;
         }
-        const apiError = new Error(data.message || `Request failed with status ${response.status}`);
-        apiError.status = response.status;
-        apiError.data = data;
-        throw apiError;
-      }
 
-      return data;
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        const timeoutErr = new Error('Request timed out while waiting for the server. Please refresh and check if the record was created.');
-        console.error(`Admin API Timeout [${endpoint}]:`, timeoutErr);
-        throw timeoutErr;
+        if (method !== 'GET') {
+          clearRequestCache();
+        }
+
+        return data;
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          const timeoutErr = new Error('Request timed out while waiting for the server. Please refresh and check if the record was created.');
+          console.error(`Admin API Timeout [${endpoint}]:`, timeoutErr);
+          throw timeoutErr;
+        }
+        console.error(`Admin API Error [${endpoint}]:`, err);
+        throw err;
+      } finally {
+        clearTimeout(timeoutId);
       }
-      console.error(`Admin API Error [${endpoint}]:`, err);
-      throw err;
-    } finally {
-      clearTimeout(timeoutId);
+    };
+
+    if (isCacheableGet) {
+      return cachedFetch(`admin:${endpoint}`, execute, 15000);
     }
+    return execute();
   }
 
   // 1. Dashboard & KPIs

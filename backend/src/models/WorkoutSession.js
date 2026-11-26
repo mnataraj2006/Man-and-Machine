@@ -75,6 +75,7 @@ const workoutSessionSchema = new mongoose.Schema(
 );
 
 workoutSessionSchema.index({ userId: 1, date: -1 });
+workoutSessionSchema.index({ userId: 1, status: 1, date: -1 });
 workoutSessionSchema.index({ trainerId: 1, date: -1 });
 
 const WorkoutSession = mongoose.model('WorkoutSession', workoutSessionSchema);

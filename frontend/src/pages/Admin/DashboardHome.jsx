@@ -87,34 +87,51 @@ export default function DashboardHome({ onNavigate }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await adminService.getDashboardOverview(selectedBranch, range);
+      const [res, waRes] = await Promise.all([
+        adminService.getDashboardOverview(selectedBranch, range),
+        whatsappService.summary().catch(() => ({ summary: null })),
+      ]);
       setData(res);
-      whatsappService.summary().then((result) => setWhatsappSummary(result.summary)).catch(() => setWhatsappSummary(null));
-
-      // Also fetch a quick client list for dropdowns in quick action modals
-      const clientsRes = await adminService.getClients({ limit: 50 });
-      if (clientsRes.clients) setAllClientsList(clientsRes.clients);
-
-      const plansRes = await adminService.getMembershipPlans().catch(() => ({ plans: [] }));
-      if (plansRes.plans) {
-        setPlans(plansRes.plans);
-        if (plansRes.plans.length > 0 && !membershipForm.planId) {
-          const firstP = plansRes.plans[0];
-          setMembershipForm((prev) => ({
-            ...prev,
-            planId: firstP._id,
-            planName: firstP.name,
-            durationDays: firstP.durationDays || 30,
-            durationMonths: firstP.durationMonths || 1,
-          }));
-        }
-      }
+      setWhatsappSummary(waRes?.summary || null);
     } catch (err) {
       setError(err.message || 'Failed to load dashboard metrics');
     } finally {
       setLoading(false);
     }
   };
+
+  // Lazy-load quick action modal dropdown data only when a modal is opened
+  useEffect(() => {
+    if (!quickAction) return;
+    if (allClientsList.length === 0) {
+      adminService
+        .getClients({ limit: 50 })
+        .then((clientsRes) => {
+          if (clientsRes?.clients) setAllClientsList(clientsRes.clients);
+        })
+        .catch(() => {});
+    }
+    if (plans.length === 0) {
+      adminService
+        .getMembershipPlans()
+        .then((plansRes) => {
+          if (plansRes?.plans) {
+            setPlans(plansRes.plans);
+            if (plansRes.plans.length > 0 && !membershipForm.planId) {
+              const firstP = plansRes.plans[0];
+              setMembershipForm((prev) => ({
+                ...prev,
+                planId: firstP._id,
+                planName: firstP.name,
+                durationDays: firstP.durationDays || 30,
+                durationMonths: firstP.durationMonths || 1,
+              }));
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [quickAction]);
 
   useEffect(() => {
     fetchData();

@@ -90,8 +90,9 @@ const attendanceSchema = new mongoose.Schema(
   }
 );
 
-// Compound index to quickly fetch user attendance by date
+// Compound index to quickly fetch user and branch attendance by date
 attendanceSchema.index({ userId: 1, date: -1 });
+attendanceSchema.index({ branchId: 1, date: -1 });
 attendanceSchema.index(
   { deviceId: 1, rawEventReference: 1 },
   { unique: true, partialFilterExpression: { rawEventReference: { $type: 'string' } } }

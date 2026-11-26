@@ -94,6 +94,7 @@ clientProfileSchema.index(
   { unique: true, partialFilterExpression: { clientId: { $type: 'string' } } }
 );
 clientProfileSchema.index({ branchId: 1, trainerId: 1, createdAt: -1 });
+clientProfileSchema.index({ trainerId: 1 });
 
 // Automatically assign permanent sequential clientId on creation
 clientProfileSchema.pre('save', async function () {

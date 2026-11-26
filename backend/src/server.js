@@ -16,6 +16,7 @@ const whatsappRoutes = require('./routes/whatsappRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const biometricRoutes = require('./routes/biometricRoutes');
 const admsRoutes = require('./routes/admsRoutes');
+const dashboardCache = require('./utils/dashboardCache');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -208,6 +209,28 @@ app.get('/api/public/stats', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// Invalidate scoped dashboard caches automatically after successful mutations
+app.use('/api', (req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+    res.on('finish', () => {
+      if (res.statusCode >= 200 && res.statusCode < 400) {
+        const p = req.originalUrl || '';
+        if (p.startsWith('/api/admin') || p.startsWith('/api/biometric') || p.startsWith('/api/branches')) {
+          dashboardCache.clearAllDashboardCache();
+        } else if (p.startsWith('/api/trainer')) {
+          dashboardCache.invalidateAdminDashboards();
+          dashboardCache.invalidateTrainerDashboard(req.user?._id);
+          dashboardCache.invalidateClientDashboard(null);
+        } else if (p.startsWith('/api/client')) {
+          dashboardCache.invalidateAdminDashboards();
+          dashboardCache.invalidateClientDashboard(req.user?._id);
+        }
+      }
+    });
+  }
+  next();
 });
 
 // API Routes

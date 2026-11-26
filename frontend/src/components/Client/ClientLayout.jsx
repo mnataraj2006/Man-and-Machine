@@ -40,11 +40,13 @@ export default function ClientLayout({ children, currentPath, onNavigate, onLogo
     let isMounted = true;
     const fetchUserData = async () => {
       try {
-        const fullUser = await authService.getMe();
+        const [fullUser, notifData] = await Promise.all([
+          authService.getMe().catch(() => null),
+          clientService.getNotifications().catch(() => null),
+        ]);
         if (isMounted && fullUser) {
           setUser(fullUser);
         }
-        const notifData = await clientService.getNotifications();
         if (isMounted && notifData) {
           setUnreadCount(notifData.unreadCount || 0);
         }
@@ -56,7 +58,7 @@ export default function ClientLayout({ children, currentPath, onNavigate, onLogo
     return () => {
       isMounted = false;
     };
-  }, [currentPath]);
+  }, [currentPath === '/client/notifications']);
 
   const isTrainerAssigned = Boolean(
     user?.trainerAssigned === true ||

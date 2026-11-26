@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import Header from './components/Navbar/Header.jsx';
 import Hero from './components/Hero/Hero.jsx';
 import BrandStatement from './components/Editorial/BrandStatement.jsx';
@@ -12,66 +12,78 @@ import TransformationSection from './components/Editorial/TransformationSection.
 import FinalCTA from './components/CTA/FinalCTA.jsx';
 import Footer from './components/Footer/Footer.jsx';
 import JoinModal from './components/Navbar/JoinModal.jsx';
-import Login from './pages/Login.jsx';
-import Signup from './pages/Signup.jsx';
-import ActivateAccount from './pages/ActivateAccount.jsx';
-import ForgotPassword from './pages/ForgotPassword.jsx';
-import ResetPassword from './pages/ResetPassword.jsx';
-import AdminDashboard from './pages/AdminDashboard.jsx';
-import TrainerDashboard from './pages/TrainerDashboard.jsx';
-import ClientLayout from './components/Client/ClientLayout.jsx';
-import DashboardHome from './pages/Client/DashboardHome.jsx';
-import Workouts from './pages/Client/Workouts.jsx';
-import WorkoutDetail from './pages/Client/WorkoutDetail.jsx';
-import Attendance from './pages/Client/Attendance.jsx';
-import Progress from './pages/Client/Progress.jsx';
-import Membership from './pages/Client/Membership.jsx';
-import Payments from './pages/Client/Payments.jsx';
-import Trainer from './pages/Client/Trainer.jsx';
-import Notifications from './pages/Client/Notifications.jsx';
-import Profile from './pages/Client/Profile.jsx';
-import Settings from './pages/Client/Settings.jsx';
-import ClientBiometricAccess from './pages/Client/BiometricAccess.jsx';
 
-// Admin Application Suite
-import AdminLayout from './components/Admin/AdminLayout.jsx';
-import AdminDashboardHome from './pages/Admin/DashboardHome.jsx';
-import AdminBranches from './pages/Admin/Branches.jsx';
-import AdminClients from './pages/Admin/Clients.jsx';
-import AdminTrainers from './pages/Admin/Trainers.jsx';
-import AdminMembershipPlans from './pages/Admin/MembershipPlans.jsx';
-import AdminMemberships from './pages/Admin/Memberships.jsx';
-import AdminAttendance from './pages/Admin/Attendance.jsx';
-import AdminPayments from './pages/Admin/Payments.jsx';
-import AdminNotifications from './pages/Admin/Notifications.jsx';
-import AdminSettings from './pages/Admin/Settings.jsx';
-import WhatsAppSettings from './pages/Admin/WhatsApp.jsx';
-import AdminFinanceSummary from './pages/Admin/Finance/FinanceSummary.jsx';
-import AdminAllInvoices from './pages/Admin/Finance/AllInvoices.jsx';
-import AdminTodayInvoices from './pages/Admin/Finance/TodayInvoices.jsx';
-import AdminDailyCollections from './pages/Admin/Finance/DailyCollections.jsx';
-import AdminMonthlyCollections from './pages/Admin/Finance/MonthlyCollections.jsx';
-import AdminExpenses from './pages/Admin/Finance/Expenses.jsx';
-import AdminFinanceConfig from './pages/Admin/Finance/FinanceConfigPage.jsx';
-import AdminReports from './pages/Admin/Reports.jsx';
-import AdminBiometricDevices from './pages/Admin/BiometricDevices.jsx';
+const Login = lazy(() => import('./pages/Login.jsx'));
+const Signup = lazy(() => import('./pages/Signup.jsx'));
+const ActivateAccount = lazy(() => import('./pages/ActivateAccount.jsx'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword.jsx'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword.jsx'));
+const ClientLayout = lazy(() => import('./components/Client/ClientLayout.jsx'));
+const DashboardHome = lazy(() => import('./pages/Client/DashboardHome.jsx'));
+const Workouts = lazy(() => import('./pages/Client/Workouts.jsx'));
+const WorkoutDetail = lazy(() => import('./pages/Client/WorkoutDetail.jsx'));
+const Attendance = lazy(() => import('./pages/Client/Attendance.jsx'));
+const Progress = lazy(() => import('./pages/Client/Progress.jsx'));
+const Membership = lazy(() => import('./pages/Client/Membership.jsx'));
+const Payments = lazy(() => import('./pages/Client/Payments.jsx'));
+const Trainer = lazy(() => import('./pages/Client/Trainer.jsx'));
+const Notifications = lazy(() => import('./pages/Client/Notifications.jsx'));
+const Profile = lazy(() => import('./pages/Client/Profile.jsx'));
+const Settings = lazy(() => import('./pages/Client/Settings.jsx'));
+const ClientBiometricAccess = lazy(() => import('./pages/Client/BiometricAccess.jsx'));
 
-// Trainer Application Suite
-import TrainerLayout from './components/Trainer/TrainerLayout.jsx';
-import TrainerDashboardHome from './pages/Trainer/DashboardHome.jsx';
-import TrainerClients from './pages/Trainer/Clients.jsx';
-import TrainerClientDetail from './pages/Trainer/ClientDetail.jsx';
-import TrainerWorkouts from './pages/Trainer/Workouts.jsx';
-import TrainerWorkoutCreate from './pages/Trainer/WorkoutCreate.jsx';
-import TrainerSchedule from './pages/Trainer/Schedule.jsx';
-import TrainerSessions from './pages/Trainer/Sessions.jsx';
-import TrainerProgress from './pages/Trainer/Progress.jsx';
-import TrainerAttendance from './pages/Trainer/Attendance.jsx';
-import TrainerNotifications from './pages/Trainer/Notifications.jsx';
-import TrainerProfile from './pages/Trainer/Profile.jsx';
-import TrainerSettings from './pages/Trainer/Settings.jsx';
+// Admin Application Suite (lazy-loaded per route)
+const AdminLayout = lazy(() => import('./components/Admin/AdminLayout.jsx'));
+const AdminDashboardHome = lazy(() => import('./pages/Admin/DashboardHome.jsx'));
+const AdminBranches = lazy(() => import('./pages/Admin/Branches.jsx'));
+const AdminClients = lazy(() => import('./pages/Admin/Clients.jsx'));
+const AdminTrainers = lazy(() => import('./pages/Admin/Trainers.jsx'));
+const AdminMembershipPlans = lazy(() => import('./pages/Admin/MembershipPlans.jsx'));
+const AdminMemberships = lazy(() => import('./pages/Admin/Memberships.jsx'));
+const AdminAttendance = lazy(() => import('./pages/Admin/Attendance.jsx'));
+const AdminPayments = lazy(() => import('./pages/Admin/Payments.jsx'));
+const AdminNotifications = lazy(() => import('./pages/Admin/Notifications.jsx'));
+const AdminSettings = lazy(() => import('./pages/Admin/Settings.jsx'));
+const WhatsAppSettings = lazy(() => import('./pages/Admin/WhatsApp.jsx'));
+const AdminFinanceSummary = lazy(() => import('./pages/Admin/Finance/FinanceSummary.jsx'));
+const AdminAllInvoices = lazy(() => import('./pages/Admin/Finance/AllInvoices.jsx'));
+const AdminTodayInvoices = lazy(() => import('./pages/Admin/Finance/TodayInvoices.jsx'));
+const AdminDailyCollections = lazy(() => import('./pages/Admin/Finance/DailyCollections.jsx'));
+const AdminMonthlyCollections = lazy(() => import('./pages/Admin/Finance/MonthlyCollections.jsx'));
+const AdminExpenses = lazy(() => import('./pages/Admin/Finance/Expenses.jsx'));
+const AdminFinanceConfig = lazy(() => import('./pages/Admin/Finance/FinanceConfigPage.jsx'));
+const AdminReports = lazy(() => import('./pages/Admin/Reports.jsx'));
+const AdminBiometricDevices = lazy(() => import('./pages/Admin/BiometricDevices.jsx'));
+
+// Trainer Application Suite (lazy-loaded per route)
+const TrainerLayout = lazy(() => import('./components/Trainer/TrainerLayout.jsx'));
+const TrainerDashboardHome = lazy(() => import('./pages/Trainer/DashboardHome.jsx'));
+const TrainerClients = lazy(() => import('./pages/Trainer/Clients.jsx'));
+const TrainerClientDetail = lazy(() => import('./pages/Trainer/ClientDetail.jsx'));
+const TrainerWorkouts = lazy(() => import('./pages/Trainer/Workouts.jsx'));
+const TrainerWorkoutCreate = lazy(() => import('./pages/Trainer/WorkoutCreate.jsx'));
+const TrainerSchedule = lazy(() => import('./pages/Trainer/Schedule.jsx'));
+const TrainerSessions = lazy(() => import('./pages/Trainer/Sessions.jsx'));
+const TrainerProgress = lazy(() => import('./pages/Trainer/Progress.jsx'));
+const TrainerAttendance = lazy(() => import('./pages/Trainer/Attendance.jsx'));
+const TrainerNotifications = lazy(() => import('./pages/Trainer/Notifications.jsx'));
+const TrainerProfile = lazy(() => import('./pages/Trainer/Profile.jsx'));
+const TrainerSettings = lazy(() => import('./pages/Trainer/Settings.jsx'));
 import authService from './services/auth.js';
 import { useTheme } from './context/ThemeContext.jsx';
+
+const RouteFallback = () => (
+  <div className="min-h-screen bg-[#090909] p-6 flex flex-col gap-4 animate-pulse">
+    <div className="h-10 w-56 bg-[#181818] rounded-xl" />
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="h-28 bg-[#181818] rounded-2xl" />
+      <div className="h-28 bg-[#181818] rounded-2xl" />
+      <div className="h-28 bg-[#181818] rounded-2xl" />
+      <div className="h-28 bg-[#181818] rounded-2xl" />
+    </div>
+    <div className="h-64 bg-[#181818] rounded-2xl" />
+  </div>
+);
 
 export default function App() {
   const [joinModalOpen, setJoinModalOpen] = useState(false);
@@ -195,16 +207,18 @@ export default function App() {
     }
 
     return (
-      <ClientLayout
-        currentPath={currentPath}
-        onNavigate={navigate}
-        onLogout={() => {
-          authService.logout();
-          navigate('/login');
-        }}
-      >
-        {clientContent}
-      </ClientLayout>
+      <Suspense fallback={<RouteFallback />}>
+        <ClientLayout
+          currentPath={currentPath}
+          onNavigate={navigate}
+          onLogout={() => {
+            authService.logout();
+            navigate('/login');
+          }}
+        >
+          {clientContent}
+        </ClientLayout>
+      </Suspense>
     );
   }
 
@@ -264,16 +278,18 @@ export default function App() {
     }
 
     return (
-      <AdminLayout
-        currentPath={currentPath}
-        onNavigate={navigate}
-        onLogout={() => {
-          authService.logout();
-          navigate('/login');
-        }}
-      >
-        {adminContent}
-      </AdminLayout>
+      <Suspense fallback={<RouteFallback />}>
+        <AdminLayout
+          currentPath={currentPath}
+          onNavigate={navigate}
+          onLogout={() => {
+            authService.logout();
+            navigate('/login');
+          }}
+        >
+          {adminContent}
+        </AdminLayout>
+      </Suspense>
     );
   }
 
@@ -314,50 +330,64 @@ export default function App() {
     }
 
     return (
-      <TrainerLayout
-        currentPath={currentPath}
-        onNavigate={navigate}
-        onLogout={() => {
-          authService.logout();
-          navigate('/login');
-        }}
-      >
-        {trainerContent}
-      </TrainerLayout>
+      <Suspense fallback={<RouteFallback />}>
+        <TrainerLayout
+          currentPath={currentPath}
+          onNavigate={navigate}
+          onLogout={() => {
+            authService.logout();
+            navigate('/login');
+          }}
+        >
+          {trainerContent}
+        </TrainerLayout>
+      </Suspense>
     );
   }
 
   // Dedicated Signup & Register routes
   if (currentPath === '/signup' || currentPath === '/register') {
     return (
-      <Signup 
-        onNavigate={navigate} 
-      />
+      <Suspense fallback={<RouteFallback />}>
+        <Signup onNavigate={navigate} />
+      </Suspense>
     );
   }
 
   // Dedicated Account Activation route (/activate-account/:token)
   if (currentPath.startsWith('/activate-account/')) {
     const token = currentPath.replace('/activate-account/', '').split('?')[0];
-    return <ActivateAccount token={token} onNavigate={navigate} />;
+    return (
+      <Suspense fallback={<RouteFallback />}>
+        <ActivateAccount token={token} onNavigate={navigate} />
+      </Suspense>
+    );
   }
 
   // Forgot & Reset Password routes
   if (currentPath === '/forgot-password') {
-    return <ForgotPassword onNavigate={navigate} />;
+    return (
+      <Suspense fallback={<RouteFallback />}>
+        <ForgotPassword onNavigate={navigate} />
+      </Suspense>
+    );
   }
 
   if (currentPath.startsWith('/reset-password/')) {
     const token = currentPath.replace('/reset-password/', '').split('?')[0];
-    return <ResetPassword token={token} onNavigate={navigate} />;
+    return (
+      <Suspense fallback={<RouteFallback />}>
+        <ResetPassword token={token} onNavigate={navigate} />
+      </Suspense>
+    );
   }
 
   // Dedicated Login page
   if (currentPath === '/login') {
     return (
-      <Login 
-        onNavigate={navigate} 
-      />
+      <Suspense fallback={<RouteFallback />}>
+        <Login onNavigate={navigate} />
+      </Suspense>
     );
   }
 

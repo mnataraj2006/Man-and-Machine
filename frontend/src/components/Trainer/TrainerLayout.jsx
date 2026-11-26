@@ -56,7 +56,7 @@ export default function TrainerLayout({ children, currentPath, onNavigate, onLog
     return () => {
       isMounted = false;
     };
-  }, [currentPath]);
+  }, [currentPath === '/trainer/notifications']);
 
   const closeMobileMenu = useCallback(() => {
     setMobileMenuOpen(false);

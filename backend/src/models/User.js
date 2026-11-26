@@ -158,6 +158,10 @@ userSchema.methods.toSafeObject = function () {
   };
 };
 
+userSchema.index({ role: 1, branchId: 1, status: 1 });
+userSchema.index({ role: 1, branchId: 1, createdAt: -1 });
+userSchema.index({ role: 1, createdAt: -1 });
+
 const User = mongoose.model('User', userSchema);
 
 module.exports = User;

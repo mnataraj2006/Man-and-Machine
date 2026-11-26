@@ -4,6 +4,8 @@
  * Dedicated service layer for all Client Dashboard platform APIs.
  */
 
+import { cachedFetch, clearRequestCache } from '../utils/requestCache.js';
+
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const TOKEN_KEY = 'mm_auth_token';
 
@@ -18,11 +20,17 @@ const getAuthHeaders = () => {
 export const clientService = {
   // ── 1. Dashboard ──────────────────────────────────────────
   getDashboardSummary: async () => {
-    const res = await fetch(`${BASE_URL}/client/dashboard`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) throw new Error('Failed to load dashboard summary');
-    return res.json();
+    return cachedFetch(
+      'client:/dashboard',
+      async () => {
+        const res = await fetch(`${BASE_URL}/client/dashboard`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) throw new Error('Failed to load dashboard summary');
+        return res.json();
+      },
+      15000
+    );
   },
 
   // ── 2. Profile ────────────────────────────────────────────
@@ -282,11 +290,17 @@ export const clientService = {
   // ── 9. Notifications ─────────────────────────────────────
   getNotifications: async (category = 'ALL') => {
     const query = category !== 'ALL' ? `?category=${category}` : '';
-    const res = await fetch(`${BASE_URL}/client/notifications${query}`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) throw new Error('Failed to load notifications');
-    return res.json();
+    return cachedFetch(
+      `client:/notifications${query}`,
+      async () => {
+        const res = await fetch(`${BASE_URL}/client/notifications${query}`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) throw new Error('Failed to load notifications');
+        return res.json();
+      },
+      15000
+    );
   },
 
   markNotificationAsRead: async (id) => {
@@ -295,6 +309,7 @@ export const clientService = {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error('Failed to mark notification read');
+    clearRequestCache();
     return res.json();
   },
 
@@ -304,6 +319,7 @@ export const clientService = {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error('Failed to mark all notifications read');
+    clearRequestCache();
     return res.json();
   },
 

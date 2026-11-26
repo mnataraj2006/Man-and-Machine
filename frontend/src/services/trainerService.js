@@ -1,4 +1,5 @@
 import authService from './auth.js';
+import { cachedFetch, clearRequestCache } from '../utils/requestCache.js';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -15,26 +16,44 @@ class TrainerService {
   }
 
   async request(endpoint, options = {}) {
-    const url = `${API_BASE_URL}/trainer${endpoint}`;
-    const headers = { ...this.getAuthHeaders(), ...options.headers };
+    const method = (options.method || 'GET').toUpperCase();
+    const isCacheableGet =
+      method === 'GET' &&
+      !options.skipCache &&
+      (endpoint === '/dashboard' || endpoint.startsWith('/notifications'));
 
-    try {
-      const response = await fetch(url, { ...options, headers });
-      const data = await response.json().catch(() => ({}));
+    const execute = async () => {
+      const url = `${API_BASE_URL}/trainer${endpoint}`;
+      const headers = { ...this.getAuthHeaders(), ...options.headers };
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          authService.logout();
-          window.location.href = '/login';
+      try {
+        const response = await fetch(url, { ...options, headers });
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            clearRequestCache();
+            authService.logout();
+            window.location.href = '/login';
+          }
+          throw new Error(data.message || `Request failed with status ${response.status}`);
         }
-        throw new Error(data.message || `Request failed with status ${response.status}`);
-      }
 
-      return data;
-    } catch (err) {
-      console.error(`Trainer API Error [${endpoint}]:`, err);
-      throw err;
+        if (method !== 'GET') {
+          clearRequestCache();
+        }
+
+        return data;
+      } catch (err) {
+        console.error(`Trainer API Error [${endpoint}]:`, err);
+        throw err;
+      }
+    };
+
+    if (isCacheableGet) {
+      return cachedFetch(`trainer:${endpoint}`, execute, 15000);
     }
+    return execute();
   }
 
   // 1. Dashboard Overview

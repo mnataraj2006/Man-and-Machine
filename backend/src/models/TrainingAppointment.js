@@ -87,6 +87,8 @@ const trainingAppointmentSchema = new mongoose.Schema(
 );
 
 trainingAppointmentSchema.index({ trainerId: 1, scheduledAt: 1 });
+trainingAppointmentSchema.index({ trainerId: 1, status: 1, updatedAt: -1 });
+trainingAppointmentSchema.index({ trainerId: 1, status: 1, scheduledAt: 1 });
 trainingAppointmentSchema.index({ clientId: 1, scheduledAt: 1 });
 
 const TrainingAppointment = mongoose.model(

@@ -21,6 +21,7 @@ const notificationService = require('../services/notificationService');
 const { generateSecureToken, hashToken, getFrontendBaseUrl } = require('../utils/tokenUtils');
 const { sendTrainerInvitation, sendPasswordResetEmail } = require('../utils/emailService');
 const { normalizeIndianPhone } = require('../utils/phone');
+const dashboardCache = require('../utils/dashboardCache');
 
 // Helper to construct branch query filter
 const getBranchFilter = (branchId) => {
@@ -117,194 +118,262 @@ const getDateRangeFilter = (range, startDate, endDate, dateField = 'createdAt') 
 const getDashboardOverview = async (req, res, next) => {
   try {
     const { branchId, range } = req.query;
+    const cacheKey = `admin:dashboard:${branchId || 'ALL'}:${range || 'thisMonth'}`;
+    const cachedPayload = dashboardCache.getCached(cacheKey);
+    if (cachedPayload) {
+      return res.status(200).json(cachedPayload);
+    }
+
     const branchFilter = getBranchFilter(branchId);
+    const aggBranchFilter = branchFilter.branchId
+      ? { branchId: new mongoose.Types.ObjectId(branchFilter.branchId) }
+      : {};
     const now = new Date();
-
-    // 1. Total Clients & Active Clients (role CLIENT only, excludes ADMIN and TRAINER)
-    const clientQuery = { role: 'CLIENT', ...branchFilter };
-    const totalClients = await User.countDocuments(clientQuery);
-    const activeClients = await User.countDocuments({ ...clientQuery, status: 'ACTIVE' });
-
-    // 2. Active Memberships (Distinct active client members)
-    const activeMemberUserIds = await Membership.distinct('userId', {
-      ...branchFilter,
-      status: 'ACTIVE',
-      startDate: { $lte: now },
-      expiryDate: { $gte: now },
-    });
-    const activeMembers = activeMemberUserIds.length;
-
-    // 3. Expired Memberships (Distinct clients whose memberships expired without an active pass)
-    const activeUserSet = new Set(activeMemberUserIds.map((id) => id.toString()));
-    const expiredUserIds = await Membership.distinct('userId', {
-      ...branchFilter,
-      $or: [{ status: 'EXPIRED' }, { expiryDate: { $lt: now } }],
-    });
-    const expiredMemberships = expiredUserIds.filter((id) => !activeUserSet.has(id.toString())).length;
-
-    // 4. Total Trainers & Active Trainers (role TRAINER only)
-    const trainerQuery = { role: 'TRAINER', ...branchFilter };
-    const totalTrainers = await User.countDocuments(trainerQuery);
-    const activeTrainers = await User.countDocuments({ ...trainerQuery, status: 'ACTIVE' });
-
-    // 5. Total Branches
-    const totalBranches = await Branch.countDocuments({ isActive: true });
-
-    // 6. Today's Attendance (Asia/Kolkata IST)
     const startOfToday = getKolkataStartOfToday();
-    const todayAttendance = await Attendance.countDocuments({
-      ...branchFilter,
-      date: { $gte: startOfToday },
-    });
-
-    // 7. Monthly Revenue (Confirmed PAID only) (Asia/Kolkata IST)
     const startOfMonth = getKolkataStartOfMonth(0);
     const startOfPrevMonth = getKolkataStartOfMonth(1);
     const endOfPrevMonth = getKolkataEndOfMonth(1);
+    const sixMonthsStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const sevenDaysStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+    const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-    const monthlyPayments = await Payment.find({
-      ...branchFilter,
-      status: 'PAID',
-      date: { $gte: startOfMonth },
-    });
-    const monthlyRevenue = monthlyPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
+    const clientQuery = { role: 'CLIENT', ...branchFilter };
+    const trainerQuery = { role: 'TRAINER', ...branchFilter };
 
-    const prevMonthlyPayments = await Payment.find({
-      ...branchFilter,
-      status: 'PAID',
-      date: { $gte: startOfPrevMonth, $lte: endOfPrevMonth },
-    });
-    const prevMonthlyRevenue = prevMonthlyPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
+    const [
+      totalClients,
+      activeClients,
+      activeMemberUserIds,
+      expiredUserIds,
+      totalTrainers,
+      activeTrainers,
+      totalBranches,
+      todayAttendance,
+      prevMonthlyRevAgg,
+      financeSummary,
+      newEnquiries,
+      revenueChartAgg,
+      registrationsChartAgg,
+      dailyAttendanceAgg,
+      branches,
+      branchActiveAgg,
+      branchClientAgg,
+      branchRevAgg,
+      membershipDistAgg,
+      paymentDistAgg,
+      recentUsers,
+      recentTrainers,
+      recentPayments,
+      recentAttendances,
+      expiringIn7Days,
+      expiringIn30Days,
+      expiredList,
+      pendingPaymentsAlerts,
+      newEnquiriesAlerts,
+    ] = await Promise.all([
+      User.countDocuments(clientQuery),
+      User.countDocuments({ ...clientQuery, status: 'ACTIVE' }),
+      Membership.distinct('userId', {
+        ...branchFilter,
+        status: 'ACTIVE',
+        startDate: { $lte: now },
+        expiryDate: { $gte: now },
+      }),
+      Membership.distinct('userId', {
+        ...branchFilter,
+        $or: [{ status: 'EXPIRED' }, { expiryDate: { $lt: now } }],
+      }),
+      User.countDocuments(trainerQuery),
+      User.countDocuments({ ...trainerQuery, status: 'ACTIVE' }),
+      Branch.countDocuments({ isActive: true }),
+      Attendance.countDocuments({ ...branchFilter, date: { $gte: startOfToday } }),
+      Payment.aggregate([
+        { $match: { ...aggBranchFilter, status: 'PAID', date: { $gte: startOfPrevMonth, $lte: endOfPrevMonth } } },
+        { $group: { _id: null, total: { $sum: { $ifNull: ['$amount', 0] } } } },
+      ]),
+      financeService.computeFinanceSummary({ branchId }),
+      Enquiry.countDocuments({ ...branchFilter, status: 'NEW' }),
+      Payment.aggregate([
+        { $match: { ...aggBranchFilter, status: 'PAID', date: { $gte: sixMonthsStart } } },
+        {
+          $group: {
+            _id: { year: { $year: '$date' }, month: { $month: '$date' } },
+            revenue: { $sum: { $ifNull: ['$amount', 0] } },
+          },
+        },
+      ]),
+      User.aggregate([
+        { $match: { role: 'CLIENT', ...aggBranchFilter, createdAt: { $gte: sixMonthsStart } } },
+        {
+          $group: {
+            _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Attendance.aggregate([
+        { $match: { ...aggBranchFilter, date: { $gte: sevenDaysStart } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Branch.find({ isActive: true }).select('name city').lean(),
+      Membership.aggregate([
+        { $match: { status: 'ACTIVE', expiryDate: { $gte: now } } },
+        { $group: { _id: '$branchId', count: { $sum: 1 } } },
+      ]),
+      User.aggregate([
+        { $match: { role: 'CLIENT' } },
+        { $group: { _id: '$branchId', count: { $sum: 1 } } },
+      ]),
+      Payment.aggregate([
+        { $match: { status: 'PAID', date: { $gte: startOfMonth } } },
+        { $group: { _id: '$branchId', total: { $sum: { $ifNull: ['$amount', 0] } } } },
+      ]),
+      Membership.aggregate([
+        { $match: aggBranchFilter },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+      Payment.aggregate([
+        { $match: aggBranchFilter },
+        { $group: { _id: '$status', count: { $sum: 1 }, amount: { $sum: { $ifNull: ['$amount', 0] } } } },
+      ]),
+      User.find({ role: 'CLIENT', ...branchFilter })
+        .sort({ createdAt: -1 })
+        .limit(4)
+        .select('name branchId createdAt')
+        .populate('branchId', 'city')
+        .lean(),
+      User.find({ role: 'TRAINER', ...branchFilter })
+        .sort({ createdAt: -1 })
+        .limit(3)
+        .select('name branchId createdAt')
+        .populate('branchId', 'city')
+        .lean(),
+      Payment.find(branchFilter)
+        .sort({ date: -1 })
+        .limit(4)
+        .select('amount description paymentMethod date userId branchId')
+        .populate('userId', 'name email')
+        .populate('branchId', 'city')
+        .lean(),
+      Attendance.find(branchFilter)
+        .sort({ date: -1 })
+        .limit(4)
+        .select('date checkInTime userId branchId')
+        .populate('userId', 'name')
+        .populate('branchId', 'city')
+        .lean(),
+      Membership.find({ ...branchFilter, status: 'ACTIVE', expiryDate: { $gte: now, $lte: in7Days } })
+        .sort({ expiryDate: 1 })
+        .limit(20)
+        .select('userId branchId expiryDate planName status')
+        .populate('userId', 'name phone email')
+        .populate('branchId', 'city')
+        .lean(),
+      Membership.find({ ...branchFilter, status: 'ACTIVE', expiryDate: { $gte: in7Days, $lte: in30Days } })
+        .sort({ expiryDate: 1 })
+        .limit(20)
+        .select('userId branchId expiryDate planName status')
+        .populate('userId', 'name phone email')
+        .populate('branchId', 'city')
+        .lean(),
+      Membership.find({ ...branchFilter, $or: [{ status: 'EXPIRED' }, { expiryDate: { $lt: now } }] })
+        .sort({ expiryDate: -1 })
+        .limit(6)
+        .select('userId branchId expiryDate planName status')
+        .populate('userId', 'name phone email')
+        .populate('branchId', 'city')
+        .lean(),
+      Payment.find({ ...branchFilter, status: 'PENDING' })
+        .sort({ date: -1 })
+        .limit(6)
+        .select('amount date description userId branchId status')
+        .populate('userId', 'name phone email')
+        .populate('branchId', 'city')
+        .lean(),
+      Enquiry.find({ ...branchFilter, status: 'NEW' })
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .select('name phone email status branchId createdAt')
+        .populate('branchId', 'city')
+        .lean(),
+    ]);
 
-    // 8. Finance Summary Integration (Invoices, Pending Balance, Expenses, Net Revenue)
-    const financeSummary = await financeService.computeFinanceSummary({ branchId });
+    const activeMembers = activeMemberUserIds.length;
+    const activeUserSet = new Set(activeMemberUserIds.map((id) => id.toString()));
+    const expiredMemberships = expiredUserIds.filter((id) => !activeUserSet.has(id.toString())).length;
+    const prevMonthlyRevenue = prevMonthlyRevAgg[0]?.total || 0;
     const pendingPaymentsCount = financeSummary.pendingInvoicesCount;
     const pendingPaymentsTotal = financeSummary.pendingBalance;
 
-    // 9. New Enquiries
-    const newEnquiries = await Enquiry.countDocuments({
-      ...branchFilter,
-      status: 'NEW',
-    });
+    const revMap = new Map(revenueChartAgg.map((r) => [`${r._id.year}-${r._id.month}`, r.revenue]));
+    const regMap = new Map(registrationsChartAgg.map((r) => [`${r._id.year}-${r._id.month}`, r.count]));
 
-    // --- Analytics Charts Data ---
-
-    // A. Monthly Revenue Chart (Last 6 Months)
     const revenueChart = [];
-    for (let i = 5; i >= 0; i--) {
-      const dStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const dEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
-      const monthPayments = await Payment.find({
-        ...branchFilter,
-        status: 'PAID',
-        date: { $gte: dStart, $lte: dEnd },
-      });
-      const rev = monthPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-      revenueChart.push({
-        month: dStart.toLocaleString('default', { month: 'short' }),
-        year: dStart.getFullYear(),
-        revenue: rev,
-      });
-    }
-
-    // B. Monthly Client Registrations (Last 6 Months)
     const registrationsChart = [];
     for (let i = 5; i >= 0; i--) {
       const dStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const dEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
-      const count = await User.countDocuments({
-        role: 'CLIENT',
-        ...branchFilter,
-        createdAt: { $gte: dStart, $lte: dEnd },
+      const key = `${dStart.getFullYear()}-${dStart.getMonth() + 1}`;
+      const monthLabel = dStart.toLocaleString('default', { month: 'short' });
+      revenueChart.push({
+        month: monthLabel,
+        year: dStart.getFullYear(),
+        revenue: revMap.get(key) || 0,
       });
       registrationsChart.push({
-        month: dStart.toLocaleString('default', { month: 'short' }),
+        month: monthLabel,
         year: dStart.getFullYear(),
-        count,
+        count: regMap.get(key) || 0,
       });
     }
 
-    // C. Daily Attendance Overview (Last 7 Days)
+    const attMap = new Map(dailyAttendanceAgg.map((a) => [a._id, a.count]));
     const dailyAttendanceChart = [];
     for (let i = 6; i >= 0; i--) {
       const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i, 23, 59, 59);
-      const count = await Attendance.countDocuments({
-        ...branchFilter,
-        date: { $gte: dayStart, $lte: dayEnd },
-      });
+      const dateStr = dayStart.toISOString().slice(0, 10);
       dailyAttendanceChart.push({
         day: dayStart.toLocaleDateString('default', { weekday: 'short' }),
-        date: dayStart.toISOString().slice(0, 10),
-        count,
+        date: dateStr,
+        count: attMap.get(dateStr) || 0,
       });
     }
 
-    // D. Branch-wise Active Memberships
-    const branches = await Branch.find({ isActive: true });
-    const branchComparison = await Promise.all(
-      branches.map(async (b) => {
-        const activeCount = await Membership.countDocuments({
-          branchId: b._id,
-          status: 'ACTIVE',
-          expiryDate: { $gte: now },
-        });
-        const clientCount = await User.countDocuments({ role: 'CLIENT', branchId: b._id });
-        const branchRev = (
-          await Payment.find({ branchId: b._id, status: 'PAID', date: { $gte: startOfMonth } })
-        ).reduce((acc, p) => acc + (p.amount || 0), 0);
-        return {
-          branchId: b._id,
-          city: b.city,
-          name: b.name,
-          activeCount,
-          clientCount,
-          monthlyRevenue: branchRev,
-        };
-      })
-    );
+    const activeByBranch = new Map(branchActiveAgg.map((x) => [String(x._id), x.count]));
+    const clientsByBranch = new Map(branchClientAgg.map((x) => [String(x._id), x.count]));
+    const revByBranch = new Map(branchRevAgg.map((x) => [String(x._id), x.total]));
+    const branchComparison = branches.map((b) => {
+      const key = String(b._id);
+      return {
+        branchId: b._id,
+        city: b.city,
+        name: b.name,
+        activeCount: activeByBranch.get(key) || 0,
+        clientCount: clientsByBranch.get(key) || 0,
+        monthlyRevenue: revByBranch.get(key) || 0,
+      };
+    });
 
-    // E. Membership Status Distribution
-    const membershipStatuses = ['ACTIVE', 'EXPIRED', 'PENDING', 'PAUSED', 'CANCELLED'];
-    const membershipDistribution = await Promise.all(
-      membershipStatuses.map(async (st) => {
-        const count = await Membership.countDocuments({ ...branchFilter, status: st });
-        return { status: st, count };
-      })
-    );
+    const memDistMap = new Map(membershipDistAgg.map((m) => [m._id, m.count]));
+    const membershipDistribution = ['ACTIVE', 'EXPIRED', 'PENDING', 'PAUSED', 'CANCELLED'].map((st) => ({
+      status: st,
+      count: memDistMap.get(st) || 0,
+    }));
 
-    // F. Payment Status Distribution
-    const paymentStatuses = ['PAID', 'PENDING', 'FAILED', 'REFUNDED'];
-    const paymentDistribution = await Promise.all(
-      paymentStatuses.map(async (st) => {
-        const list = await Payment.find({ ...branchFilter, status: st });
-        const total = list.reduce((acc, p) => acc + (p.amount || 0), 0);
-        return { status: st, count: list.length, amount: total };
-      })
-    );
-
-    // --- Recent Activity Feed ---
-    const recentUsers = await User.find({ role: 'CLIENT', ...branchFilter })
-      .sort({ createdAt: -1 })
-      .limit(4)
-      .populate('branchId', 'city');
-
-    const recentTrainers = await User.find({ role: 'TRAINER', ...branchFilter })
-      .sort({ createdAt: -1 })
-      .limit(3)
-      .populate('branchId', 'city');
-
-    const recentPayments = await Payment.find(branchFilter)
-      .sort({ date: -1 })
-      .limit(4)
-      .populate('userId', 'name email')
-      .populate('branchId', 'city');
-
-    const recentAttendances = await Attendance.find(branchFilter)
-      .sort({ date: -1 })
-      .limit(4)
-      .populate('userId', 'name')
-      .populate('branchId', 'city');
+    const payDistMap = new Map(paymentDistAgg.map((p) => [p._id, p]));
+    const paymentDistribution = ['PAID', 'PENDING', 'FAILED', 'REFUNDED'].map((st) => {
+      const row = payDistMap.get(st);
+      return {
+        status: st,
+        count: row?.count || 0,
+        amount: row?.amount || 0,
+      };
+    });
 
     const activities = [
       ...recentUsers.map((u) => ({
@@ -339,53 +408,7 @@ const getDashboardOverview = async (req, res, next) => {
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       .slice(0, 10);
 
-    // --- Alerts and Reminders ---
-    const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-    const expiringIn7Days = await Membership.find({
-      ...branchFilter,
-      status: 'ACTIVE',
-      expiryDate: { $gte: now, $lte: in7Days },
-    })
-      .populate('userId', 'name phone email')
-      .populate('branchId', 'city');
-
-    const expiringIn30Days = await Membership.find({
-      ...branchFilter,
-      status: 'ACTIVE',
-      expiryDate: { $gte: in7Days, $lte: in30Days },
-    })
-      .populate('userId', 'name phone email')
-      .populate('branchId', 'city');
-
-    const expiredList = await Membership.find({
-      ...branchFilter,
-      $or: [{ status: 'EXPIRED' }, { expiryDate: { $lt: now } }],
-    })
-      .sort({ expiryDate: -1 })
-      .limit(6)
-      .populate('userId', 'name phone email')
-      .populate('branchId', 'city');
-
-    const pendingPaymentsAlerts = await Payment.find({
-      ...branchFilter,
-      status: 'PENDING',
-    })
-      .sort({ date: -1 })
-      .limit(6)
-      .populate('userId', 'name phone email')
-      .populate('branchId', 'city');
-
-    const newEnquiriesAlerts = await Enquiry.find({
-      ...branchFilter,
-      status: 'NEW',
-    })
-      .sort({ createdAt: -1 })
-      .limit(6)
-      .populate('branchId', 'city');
-
-    res.status(200).json({
+    const payload = {
       success: true,
       kpis: {
         totalClients,
@@ -422,7 +445,10 @@ const getDashboardOverview = async (req, res, next) => {
         pendingPayments: pendingPaymentsAlerts,
         newEnquiries: newEnquiriesAlerts,
       },
-    });
+    };
+
+    dashboardCache.setCached(cacheKey, payload, 30000);
+    res.status(200).json(payload);
   } catch (err) {
     next(err);
   }

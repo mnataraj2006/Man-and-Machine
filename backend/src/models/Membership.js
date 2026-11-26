@@ -128,6 +128,8 @@ membershipSchema.pre('save', function () {
 });
 
 membershipSchema.index({ branchId: 1, status: 1, expiryDate: -1 });
+membershipSchema.index({ userId: 1, status: 1, expiryDate: -1 });
+membershipSchema.index({ userId: 1, createdAt: -1 });
 membershipSchema.index({ startDate: -1, createdAt: -1 });
 
 const Membership = mongoose.model('Membership', membershipSchema);

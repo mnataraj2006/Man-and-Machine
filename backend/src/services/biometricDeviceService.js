@@ -12,6 +12,7 @@ const {
   getKolkataDayRange,
   getKolkataMonthRange,
 } = require('./financeService');
+const dashboardCache = require('../utils/dashboardCache');
 
 /**
  * Compute real device status from isActive + lastSeenAt heartbeat window.
@@ -754,6 +755,10 @@ const handleAdmsAttLog = async (sn, rawBody) => {
       action: 'ADMS_ATTLOG',
       message: `Attendance synchronized: ${processed} new, ${duplicates} duplicate(s) skipped.`,
     });
+  }
+
+  if (processed > 0) {
+    dashboardCache.invalidateOnAttendance();
   }
 
   return { found: true, processed, duplicates };

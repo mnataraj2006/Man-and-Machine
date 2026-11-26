@@ -17,6 +17,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const { resolveClientTrainer } = require('../utils/trainerAssignment');
 const financeService = require('../services/financeService');
+const dashboardCache = require('../utils/dashboardCache');
 
 /**
  * Helper to calculate days remaining from an expiry date
@@ -37,75 +38,153 @@ const getDaysRemaining = (expiryDate) => {
 const getDashboardSummary = async (req, res, next) => {
   try {
     const userId = req.user._id;
+    const cacheKey = `client:dashboard:${userId}`;
+    const cachedPayload = dashboardCache.getCached(cacheKey);
+    if (cachedPayload) {
+      return res.status(200).json(cachedPayload);
+    }
 
-    // 1. Fetch Client Profile & User
-    const user = await User.findById(userId)
-      .select('-password')
-      .populate('branchId', 'name city address phone');
-
-    const clientProfile = await ClientProfile.findOne({ userId });
-    const { trainerAssigned, trainer: activeTrainerUser } = await resolveClientTrainer(clientProfile);
-
-    // 2. Fetch Active Membership
     const now = new Date();
-    const activeMembership = await Membership.findOne({
-      userId,
-      status: 'ACTIVE',
-      startDate: { $lte: now },
-      expiryDate: { $gte: now },
-    }).populate('branchId', 'name city');
-
-    const latestMembership = !activeMembership
-      ? await Membership.findOne({ userId })
-          .sort({ createdAt: -1 })
-          .populate('branchId', 'name city')
-      : null;
-
-    const hasActiveMembership = Boolean(activeMembership);
-
-    // 3. Attendance Metrics
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-
-    const monthlyAttendanceCount = await Attendance.countDocuments({
-      userId,
-      date: { $gte: startOfMonth, $lte: endOfMonth },
-    });
-
-    // Calculate weekly attendance (Monday to Sunday of current week)
-    const dayOfWeek = now.getDay(); // 0 is Sunday
+    const dayOfWeek = now.getDay();
     const distanceToMonday = (dayOfWeek + 6) % 7;
     const mondayThisWeek = new Date(now);
     mondayThisWeek.setDate(now.getDate() - distanceToMonday);
     mondayThisWeek.setHours(0, 0, 0, 0);
-
     const sundayThisWeek = new Date(mondayThisWeek);
     sundayThisWeek.setDate(mondayThisWeek.getDate() + 6);
     sundayThisWeek.setHours(23, 59, 59, 999);
 
-    const weekAttendances = await Attendance.find({
-      userId,
-      date: { $gte: mondayThisWeek, $lte: sundayThisWeek },
-    });
-
-    // 4. Completed Workout Sessions (Only if trainer assigned)
-    let totalCompletedWorkouts = 0;
-    let weekWorkouts = [];
-    if (trainerAssigned) {
-      totalCompletedWorkouts = await WorkoutSession.countDocuments({
+    const [
+      user,
+      clientProfile,
+      activeMembership,
+      latestMembership,
+      monthlyAttendanceCount,
+      weekAttendances,
+      recentAttendances,
+      recentNotifications,
+      allRecentDates,
+    ] = await Promise.all([
+      User.findById(userId).select('name email phone role branchId').populate('branchId', 'name city address phone').lean(),
+      ClientProfile.findOne({ userId }).lean(),
+      Membership.findOne({
         userId,
-        status: 'COMPLETED',
-      });
-
-      weekWorkouts = await WorkoutSession.find({
+        status: 'ACTIVE',
+        startDate: { $lte: now },
+        expiryDate: { $gte: now },
+      })
+        .select('planName status startDate expiryDate renewalRequested trainingPreference branchId')
+        .populate('branchId', 'name city')
+        .lean(),
+      Membership.findOne({ userId })
+        .sort({ createdAt: -1 })
+        .select('status expiryDate branchId')
+        .populate('branchId', 'name city')
+        .lean(),
+      Attendance.countDocuments({
+        userId,
+        date: { $gte: startOfMonth, $lte: endOfMonth },
+      }),
+      Attendance.find({
         userId,
         date: { $gte: mondayThisWeek, $lte: sundayThisWeek },
-        status: 'COMPLETED',
-      });
+      })
+        .select('date')
+        .lean(),
+      Attendance.find({ userId })
+        .sort({ date: -1 })
+        .limit(3)
+        .select('date checkInTime branchId')
+        .populate('branchId', 'city')
+        .lean(),
+      Notification.find({ userId })
+        .sort({ createdAt: -1 })
+        .limit(3)
+        .select('title message createdAt')
+        .lean(),
+      Attendance.find({ userId })
+        .sort({ date: -1 })
+        .limit(30)
+        .select('date')
+        .lean(),
+    ]);
+
+    const { trainerAssigned, trainer: activeTrainerUser } = await resolveClientTrainer(clientProfile);
+    const hasActiveMembership = Boolean(activeMembership);
+
+    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    let totalCompletedWorkouts = 0;
+    let weekWorkouts = [];
+    let todaysWorkout = null;
+    let trainerInfo = null;
+    let recentSessions = [];
+
+    if (trainerAssigned) {
+      const [
+        completedCount,
+        weekWorkoutRows,
+        activeWorkoutPlan,
+        trainerProf,
+        sessionRows,
+      ] = await Promise.all([
+        WorkoutSession.countDocuments({ userId, status: 'COMPLETED' }),
+        WorkoutSession.find({
+          userId,
+          date: { $gte: mondayThisWeek, $lte: sundayThisWeek },
+          status: 'COMPLETED',
+        })
+          .select('date')
+          .lean(),
+        WorkoutPlan.findOne({ assignedTo: userId, isActive: true })
+          .select('title schedule exercises trainerId')
+          .populate('trainerId', 'name email')
+          .lean(),
+        activeTrainerUser
+          ? TrainerProfile.findOne({ userId: activeTrainerUser.id })
+              .select('contactPhone specialization experienceYears bio')
+              .lean()
+          : Promise.resolve(null),
+        WorkoutSession.find({ userId })
+          .sort({ date: -1 })
+          .limit(3)
+          .select('workoutTitle durationMinutes completedExercises date')
+          .lean(),
+      ]);
+
+      totalCompletedWorkouts = completedCount;
+      weekWorkouts = weekWorkoutRows;
+      recentSessions = sessionRows;
+
+      if (activeWorkoutPlan) {
+        const todayName = dayNames[distanceToMonday];
+        const daySchedule = activeWorkoutPlan.schedule.find((s) => s.day === todayName);
+        todaysWorkout = {
+          planId: activeWorkoutPlan._id,
+          title: activeWorkoutPlan.title,
+          day: todayName,
+          focus: daySchedule ? daySchedule.focus : 'General Training',
+          isRestDay: daySchedule ? daySchedule.isRestDay : false,
+          trainerName: activeWorkoutPlan.trainerId ? activeWorkoutPlan.trainerId.name : null,
+          exerciseCount: activeWorkoutPlan.exercises.length,
+          exercises: activeWorkoutPlan.exercises.slice(0, 3),
+        };
+      }
+
+      if (activeTrainerUser) {
+        trainerInfo = {
+          id: activeTrainerUser.id,
+          name: activeTrainerUser.name,
+          email: activeTrainerUser.email,
+          phone: activeTrainerUser.phone || trainerProf?.contactPhone || '',
+          specialization: trainerProf?.specialization || 'Strength & Conditioning',
+          experienceYears: trainerProf?.experienceYears || 5,
+          bio: trainerProf?.bio || '',
+        };
+      }
     }
 
-    // Build weekly chart data (Mon - Sun)
-    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const weeklyActivity = dayNames.map((name, index) => {
       const targetDate = new Date(mondayThisWeek);
       targetDate.setDate(mondayThisWeek.getDate() + index);
@@ -124,62 +203,6 @@ const getDashboardSummary = async (req, res, next) => {
         workouts: workoutCount,
       };
     });
-
-    // 5. Today's Workout from Active Plan (Only if trainer assigned)
-    let todaysWorkout = null;
-    if (trainerAssigned) {
-      const todayName = dayNames[distanceToMonday];
-      const activeWorkoutPlan = await WorkoutPlan.findOne({
-        assignedTo: userId,
-        isActive: true,
-      }).populate('trainerId', 'name email');
-
-      if (activeWorkoutPlan) {
-        const daySchedule = activeWorkoutPlan.schedule.find((s) => s.day === todayName);
-        todaysWorkout = {
-          planId: activeWorkoutPlan._id,
-          title: activeWorkoutPlan.title,
-          day: todayName,
-          focus: daySchedule ? daySchedule.focus : 'General Training',
-          isRestDay: daySchedule ? daySchedule.isRestDay : false,
-          trainerName: activeWorkoutPlan.trainerId ? activeWorkoutPlan.trainerId.name : null,
-          exerciseCount: activeWorkoutPlan.exercises.length,
-          exercises: activeWorkoutPlan.exercises.slice(0, 3), // Preview of first 3
-        };
-      }
-    }
-
-    // 6. Assigned Trainer Details (Only if trainer assigned)
-    let trainerInfo = null;
-    if (trainerAssigned && activeTrainerUser) {
-      const trainerProf = await TrainerProfile.findOne({ userId: activeTrainerUser.id });
-      trainerInfo = {
-        id: activeTrainerUser.id,
-        name: activeTrainerUser.name,
-        email: activeTrainerUser.email,
-        phone: activeTrainerUser.phone || trainerProf?.contactPhone || '',
-        specialization: trainerProf?.specialization || 'Strength & Conditioning',
-        experienceYears: trainerProf?.experienceYears || 5,
-        bio: trainerProf?.bio || '',
-      };
-    }
-
-    // 7. Recent Genuine Activities
-    const recentAttendances = await Attendance.find({ userId })
-      .sort({ date: -1 })
-      .limit(3)
-      .populate('branchId', 'city');
-
-    let recentSessions = [];
-    if (trainerAssigned) {
-      recentSessions = await WorkoutSession.find({ userId })
-        .sort({ date: -1 })
-        .limit(3);
-    }
-
-    const recentNotifications = await Notification.find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(3);
 
     const activities = [
       ...recentAttendances.map((a) => ({
@@ -207,15 +230,8 @@ const getDashboardSummary = async (req, res, next) => {
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       .slice(0, 5);
 
-    // 8. Streak calculation (consecutive recent check-ins)
-    const allRecentDates = await Attendance.find({ userId })
-      .sort({ date: -1 })
-      .limit(30)
-      .select('date');
-
     let streakDays = 0;
     if (allRecentDates.length > 0) {
-      // Check if visited today or yesterday to maintain active streak
       const todayStr = now.toISOString().slice(0, 10);
       const yesterday = new Date(now);
       yesterday.setDate(now.getDate() - 1);
@@ -223,11 +239,11 @@ const getDashboardSummary = async (req, res, next) => {
 
       const latestStr = allRecentDates[0].date.toISOString().slice(0, 10);
       if (latestStr === todayStr || latestStr === yesterdayStr) {
-        streakDays = allRecentDates.length; // Approximate active streak count
+        streakDays = allRecentDates.length;
       }
     }
 
-    return res.status(200).json({
+    const payload = {
       success: true,
       trainerAssigned,
       client: {
@@ -248,7 +264,9 @@ const getDashboardSummary = async (req, res, next) => {
         membershipStatus: hasActiveMembership
           ? 'ACTIVE'
           : latestMembership
-          ? (new Date(latestMembership.expiryDate) < now || latestMembership.status === 'EXPIRED' ? 'EXPIRED' : latestMembership.status)
+          ? new Date(latestMembership.expiryDate) < now || latestMembership.status === 'EXPIRED'
+            ? 'EXPIRED'
+            : latestMembership.status
           : 'NOT_ENROLLED',
         trainingStreak: streakDays,
       },
@@ -268,7 +286,10 @@ const getDashboardSummary = async (req, res, next) => {
       weeklyActivity,
       trainer: trainerInfo,
       recentActivities: activities,
-    });
+    };
+
+    dashboardCache.setCached(cacheKey, payload, 20000);
+    return res.status(200).json(payload);
   } catch (err) {
     next(err);
   }

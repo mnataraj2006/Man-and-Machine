@@ -13,6 +13,7 @@ const Exercise = require('../models/Exercise');
 const Branch = require('../models/Branch');
 const TrainerBooking = require('../models/TrainerBooking');
 const bcrypt = require('bcryptjs');
+const dashboardCache = require('../utils/dashboardCache');
 
 /**
  * Helper to verify that a client is assigned to this trainer
@@ -33,90 +34,97 @@ const verifyClientAssigned = async (trainerId, clientId, userRole = 'TRAINER') =
 const getDashboardOverview = async (req, res, next) => {
   try {
     const trainerId = req.user._id;
+    const cacheKey = `trainer:dashboard:${trainerId}`;
+    const cachedPayload = dashboardCache.getCached(cacheKey);
+    if (cachedPayload) {
+      return res.status(200).json(cachedPayload);
+    }
 
-    // 1. Fetch Trainer User & Profile
-    const trainerUser = await User.findById(trainerId).select('-password').populate('branchId', 'name city');
-    const trainerProfile = await TrainerProfile.findOne({ userId: trainerId });
-
-    // 2. Dates setup
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // 3. KPI 1: Active Assigned Clients
-    const assignedClientProfiles = await ClientProfile.find({ trainerId })
-      .populate('userId', 'name email phone avatar status branchId')
-      .populate('branchId', 'name city');
+    const [
+      trainerUser,
+      trainerProfile,
+      assignedClientProfiles,
+      todaySessions,
+      completedSessionsThisMonth,
+      activeWorkoutPlansCount,
+      totalScheduledThisMonth,
+      recentCompletions,
+      unreadNotificationsCount,
+    ] = await Promise.all([
+      User.findById(trainerId).select('name email phone branchId').populate('branchId', 'name city').lean(),
+      TrainerProfile.findOne({ userId: trainerId }).select('contactPhone specialization experienceYears bio').lean(),
+      ClientProfile.find({ trainerId })
+        .select('userId branchId fitnessGoal experienceLevel joiningDate')
+        .populate('userId', 'name email phone avatar status branchId')
+        .populate('branchId', 'name city')
+        .lean(),
+      TrainingAppointment.find({
+        trainerId,
+        scheduledAt: { $gte: startOfDay, $lte: endOfDay },
+      })
+        .populate('clientId', 'name email phone avatar')
+        .populate('branchId', 'name city')
+        .sort({ scheduledAt: 1 })
+        .lean(),
+      TrainingAppointment.countDocuments({
+        trainerId,
+        status: 'COMPLETED',
+        updatedAt: { $gte: startOfMonth, $lte: endOfMonth },
+      }),
+      WorkoutPlan.countDocuments({
+        trainerId,
+        isActive: true,
+        status: 'PUBLISHED',
+      }),
+      TrainingAppointment.countDocuments({
+        trainerId,
+        scheduledAt: { $gte: startOfMonth, $lte: endOfMonth },
+        status: { $in: ['COMPLETED', 'MISSED', 'SCHEDULED'] },
+      }),
+      TrainingAppointment.find({
+        trainerId,
+        status: 'COMPLETED',
+      })
+        .select('clientId scheduledAt updatedAt status notes')
+        .populate('clientId', 'name email')
+        .sort({ updatedAt: -1 })
+        .limit(5)
+        .lean(),
+      Notification.countDocuments({
+        userId: trainerId,
+        isRead: false,
+      }),
+    ]);
 
     const activeClientsCount = assignedClientProfiles.filter(
       (cp) => cp.userId && cp.userId.status !== 'INACTIVE'
     ).length;
 
-    // 4. KPI 2: Today's Scheduled Sessions
-    const todaySessions = await TrainingAppointment.find({
-      trainerId,
-      scheduledAt: { $gte: startOfDay, $lte: endOfDay },
-    })
-      .populate('clientId', 'name email phone avatar')
-      .populate('branchId', 'name city')
-      .sort({ scheduledAt: 1 });
-
     const todaySessionsCount = todaySessions.filter((s) => s.status !== 'CANCELLED').length;
 
-    // 5. KPI 3: Completed Sessions This Month
-    const completedSessionsThisMonth = await TrainingAppointment.countDocuments({
-      trainerId,
-      status: 'COMPLETED',
-      updatedAt: { $gte: startOfMonth, $lte: endOfMonth },
-    });
-
-    // 6. KPI 4: Active Workout Plans Created/Managed
-    const activeWorkoutPlansCount = await WorkoutPlan.countDocuments({
-      trainerId,
-      isActive: true,
-      status: 'PUBLISHED',
-    });
-
-    // 7. KPI 5: Pending Client Progress Assessments (clients with no assessment in last 30 days)
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const clientUserIds = assignedClientProfiles.map((cp) => cp.userId?._id).filter(Boolean);
-
-    const recentAssessments = await ProgressRecord.find({
-      userId: { $in: clientUserIds },
-      date: { $gte: thirtyDaysAgo },
-    }).distinct('userId');
-
+    const recentAssessments =
+      clientUserIds.length > 0
+        ? await ProgressRecord.distinct('userId', {
+            userId: { $in: clientUserIds },
+            date: { $gte: thirtyDaysAgo },
+          })
+        : [];
     const pendingAssessmentsCount = Math.max(0, clientUserIds.length - recentAssessments.length);
 
-    // 8. KPI 6: Completion & Attendance Rate
-    const totalScheduledThisMonth = await TrainingAppointment.countDocuments({
-      trainerId,
-      scheduledAt: { $gte: startOfMonth, $lte: endOfMonth },
-      status: { $in: ['COMPLETED', 'MISSED', 'SCHEDULED'] },
-    });
-    const attendanceRate = totalScheduledThisMonth > 0
-      ? Math.round((completedSessionsThisMonth / totalScheduledThisMonth) * 100)
-      : 100;
+    const attendanceRate =
+      totalScheduledThisMonth > 0
+        ? Math.round((completedSessionsThisMonth / totalScheduledThisMonth) * 100)
+        : 100;
 
-    // 9. Recent completed sessions
-    const recentCompletions = await TrainingAppointment.find({
-      trainerId,
-      status: 'COMPLETED',
-    })
-      .populate('clientId', 'name email')
-      .sort({ updatedAt: -1 })
-      .limit(5);
-
-    // 10. Unread notifications count
-    const unreadNotificationsCount = await Notification.countDocuments({
-      userId: trainerId,
-      isRead: false,
-    });
-
-    res.status(200).json({
+    const payload = {
       success: true,
       trainer: {
         id: trainerUser._id,
@@ -149,7 +157,10 @@ const getDashboardOverview = async (req, res, next) => {
       })),
       recentCompletions,
       unreadNotificationsCount,
-    });
+    };
+
+    dashboardCache.setCached(cacheKey, payload, 20000);
+    res.status(200).json(payload);
   } catch (err) {
     next(err);
   }
