@@ -5,7 +5,13 @@ const attendanceSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      default: null,
+      index: true,
+    },
+    clientProfileId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ClientProfile',
+      default: null,
       index: true,
     },
     branchId: {

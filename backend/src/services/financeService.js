@@ -525,6 +525,7 @@ const recordPaymentOnInvoice = async (
   // Creating an explicit PAID Payment record for each settlement guarantees exact date-wise cash/UPI reporting!
   const payment = await Payment.create({
     userId: invoice.clientId,
+    clientProfileId: invoice.clientProfileId || null,
     branchId: invoice.branchId,
     invoiceId: invoice._id,
     membershipId: invoice.membershipId,

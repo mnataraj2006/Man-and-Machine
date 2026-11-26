@@ -25,6 +25,9 @@ import {
   CheckCircle2,
   UserPlus,
   RotateCcw,
+  Wallet,
+  ShieldCheck,
+  UserCog,
 } from 'lucide-react';
 import adminService from '../../services/adminService.js';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
@@ -60,6 +63,8 @@ export default function Clients() {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addError, setAddError] = useState(null);
+  const [addDuplicateClient, setAddDuplicateClient] = useState(null);
+  const [newlyCreatedClient, setNewlyCreatedClient] = useState(null);
   const [submittingAdd, setSubmittingAdd] = useState(false);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -79,6 +84,9 @@ export default function Clients() {
     planId: '',
     startDate: new Date().toISOString().slice(0, 10),
     amount: '',
+    paymentMethod: 'CASH',
+    paymentStatus: 'FULL',
+    referenceNumber: '',
   });
   const [assignLoading, setAssignLoading] = useState(false);
 
@@ -91,6 +99,27 @@ export default function Clients() {
   const [trainersList, setTrainersList] = useState([]);
   const [plans, setPlans] = useState([]);
 
+  // Record Payment modal state
+  const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
+  const [recordPaymentInvoice, setRecordPaymentInvoice] = useState(null);
+  const [recordPaymentForm, setRecordPaymentForm] = useState({
+    amount: '',
+    paymentMethod: 'CASH',
+    paymentDate: new Date().toISOString().slice(0, 10),
+    referenceNumber: '',
+    notes: '',
+  });
+  const [recordPaymentLoading, setRecordPaymentLoading] = useState(false);
+  const [recordPaymentError, setRecordPaymentError] = useState(null);
+
+  // Client invoices state
+  const [clientInvoices, setClientInvoices] = useState([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
+
+  // Create Login Access state
+  const [creatingLoginAccess, setCreatingLoginAccess] = useState(false);
+  const [loginAccessResult, setLoginAccessResult] = useState(null);
+
   // Section scroll refs inside Dossier
   const membershipSectionRef = useRef(null);
   const attendanceSectionRef = useRef(null);
@@ -101,21 +130,28 @@ export default function Clients() {
     name: '',
     email: '',
     phone: '',
+    gender: '',
+    dateOfBirth: '',
+    address: '',
+    emergencyContact: '',
+    registrationDate: new Date().toISOString().slice(0, 10),
+    notes: '',
     createLoginAccess: false,
     branchId: '',
-    fitnessGoal: 'Muscle Building',
-    experienceLevel: 'Intermediate',
+    fitnessGoal: 'General Fitness',
+    experienceLevel: 'Beginner',
     trainerId: '',
-    planId: '',
-    membershipPlanName: '',
-    durationMonths: 1,
-    membershipAmount: 0,
   });
 
   const [editForm, setEditForm] = useState({
     name: '',
     phone: '',
     email: '',
+    gender: '',
+    dateOfBirth: '',
+    address: '',
+    emergencyContact: '',
+    notes: '',
     branchId: '',
     fitnessGoal: '',
     experienceLevel: '',
@@ -138,7 +174,8 @@ export default function Clients() {
       isEditModalOpen ||
       isPasswordModalOpen ||
       isAssignModalOpen ||
-      isTrainerModalOpen
+      isTrainerModalOpen ||
+      isRecordPaymentOpen
   );
 
   // Lock background scroll whenever any modal or sheet is open
@@ -318,14 +355,22 @@ export default function Clients() {
     setDetailTargetSection(focusSection);
     setSelectedClientId(id);
     setDetailLoading(true);
+    setClientInvoices([]);
+    setLoginAccessResult(null);
+    setInvoicesLoading(true);
     try {
-      const res = await adminService.getClientDetails(id);
+      const [res, invRes] = await Promise.all([
+        adminService.getClientDetails(id),
+        adminService.getClientInvoices(id).catch(() => ({ invoices: [] })),
+      ]);
       setClientDetailData(res);
+      setClientInvoices(invRes.invoices || []);
     } catch (err) {
       setSelectedClientId(null);
       showFeedback('error', err.message || 'Failed to fetch client dossier');
     } finally {
       setDetailLoading(false);
+      setInvoicesLoading(false);
     }
   };
 
@@ -334,13 +379,19 @@ export default function Clients() {
     setEditError(null);
     const id = c.id || c._id;
     setEditTargetId(id);
+    const profile = clientDetailData?.profile;
     setEditForm({
       name: c.name || '',
       phone: c.phone || '',
       email: c.email || '',
+      gender: profile?.gender || c.gender || '',
+      dateOfBirth: profile?.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().slice(0, 10) : '',
+      address: profile?.address || c.address || '',
+      emergencyContact: profile?.emergencyContact || c.emergencyContact || '',
+      notes: profile?.notes || c.notes || '',
       branchId: c.branch?._id || '',
-      fitnessGoal: c.fitnessGoal || clientDetailData?.profile?.fitnessGoal || 'General Fitness',
-      experienceLevel: c.experienceLevel || clientDetailData?.profile?.experienceLevel || 'Beginner',
+      fitnessGoal: c.fitnessGoal || profile?.fitnessGoal || 'General Fitness',
+      experienceLevel: c.experienceLevel || profile?.experienceLevel || 'Beginner',
     });
     setIsEditModalOpen(true);
   };
@@ -490,19 +541,23 @@ export default function Clients() {
 
   const handleOpenAddModal = () => {
     setAddError(null);
+    setAddDuplicateClient(null);
+    setNewlyCreatedClient(null);
     setAddForm({
       name: '',
       email: '',
       phone: '',
+      gender: '',
+      dateOfBirth: '',
+      address: '',
+      emergencyContact: '',
+      registrationDate: new Date().toISOString().slice(0, 10),
+      notes: '',
       createLoginAccess: false,
       branchId: branches[0]?._id || '',
-      fitnessGoal: 'Muscle Building',
-      experienceLevel: 'Intermediate',
+      fitnessGoal: 'General Fitness',
+      experienceLevel: 'Beginner',
       trainerId: '',
-      planId: '',
-      membershipPlanName: '',
-      durationMonths: 1,
-      membershipAmount: 0,
     });
     setIsAddModalOpen(true);
   };
@@ -510,34 +565,70 @@ export default function Clients() {
   const handleCreateClientSubmit = async (e) => {
     e.preventDefault();
     setAddError(null);
+    setAddDuplicateClient(null);
     try {
       setSubmittingAdd(true);
-      await adminService.createClient(addForm);
-      setIsAddModalOpen(false);
+      const res = await adminService.createClient(addForm);
       setPage(1);
       await fetchClients();
-      showFeedback('success', 'Client registered successfully.');
+      showFeedback('success', res.message || 'Client registered successfully.');
+      const branchObj = branches.find((b) => b._id === addForm.branchId);
+      setNewlyCreatedClient({
+        ...res.client,
+        id: res.client?.id || res.client?.profileId,
+        branch: branchObj || { _id: addForm.branchId },
+      });
     } catch (err) {
+      if (err.status === 409 && err.data?.existingClient) {
+        setAddDuplicateClient(err.data.existingClient);
+      }
       setAddError(err.message || 'Failed to create client');
     } finally {
       setSubmittingAdd(false);
     }
   };
 
+  const getActivePlansForBranch = (branchId) => {
+    return plans.filter((p) => {
+      if (p.isActive === false) return false;
+      if (!branchId || !p.branchPricing || p.branchPricing.length === 0) return true;
+      const bp = p.branchPricing.find(
+        (b) => (b.branchId?._id || b.branchId || '').toString() === branchId.toString()
+      );
+      return !bp || bp.isAvailable !== false;
+    });
+  };
+
+  const getPlanPricingForBranch = (plan, branchId) => {
+    if (!plan) return { basePrice: 0, joiningFee: 0, discount: 0, finalPrice: 0 };
+    const bp = branchId
+      ? plan.branchPricing?.find(
+          (b) => (b.branchId?._id || b.branchId || '').toString() === branchId.toString()
+        )
+      : null;
+    const basePrice = bp?.price ?? plan.price ?? 0;
+    const joiningFee = bp?.joiningFee ?? plan.joiningFee ?? 0;
+    const discount = bp?.discount ?? plan.discount ?? 0;
+    const finalPrice = bp?.finalPrice ?? Math.max(0, basePrice + joiningFee - discount);
+    return { basePrice, joiningFee, discount, finalPrice };
+  };
+
   const handleOpenAssignMembershipModal = (client) => {
     setActionSheetClient(null);
     setAssignError(null);
-    const defaultPlan = plans[0];
     const targetBranchId = client.branch?._id || client.branch || branches[0]?._id;
-    const bp = defaultPlan?.branchPricing?.find(
-      (b) => (b.branchId?._id || b.branchId || '').toString() === (targetBranchId || '').toString()
-    );
-    const defaultCost = bp?.finalPrice !== undefined ? bp.finalPrice : (defaultPlan?.price || '');
+    const branchPlans = getActivePlansForBranch(targetBranchId);
+    const defaultPlan = branchPlans[0] || plans[0];
+    const pricing = getPlanPricingForBranch(defaultPlan, targetBranchId);
     setAssignTargetClient(client);
     setAssignForm({
       planId: defaultPlan?._id || '',
       startDate: new Date().toISOString().slice(0, 10),
-      amount: defaultCost,
+      amount: pricing.finalPrice,
+      partialAmount: '',
+      paymentMethod: 'CASH',
+      paymentStatus: 'FULL',
+      referenceNumber: '',
     });
     setIsAssignModalOpen(true);
   };
@@ -559,14 +650,31 @@ export default function Clients() {
       setAssignLoading(true);
       const selectedPlan = plans.find((p) => p._id === assignForm.planId);
       const branchId = clientObj?.branch?._id || clientObj?.branch || branches[0]?._id;
+      const isWalkIn = clientObj?.accountAccessStatus === 'NOT_CREATED' || clientObj?.status === 'NOT_CREATED';
+
+      // Determine paid amount based on payment status
+      let paidAmount;
+      if (assignForm.paymentStatus === 'FULL') {
+        paidAmount = assignForm.amount !== '' ? Number(assignForm.amount) : undefined;
+      } else if (assignForm.paymentStatus === 'PARTIAL') {
+        paidAmount = assignForm.partialAmount !== '' ? Number(assignForm.partialAmount) : 0;
+      } else {
+        // PENDING
+        paidAmount = 0;
+      }
 
       await adminService.createClientMembership({
-        ...(clientObj?.accountAccessStatus === 'NOT_CREATED' || clientObj?.status === 'NOT_CREATED' ? { clientProfileId: clientId } : { userId: clientId }),
+        ...(isWalkIn ? { clientProfileId: clientId } : { userId: clientId }),
         branchId,
         planId: assignForm.planId,
         planName: selectedPlan?.name,
         amount: assignForm.amount !== '' ? Number(assignForm.amount) : undefined,
+        paidAmount,
+        paymentMethod: assignForm.paymentMethod || 'CASH',
+        paymentStatus: assignForm.paymentStatus,
+        referenceNumber: assignForm.referenceNumber || undefined,
         startDate: assignForm.startDate,
+        allowAccessWithBalance: false,
       });
 
       setIsAssignModalOpen(false);
@@ -579,6 +687,65 @@ export default function Clients() {
       setAssignError(err.message || 'Failed to assign membership');
     } finally {
       setAssignLoading(false);
+    }
+  };
+
+  // ── Record Payment handler ──
+  const handleOpenRecordPayment = (invoice) => {
+    setRecordPaymentInvoice(invoice);
+    setRecordPaymentError(null);
+    setRecordPaymentForm({
+      amount: invoice.balanceAmount || '',
+      paymentMethod: 'CASH',
+      paymentDate: new Date().toISOString().slice(0, 10),
+      referenceNumber: '',
+      notes: '',
+    });
+    setIsRecordPaymentOpen(true);
+  };
+
+  const handleSubmitRecordPayment = async (e) => {
+    e.preventDefault();
+    if (!recordPaymentInvoice) return;
+    setRecordPaymentError(null);
+    try {
+      setRecordPaymentLoading(true);
+      await adminService.recordInvoicePayment(recordPaymentInvoice._id || recordPaymentInvoice.id, {
+        amount: Number(recordPaymentForm.amount),
+        paymentMethod: recordPaymentForm.paymentMethod,
+        paymentDate: recordPaymentForm.paymentDate,
+        referenceNumber: recordPaymentForm.referenceNumber || undefined,
+        notes: recordPaymentForm.notes || undefined,
+      });
+      setIsRecordPaymentOpen(false);
+      showFeedback('success', `Payment of ₹${recordPaymentForm.amount} recorded successfully.`);
+      if (selectedClientId) {
+        await handleOpenClientDetails(selectedClientId);
+        // Refresh invoices
+        const invRes = await adminService.getClientInvoices(selectedClientId).catch(() => ({ invoices: [] }));
+        setClientInvoices(invRes.invoices || []);
+      }
+    } catch (err) {
+      setRecordPaymentError(err.message || 'Failed to record payment');
+    } finally {
+      setRecordPaymentLoading(false);
+    }
+  };
+
+  // ── Create Login Access handler ──
+  const handleCreateLoginAccess = async () => {
+    if (!selectedClientId) return;
+    setCreatingLoginAccess(true);
+    setLoginAccessResult(null);
+    try {
+      const res = await adminService.createClientLoginAccess(selectedClientId);
+      setLoginAccessResult({ success: true, message: res.message || 'Login access created.', url: res.manualActivationUrl });
+      showFeedback('success', 'Login access created successfully.');
+      await handleOpenClientDetails(selectedClientId);
+    } catch (err) {
+      setLoginAccessResult({ success: false, message: err.message || 'Failed to create login access' });
+    } finally {
+      setCreatingLoginAccess(false);
     }
   };
 
@@ -894,7 +1061,14 @@ export default function Clients() {
                               {c.name ? c.name[0].toUpperCase() : 'U'}
                             </div>
                             <div className="flex flex-col">
-                              <span className="font-bold text-[#F5F5F5]">{c.name}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-[#F5F5F5]">{c.name}</span>
+                                {(c.accountAccessStatus === 'NOT_CREATED' || c.status === 'NOT_CREATED') && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#303030] text-[#B8B8B8] border border-[#404040]">
+                                    WALK-IN
+                                  </span>
+                                )}
+                              </div>
                               <span className="text-[10px] text-[#B8B8B8] font-mono">
                                 ID: {(c.id || c._id || '').toString().slice(-6)} • Joined{' '}
                                 {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '—'}
@@ -906,8 +1080,8 @@ export default function Clients() {
                         {/* Contact */}
                         <td className="py-3 px-4">
                           <div className="flex flex-col">
-                            <span className="text-[#F5F5F5] font-mono">{c.phone}</span>
-                            <span className="text-[10px] text-[#B8B8B8]">{c.email}</span>
+                            <span className="text-[#F5F5F5] font-mono">{c.phone || '—'}</span>
+                            <span className="text-[10px] text-[#B8B8B8]">{c.email || 'No email'}</span>
                           </div>
                         </td>
 
@@ -1017,6 +1191,11 @@ export default function Clients() {
                         </h3>
                         <div className="flex flex-wrap items-center gap-1.5">
                           {renderAccountBadge(c.status)}
+                          {(c.accountAccessStatus === 'NOT_CREATED' || c.status === 'NOT_CREATED') && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#303030] text-[#B8B8B8] border border-[#404040]">
+                              WALK-IN
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1037,11 +1216,11 @@ export default function Clients() {
                   <div className="space-y-1.5 text-xs text-[#B8B8B8] border-t border-[#252525] pt-3 min-w-0">
                     <div className="flex items-start gap-2 min-w-0">
                       <Mail className="w-3.5 h-3.5 text-[#F03B2E] shrink-0 mt-0.5" />
-                      <span className="break-all min-w-0 text-[#F5F5F5]">{c.email}</span>
+                      <span className="break-all min-w-0 text-[#F5F5F5]">{c.email || <span className="text-[#858585] italic">No email</span>}</span>
                     </div>
                     <div className="flex items-center gap-2 min-w-0">
                       <Phone className="w-3.5 h-3.5 text-[#F03B2E] shrink-0" />
-                      <span className="font-mono text-[#F5F5F5]">{c.phone}</span>
+                      <span className="font-mono text-[#F5F5F5]">{c.phone || <span className="text-[#858585] italic">No phone</span>}</span>
                     </div>
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] text-[#858585]">
                       <span className="inline-flex items-center gap-1 font-semibold text-[#F5F5F5]">
@@ -1467,9 +1646,16 @@ export default function Clients() {
                 <>
                   {/* 1. Personal Information */}
                   <section className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-3">
-                    <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold block">
-                      1. Personal Information
-                    </span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold block">
+                        1. Personal Information
+                      </span>
+                      {clientDetailData.client.accountAccessStatus === 'NOT_CREATED' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#303030] text-[#B8B8B8] border border-[#404040]">
+                          WALK-IN
+                        </span>
+                      )}
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                       <div>
                         <span className="text-[10px] font-mono uppercase text-[#858585] block">Full Name</span>
@@ -1477,11 +1663,15 @@ export default function Clients() {
                       </div>
                       <div className="min-w-0">
                         <span className="text-[10px] font-mono uppercase text-[#858585] block">Email</span>
-                        <p className="font-bold text-[#F5F5F5] mt-0.5 break-all">{clientDetailData.client.email}</p>
+                        <p className="font-bold text-[#F5F5F5] mt-0.5 break-all">
+                          {clientDetailData.client.email || <span className="text-[#858585] italic">Not provided</span>}
+                        </p>
                       </div>
                       <div>
                         <span className="text-[10px] font-mono uppercase text-[#858585] block">Mobile</span>
-                        <p className="font-mono font-bold text-[#F5F5F5] mt-0.5">{clientDetailData.client.phone}</p>
+                        <p className="font-mono font-bold text-[#F5F5F5] mt-0.5">
+                          {clientDetailData.client.phone || <span className="text-[#858585] italic">Not provided</span>}
+                        </p>
                       </div>
                       <div>
                         <span className="text-[10px] font-mono uppercase text-[#858585] block">Goal &amp; Level</span>
@@ -1489,6 +1679,54 @@ export default function Clients() {
                           {clientDetailData.profile?.fitnessGoal || 'General Fitness'} •{' '}
                           {clientDetailData.profile?.experienceLevel || 'Beginner'}
                         </p>
+                      </div>
+                      {clientDetailData.profile?.gender && (
+                        <div>
+                          <span className="text-[10px] font-mono uppercase text-[#858585] block">Gender</span>
+                          <p className="font-bold text-[#F5F5F5] mt-0.5">{clientDetailData.profile.gender}</p>
+                        </div>
+                      )}
+                      {clientDetailData.profile?.dateOfBirth && (
+                        <div>
+                          <span className="text-[10px] font-mono uppercase text-[#858585] block">Date of Birth</span>
+                          <p className="font-mono font-bold text-[#F5F5F5] mt-0.5">
+                            {new Date(clientDetailData.profile.dateOfBirth).toLocaleDateString()}
+                          </p>
+                        </div>
+                      )}
+                      {clientDetailData.profile?.address && (
+                        <div className="sm:col-span-2">
+                          <span className="text-[10px] font-mono uppercase text-[#858585] block">Address</span>
+                          <p className="font-bold text-[#F5F5F5] mt-0.5">{clientDetailData.profile.address}</p>
+                        </div>
+                      )}
+                      {clientDetailData.profile?.emergencyContact && (
+                        <div>
+                          <span className="text-[10px] font-mono uppercase text-[#858585] block">Emergency Contact</span>
+                          <p className="font-bold text-[#F5F5F5] mt-0.5">{clientDetailData.profile.emergencyContact}</p>
+                        </div>
+                      )}
+                      {clientDetailData.profile?.registrationSource && (
+                        <div>
+                          <span className="text-[10px] font-mono uppercase text-[#858585] block">Registration</span>
+                          <p className="font-bold text-[#F5F5F5] mt-0.5">
+                            {clientDetailData.profile.registrationSource === 'ADMIN_REGISTERED' ? 'Admin Registered' : 'Self Registered'}
+                          </p>
+                        </div>
+                      )}
+                      {clientDetailData.profile?.notes && (
+                        <div className="sm:col-span-2">
+                          <span className="text-[10px] font-mono uppercase text-[#858585] block">Notes</span>
+                          <p className="text-[#B8B8B8] mt-0.5 italic">{clientDetailData.profile.notes}</p>
+                        </div>
+                      )}
+                      <div className="sm:col-span-2 pt-2 border-t border-[#252525] flex flex-wrap gap-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${clientDetailData.client.phone ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' : 'bg-[#202020] text-[#858585] border-[#303030]'}`}>
+                          WhatsApp: {clientDetailData.client.phone ? (clientDetailData.profile?.whatsappOptIn === false ? 'Opted Out' : 'Available') : 'Unavailable'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${clientDetailData.client.email ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' : 'bg-[#202020] text-[#858585] border-[#303030]'}`}>
+                          Email: {clientDetailData.client.email ? 'Available' : 'Unavailable'}
+                        </span>
                       </div>
                     </div>
                   </section>
@@ -1501,7 +1739,7 @@ export default function Clients() {
                       </span>
                       {renderAccountBadge(clientDetailData.client.status)}
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                       <div>
                         <span className="text-[10px] font-mono uppercase text-[#858585] block">Home Branch</span>
                         <p className="font-bold text-[#F5F5F5] mt-0.5">
@@ -1514,7 +1752,30 @@ export default function Clients() {
                           {new Date(clientDetailData.client.createdAt).toLocaleDateString()}
                         </p>
                       </div>
+                      <div>
+                        <span className="text-[10px] font-mono uppercase text-[#858585] block">Portal Access</span>
+                        <p className="font-bold mt-0.5">
+                          {clientDetailData.client.accountAccessStatus === 'NOT_CREATED'
+                            ? <span className="text-[#858585]">NOT_CREATED</span>
+                            : clientDetailData.client.accountAccessStatus === 'INVITATION_PENDING'
+                            ? <span className="text-amber-400">INVITATION_PENDING</span>
+                            : <span className="text-emerald-400">ACTIVE</span>
+                          }
+                        </p>
+                      </div>
                     </div>
+
+                    {loginAccessResult && (
+                      <div className={`p-3 rounded-lg border text-xs ${loginAccessResult.success ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' : 'bg-[#F03B2E]/10 border-[#F03B2E]/30 text-[#FF6A5E]'}`}>
+                        <p>{loginAccessResult.message}</p>
+                        {loginAccessResult.url && (
+                          <p className="font-mono mt-1 break-all text-[10px] text-[#B8B8B8]">
+                            Activation URL: {loginAccessResult.url}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex flex-wrap gap-2 pt-2 border-t border-[#252525]">
                       <button
                         type="button"
@@ -1525,28 +1786,42 @@ export default function Clients() {
                         <span>Edit Profile</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleOpenPasswordModal(clientDetailData.client)}
-                        className="min-h-[40px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#202020] hover:bg-[#303030] text-xs font-semibold text-[#F5F5F5] border border-[#303030] cursor-pointer"
-                      >
-                        <KeyRound className="w-3.5 h-3.5" />
-                        <span>Reset Password</span>
-                      </button>
+                      {clientDetailData.client.accountAccessStatus !== 'NOT_CREATED' ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPasswordModal(clientDetailData.client)}
+                            className="min-h-[40px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#202020] hover:bg-[#303030] text-xs font-semibold text-[#F5F5F5] border border-[#303030] cursor-pointer"
+                          >
+                            <KeyRound className="w-3.5 h-3.5" />
+                            <span>Reset Password</span>
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={() => requestToggleStatus(clientDetailData.client)}
-                        className={`min-h-[40px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer ${
-                          clientDetailData.client.status === 'ACTIVE'
-                            ? 'bg-[#F03B2E]/10 text-[#FF493B] border-[#F03B2E]/35'
-                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                        }`}
-                      >
-                        <span>
-                          {clientDetailData.client.status === 'ACTIVE' ? 'Suspend Account' : 'Reactivate Account'}
-                        </span>
-                      </button>
+                          <button
+                            type="button"
+                            onClick={() => requestToggleStatus(clientDetailData.client)}
+                            className={`min-h-[40px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer ${
+                              clientDetailData.client.status === 'ACTIVE'
+                                ? 'bg-[#F03B2E]/10 text-[#FF493B] border-[#F03B2E]/35'
+                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                            }`}
+                          >
+                            <span>
+                              {clientDetailData.client.status === 'ACTIVE' ? 'Suspend Account' : 'Reactivate Account'}
+                            </span>
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleCreateLoginAccess}
+                          disabled={creatingLoginAccess}
+                          className="min-h-[40px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-xs font-semibold text-emerald-400 border border-emerald-500/30 cursor-pointer"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>{creatingLoginAccess ? 'Creating...' : 'Create Login Access'}</span>
+                        </button>
+                      )}
                     </div>
                   </section>
 
@@ -1674,14 +1949,66 @@ export default function Clients() {
                     </div>
                   </section>
 
-                  {/* 6. Payment History */}
+                  {/* 6. Invoices & Payment History */}
                   <section
                     ref={paymentSectionRef}
-                    className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-2.5"
+                    className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-3"
                   >
                     <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold block">
-                      6. Payment History
+                      6. Invoices &amp; Payment History
                     </span>
+
+                    {/* Outstanding & Past Invoices */}
+                    {invoicesLoading ? (
+                      <p className="text-xs text-[#858585]">Loading invoices...</p>
+                    ) : clientInvoices.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-mono uppercase text-[#858585] block">Invoices</span>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {clientInvoices.map((inv) => {
+                            const hasBalance = (inv.balanceAmount || 0) > 0 && inv.status !== 'PAID' && inv.status !== 'CANCELLED';
+                            return (
+                              <div
+                                key={inv._id}
+                                className="p-2.5 rounded-lg bg-[#111111] border border-[#252525] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                              >
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-mono font-bold text-[#F5F5F5]">{inv.invoiceNumber}</span>
+                                    <span
+                                      className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${
+                                        inv.status === 'PAID'
+                                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                          : inv.status === 'PARTIALLY_PAID'
+                                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                                          : 'bg-[#F03B2E]/10 text-[#FF493B] border-[#F03B2E]/30'
+                                      }`}
+                                    >
+                                      {inv.status}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] text-[#858585] font-mono block mt-0.5">
+                                    Total: ₹{inv.totalAmount} • Paid: ₹{inv.paidAmount || 0}
+                                    {hasBalance && <strong className="text-amber-400"> • Balance: ₹{inv.balanceAmount}</strong>}
+                                  </span>
+                                </div>
+                                {hasBalance && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenRecordPayment(inv)}
+                                    className="min-h-[36px] px-3 py-1.5 rounded-lg bg-[#F03B2E] hover:bg-[#FF493B] text-white text-[11px] font-bold uppercase tracking-wider cursor-pointer shrink-0"
+                                  >
+                                    Record Payment
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <span className="text-[10px] font-mono uppercase text-[#858585] block pt-1">Payment Ledger</span>
                     {clientDetailData.payments?.length > 0 ? (
                       <>
                         {/* Desktop Ledger Table */}
@@ -1889,26 +2216,69 @@ export default function Clients() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Email</label>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Email (Optional)</label>
                     <input
                       type="email"
-                      required
                       value={editForm.email}
                       onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                       className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone</label>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone (Optional)</label>
                     <input
                       type="tel"
                       inputMode="tel"
-                      required
                       value={editForm.phone}
                       onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
                       className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
                     />
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Gender</label>
+                    <select
+                      value={editForm.gender}
+                      onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                    >
+                      <option value="">Not specified</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Date of Birth</label>
+                    <input
+                      type="date"
+                      value={editForm.dateOfBirth}
+                      onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Address</label>
+                  <input
+                    type="text"
+                    value={editForm.address}
+                    onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Emergency Contact</label>
+                  <input
+                    type="text"
+                    value={editForm.emergencyContact}
+                    onChange={(e) => setEditForm({ ...editForm, emergencyContact: e.target.value })}
+                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                  />
                 </div>
 
                 <div>
@@ -1953,6 +2323,17 @@ export default function Clients() {
                     </select>
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Notes</label>
+                  <textarea
+                    rows={2}
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                    placeholder="Medical notes, walk-in remarks..."
+                  />
+                </div>
               </div>
 
               <div className="px-5 py-4 border-t border-[#252525] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0">
@@ -1992,7 +2373,9 @@ export default function Clients() {
             <div className="px-5 py-4 border-b border-[#252525] flex items-center justify-between shrink-0">
               <div>
                 <span className="font-label text-[#F03B2E] block">NEW REGISTRATION</span>
-                <h3 className="mm-page-title text-lg sm:text-xl">ADD NEW CLIENT</h3>
+                <h3 className="mm-page-title text-lg sm:text-xl">
+                  {newlyCreatedClient ? 'CLIENT REGISTERED' : 'ADD NEW CLIENT'}
+                </h3>
               </div>
               <button
                 type="button"
@@ -2004,189 +2387,261 @@ export default function Clients() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateClientSubmit} className="flex flex-col flex-1 min-h-0">
-              <div className="p-5 overflow-y-auto overscroll-contain space-y-3.5 flex-1">
-                {addError && (
-                  <div className="p-3 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E] text-xs text-[#F5F5F5]">
-                    {addError}
+            {newlyCreatedClient ? (
+              <div className="p-5 space-y-4">
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
+                  <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>Registration Complete</span>
                   </div>
-                )}
-
-                <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Full Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={addForm.name}
-                    onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
-                    placeholder="e.g. S. Karthik"
-                  />
+                  <p className="text-sm font-bold text-[#F5F5F5]">{newlyCreatedClient.name}</p>
+                  <p className="text-xs text-[#B8B8B8]">
+                    Branch: {newlyCreatedClient.branch?.city || 'Selected Branch'} •{' '}
+                    Access: {newlyCreatedClient.accountAccessStatus === 'NOT_CREATED' ? 'Walk-in (No Login)' : 'Invitation Pending'}
+                  </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Email (Optional)</label>
-                    <input
-                      type="email"
-                      required={addForm.createLoginAccess}
-                      value={addForm.email}
-                      onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
-                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
-                      placeholder="karthik@domain.com"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone (Optional)</label>
-                    <input
-                      type="tel"
-                      inputMode="tel"
-                      value={addForm.phone}
-                      onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
-                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
-                      placeholder="9876543210"
-                    />
-                  </div>
-                </div>
+                <p className="text-xs text-[#B8B8B8]">
+                  Would you like to assign a membership plan and record payment now, or finish without a membership?
+                </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddModalOpen(false)}
+                    className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] cursor-pointer w-full sm:w-auto"
+                  >
+                    Done (No Membership Yet)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = newlyCreatedClient;
+                      setIsAddModalOpen(false);
+                      handleOpenAssignMembershipModal(target);
+                    }}
+                    className="min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#F03B2E] hover:bg-[#FF493B] text-white cursor-pointer w-full sm:w-auto"
+                  >
+                    Assign Membership
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleCreateClientSubmit} className="flex flex-col flex-1 min-h-0">
+                <div className="p-5 overflow-y-auto overscroll-contain space-y-3.5 flex-1">
+                  {addError && (
+                    <div className="p-3 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E] text-xs text-[#F5F5F5] space-y-2">
+                      <p>{addError}</p>
+                      {addDuplicateClient && (
+                        <div className="p-2.5 rounded-lg bg-[#111111] border border-[#303030] flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-bold text-[#F5F5F5] truncate">{addDuplicateClient.name}</p>
+                            <p className="text-[11px] font-mono text-[#B8B8B8] truncate">
+                              {addDuplicateClient.phone || 'No phone'} • {addDuplicateClient.email || 'No email'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const existingId = addDuplicateClient.id;
+                              setIsAddModalOpen(false);
+                              handleOpenClientDetails(existingId);
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-[11px] font-bold uppercase text-[#F5F5F5] cursor-pointer shrink-0"
+                          >
+                            View Existing
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Branch *</label>
-                    <select
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Full Name *</label>
+                    <input
+                      type="text"
                       required
-                      value={addForm.branchId}
-                      onChange={(e) => setAddForm({ ...addForm, branchId: e.target.value })}
-                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
-                    >
-                      {branches.map((b) => (
-                        <option key={b._id} value={b._id}>
-                          {b.city}
-                        </option>
-                      ))}
-                    </select>
+                      value={addForm.name}
+                      onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                      placeholder="e.g. S. Karthik"
+                    />
                   </div>
-                  <label className="flex items-center gap-2 min-h-[44px] px-3 rounded-xl bg-[#111111] border border-[#303030] text-xs text-[#F5F5F5] cursor-pointer">
-                    <input type="checkbox" checked={addForm.createLoginAccess} onChange={(e) => setAddForm({ ...addForm, createLoginAccess: e.target.checked })} />
-                    Create online login access (requires email)
-                  </label>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Fitness Goal</label>
-                    <select
-                      value={addForm.fitnessGoal}
-                      onChange={(e) => setAddForm({ ...addForm, fitnessGoal: e.target.value })}
-                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
-                    >
-                      <option value="Muscle Building">Muscle Building</option>
-                      <option value="Weight Loss">Weight Loss</option>
-                      <option value="Strength Training">Strength Training</option>
-                      <option value="General Fitness">General Fitness</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">
-                      Assign Coach (Optional)
-                    </label>
-                    <select
-                      value={addForm.trainerId}
-                      onChange={(e) => setAddForm({ ...addForm, trainerId: e.target.value })}
-                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
-                    >
-                      <option value="">None (No Trainer Assigned)</option>
-                      {activeTrainers.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name} ({t.branch?.city})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Membership is deliberately assigned after profile registration so payment can be recorded correctly. */}
-                {false && <div className="pt-2 border-t border-[#303030]">
-                  <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold block mb-2">
-                    OPTIONAL INITIAL MEMBERSHIP PASS
-                  </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] text-[#B8B8B8] mb-1">Select Membership Plan</label>
-                      <select
-                        value={addForm.planId || ''}
-                        onChange={(e) => {
-                          const pId = e.target.value;
-                          if (!pId) {
-                            setAddForm({
-                              ...addForm,
-                              planId: '',
-                              membershipPlanName: '',
-                              durationMonths: 1,
-                              membershipAmount: 0,
-                            });
-                            return;
-                          }
-                          const p = plans.find((pl) => pl._id === pId);
-                          const bp = p?.branchPricing?.find(
-                            (b) => (b.branchId?._id || b.branchId || '').toString() === (addForm.branchId || '').toString()
-                          );
-                          const cost = bp?.finalPrice !== undefined ? bp.finalPrice : (p?.price || 0);
-                          setAddForm({
-                            ...addForm,
-                            planId: pId,
-                            membershipPlanName: p?.name || '',
-                            durationMonths: p?.durationMonths || 1,
-                            membershipAmount: cost,
-                          });
-                        }}
-                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5]"
-                      >
-                        <option value="">None (No initial pass)</option>
-                        {plans.map((p) => {
-                          const bp = p.branchPricing?.find(
-                            (b) => (b.branchId?._id || b.branchId || '').toString() === (addForm.branchId || '').toString()
-                          );
-                          const cost = bp?.finalPrice !== undefined ? bp.finalPrice : (p.price || 0);
-                          return (
-                            <option key={p._id} value={p._id}>
-                              {p.name} (₹{cost.toLocaleString()})
-                            </option>
-                          );
-                        })}
-                      </select>
+                      <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Phone (Optional)</label>
+                      <input
+                        type="tel"
+                        inputMode="tel"
+                        value={addForm.phone}
+                        onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
+                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                        placeholder="9876543210"
+                      />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-[#B8B8B8] mb-1">Fee Amount (₹)</label>
+                      <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">
+                        Email {addForm.createLoginAccess ? '*' : '(Optional)'}
+                      </label>
                       <input
-                        type="number"
-                        min="0"
-                        disabled={!addForm.planId}
-                        value={addForm.membershipAmount}
-                        onChange={(e) => setAddForm({ ...addForm, membershipAmount: e.target.value })}
-                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] disabled:opacity-50"
+                        type="email"
+                        required={addForm.createLoginAccess}
+                        value={addForm.email}
+                        onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                        placeholder="karthik@domain.com"
                       />
                     </div>
                   </div>
-                </div>}
-              </div>
 
-              <div className="px-5 py-4 border-t border-[#252525] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0 bg-[#181818]">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] cursor-pointer w-full sm:w-auto"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingAdd}
-                  className="min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#F03B2E] hover:bg-[#FF493B] text-white cursor-pointer w-full sm:w-auto"
-                >
-                  {submittingAdd ? 'Creating...' : 'Create Client'}
-                </button>
-              </div>
-            </form>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Branch *</label>
+                      <select
+                        required
+                        value={addForm.branchId}
+                        onChange={(e) => setAddForm({ ...addForm, branchId: e.target.value })}
+                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                      >
+                        {branches.map((b) => (
+                          <option key={b._id} value={b._id}>
+                            {b.city}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Registration Date</label>
+                      <input
+                        type="date"
+                        value={addForm.registrationDate}
+                        onChange={(e) => setAddForm({ ...addForm, registrationDate: e.target.value })}
+                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Gender (Optional)</label>
+                      <select
+                        value={addForm.gender}
+                        onChange={(e) => setAddForm({ ...addForm, gender: e.target.value })}
+                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                      >
+                        <option value="">Prefer not to say</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Date of Birth (Optional)</label>
+                      <input
+                        type="date"
+                        value={addForm.dateOfBirth}
+                        onChange={(e) => setAddForm({ ...addForm, dateOfBirth: e.target.value })}
+                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Address (Optional)</label>
+                    <input
+                      type="text"
+                      value={addForm.address}
+                      onChange={(e) => setAddForm({ ...addForm, address: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                      placeholder="Street, area, city"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Emergency Contact (Optional)</label>
+                      <input
+                        type="text"
+                        value={addForm.emergencyContact}
+                        onChange={(e) => setAddForm({ ...addForm, emergencyContact: e.target.value })}
+                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                        placeholder="Name / Phone"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Fitness Goal</label>
+                      <select
+                        value={addForm.fitnessGoal}
+                        onChange={(e) => setAddForm({ ...addForm, fitnessGoal: e.target.value })}
+                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                      >
+                        <option value="General Fitness">General Fitness</option>
+                        <option value="Muscle Building">Muscle Building</option>
+                        <option value="Weight Loss">Weight Loss</option>
+                        <option value="Strength Training">Strength Training</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">
+                        Assign Coach (Optional)
+                      </label>
+                      <select
+                        value={addForm.trainerId}
+                        onChange={(e) => setAddForm({ ...addForm, trainerId: e.target.value })}
+                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                      >
+                        <option value="">None (No Trainer Assigned)</option>
+                        {activeTrainers.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.branch?.city})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <label className="flex items-center gap-2 min-h-[44px] px-3 rounded-xl bg-[#111111] border border-[#303030] text-xs text-[#F5F5F5] cursor-pointer self-end">
+                      <input
+                        type="checkbox"
+                        checked={addForm.createLoginAccess}
+                        onChange={(e) => setAddForm({ ...addForm, createLoginAccess: e.target.checked })}
+                      />
+                      <span>Create login access (requires email)</span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Notes (Optional)</label>
+                    <textarea
+                      rows={2}
+                      value={addForm.notes}
+                      onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })}
+                      className="w-full bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                      placeholder="Walk-in remarks, medical notes, preferences..."
+                    />
+                  </div>
+                </div>
+
+                <div className="px-5 py-4 border-t border-[#252525] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0 bg-[#181818]">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddModalOpen(false)}
+                    className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#303030] text-[#B8B8B8] cursor-pointer w-full sm:w-auto"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingAdd}
+                    className="min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#F03B2E] hover:bg-[#FF493B] text-white cursor-pointer w-full sm:w-auto"
+                  >
+                    {submittingAdd ? 'Registering...' : 'Register Client'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -2269,13 +2724,279 @@ export default function Clients() {
       )}
 
       {/* ── ASSIGN MEMBERSHIP MODAL ── */}
-      {isAssignModalOpen && (
+      {isAssignModalOpen && (() => {
+        const targetBranchId = assignTargetClient?.branch?._id || assignTargetClient?.branch || clientDetailData?.client?.branch?._id || branches[0]?._id;
+        const availablePlans = getActivePlansForBranch(targetBranchId);
+        const chosenPlan = availablePlans.find((p) => p._id === assignForm.planId) || plans.find((p) => p._id === assignForm.planId);
+        const pricing = getPlanPricingForBranch(chosenPlan, targetBranchId);
+        const finalFee = assignForm.amount !== '' ? Number(assignForm.amount) : pricing.finalPrice;
+        const paidNow = assignForm.paymentStatus === 'FULL'
+          ? finalFee
+          : assignForm.paymentStatus === 'PARTIAL'
+          ? Math.max(0, Number(assignForm.partialAmount || 0))
+          : 0;
+        const balanceRemaining = Math.max(0, finalFee - paidNow);
+
+        let computedExpiry = '—';
+        if (chosenPlan && assignForm.startDate) {
+          const d = new Date(assignForm.startDate);
+          if (!Number.isNaN(d.getTime())) {
+            if (chosenPlan.durationDays) {
+              d.setDate(d.getDate() + Number(chosenPlan.durationDays));
+            } else if (chosenPlan.durationMonths) {
+              d.setMonth(d.getMonth() + Number(chosenPlan.durationMonths));
+            }
+            computedExpiry = d.toLocaleDateString();
+          }
+        }
+
+        return (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Assign Membership Pass"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setIsAssignModalOpen(false)}
+          >
+            <div
+              className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[92dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 py-4 border-b border-[#252525] flex items-center justify-between shrink-0">
+                <div>
+                  <span className="font-label text-[#F03B2E] block">MEMBERSHIP PASS</span>
+                  <h3 className="mm-page-title text-lg sm:text-xl">ASSIGN MEMBERSHIP</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAssignModalOpen(false)}
+                  aria-label="Close modal"
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAssignMembership} className="flex flex-col flex-1 min-h-0">
+                <div className="p-5 overflow-y-auto overscroll-contain space-y-4 flex-1">
+                  <div className="p-3 rounded-xl bg-[#111111] border border-[#252525] flex items-center justify-between gap-2 text-xs">
+                    <div>
+                      <span className="text-[10px] font-mono uppercase text-[#858585] block">Member</span>
+                      <strong className="text-[#F5F5F5]">
+                        {assignTargetClient?.name || clientDetailData?.client?.name || 'this client'}
+                      </strong>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-mono uppercase text-[#858585] block">Branch</span>
+                      <span className="font-mono text-[#F03B2E] font-bold">
+                        {assignTargetClient?.branch?.city || branches.find((b) => b._id === targetBranchId)?.city || 'HQ'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {assignError && (
+                    <div className="p-3 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E] text-xs text-[#F5F5F5]">
+                      {assignError}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
+                      Membership Plan (Active Branch Plans) *
+                    </label>
+                    <select
+                      required
+                      value={assignForm.planId}
+                      onChange={(e) => {
+                        const chosen = availablePlans.find((p) => p._id === e.target.value);
+                        const pPricing = getPlanPricingForBranch(chosen, targetBranchId);
+                        setAssignForm({
+                          ...assignForm,
+                          planId: e.target.value,
+                          amount: pPricing.finalPrice,
+                        });
+                      }}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                    >
+                      <option value="">Select a plan</option>
+                      {availablePlans.map((p) => {
+                        const pPricing = getPlanPricingForBranch(p, targetBranchId);
+                        return (
+                          <option key={p._id} value={p._id}>
+                            {p.name} ({p.durationMonths ? `${p.durationMonths} Mo` : `${p.durationDays} Days`} — ₹{pPricing.finalPrice})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  {chosenPlan && (
+                    <div className="p-3 rounded-xl bg-[#111111] border border-[#252525] grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      <div>
+                        <span className="text-[10px] font-mono text-[#858585] uppercase block">Base Price</span>
+                        <span className="font-mono font-bold text-[#F5F5F5]">₹{pricing.basePrice}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-mono text-[#858585] uppercase block">Joining Fee</span>
+                        <span className="font-mono text-[#F5F5F5]">₹{pricing.joiningFee}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-mono text-[#858585] uppercase block">Discount</span>
+                        <span className="font-mono text-emerald-400">-₹{pricing.discount}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-mono text-[#858585] uppercase block">Expiry Date</span>
+                        <span className="font-mono font-bold text-emerald-400">{computedExpiry}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
+                        Start Date *
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={assignForm.startDate}
+                        onChange={(e) => setAssignForm({ ...assignForm, startDate: e.target.value })}
+                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
+                        Final Amount (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={assignForm.amount}
+                        onChange={(e) => setAssignForm({ ...assignForm, amount: e.target.value })}
+                        className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-[#252525] space-y-3">
+                    <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold block">
+                      PAYMENT &amp; ACTIVATION
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
+                          Payment Status
+                        </label>
+                        <select
+                          value={assignForm.paymentStatus}
+                          onChange={(e) => setAssignForm({ ...assignForm, paymentStatus: e.target.value })}
+                          className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                        >
+                          <option value="FULL">Full Payment (Activate Now)</option>
+                          <option value="PARTIAL">Partial Payment</option>
+                          <option value="PENDING">Pending Payment (Pay Later)</option>
+                        </select>
+                      </div>
+
+                      {assignForm.paymentStatus !== 'PENDING' && (
+                        <div>
+                          <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
+                            Payment Method
+                          </label>
+                          <select
+                            value={assignForm.paymentMethod}
+                            onChange={(e) => setAssignForm({ ...assignForm, paymentMethod: e.target.value })}
+                            className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                          >
+                            <option value="CASH">Cash</option>
+                            <option value="UPI">UPI</option>
+                            <option value="CARD">Card</option>
+                            <option value="BANK_TRANSFER">Bank Transfer</option>
+                            <option value="OTHER">Other</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    {assignForm.paymentStatus === 'PARTIAL' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
+                            Amount Received Now (₹) *
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max={finalFee}
+                            required
+                            value={assignForm.partialAmount || ''}
+                            onChange={(e) => setAssignForm({ ...assignForm, partialAmount: e.target.value })}
+                            className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                            placeholder="e.g. 1000"
+                          />
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-[#111111] border border-[#252525] flex flex-col justify-center">
+                          <span className="text-[10px] font-mono uppercase text-[#858585]">Outstanding Balance</span>
+                          <span className="text-sm font-mono font-bold text-amber-400">₹{balanceRemaining}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {assignForm.paymentStatus !== 'PENDING' && (
+                      <div>
+                        <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
+                          Reference / Transaction ID (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={assignForm.referenceNumber}
+                          onChange={(e) => setAssignForm({ ...assignForm, referenceNumber: e.target.value })}
+                          className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                          placeholder="UPI Ref / Receipt #"
+                        />
+                      </div>
+                    )}
+
+                    {assignForm.paymentStatus === 'PENDING' && (
+                      <p className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/25 rounded-lg p-2.5">
+                        Membership will be created as <strong>PENDING_PAYMENT</strong> with ₹{finalFee} due. No fake payment will be recorded.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="px-5 py-4 border-t border-[#252525] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0">
+                  <button
+                    type="button"
+                    disabled={assignLoading}
+                    onClick={() => setIsAssignModalOpen(false)}
+                    className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#2c2c2c] text-[#B8B8B8] transition-colors cursor-pointer w-full sm:w-auto"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={assignLoading}
+                    className="min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#F03B2E] hover:bg-[#FF493B] text-white font-semibold transition-all cursor-pointer w-full sm:w-auto"
+                  >
+                    {assignLoading ? 'Saving...' : assignForm.paymentStatus === 'PENDING' ? 'Create Pending Pass' : 'Record & Assign'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── RECORD PAYMENT MODAL ── */}
+      {isRecordPaymentOpen && recordPaymentInvoice && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Assign Membership Pass"
+          aria-label="Record Invoice Payment"
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
-          onClick={() => setIsAssignModalOpen(false)}
+          onClick={() => setIsRecordPaymentOpen(false)}
         >
           <div
             className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]"
@@ -2283,12 +3004,12 @@ export default function Clients() {
           >
             <div className="px-5 py-4 border-b border-[#252525] flex items-center justify-between shrink-0">
               <div>
-                <span className="font-label text-[#F03B2E] block">MEMBERSHIP PASS</span>
-                <h3 className="mm-page-title text-lg sm:text-xl">ASSIGN MEMBERSHIP</h3>
+                <span className="font-label text-[#F03B2E] block">INVOICE SETTLEMENT</span>
+                <h3 className="mm-page-title text-lg sm:text-xl">RECORD PAYMENT</h3>
               </div>
               <button
                 type="button"
-                onClick={() => setIsAssignModalOpen(false)}
+                onClick={() => setIsRecordPaymentOpen(false)}
                 aria-label="Close modal"
                 className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-[#202020] text-[#B8B8B8] hover:text-white border border-[#303030] cursor-pointer shrink-0"
               >
@@ -2296,92 +3017,103 @@ export default function Clients() {
               </button>
             </div>
 
-            <form onSubmit={handleAssignMembership} className="flex flex-col flex-1 min-h-0">
-              <div className="p-5 overflow-y-auto overscroll-contain space-y-4 flex-1">
-                <p className="text-xs text-[#B8B8B8]">
-                  Select an active membership plan to assign to{' '}
-                  <strong className="text-[#F5F5F5]">
-                    {assignTargetClient?.name || clientDetailData?.client?.name || 'this client'}
-                  </strong>
-                  .
-                </p>
+            <form onSubmit={handleSubmitRecordPayment} className="flex flex-col flex-1 min-h-0">
+              <div className="p-5 overflow-y-auto overscroll-contain space-y-3.5 flex-1">
+                <div className="p-3 rounded-xl bg-[#111111] border border-[#252525] text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-[#858585] font-mono">Invoice</span>
+                    <span className="font-mono font-bold text-[#F5F5F5]">{recordPaymentInvoice.invoiceNumber}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#858585] font-mono">Balance Due</span>
+                    <span className="font-mono font-bold text-amber-400">₹{recordPaymentInvoice.balanceAmount}</span>
+                  </div>
+                </div>
 
-                {assignError && (
+                {recordPaymentError && (
                   <div className="p-3 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E] text-xs text-[#F5F5F5]">
-                    {assignError}
+                    {recordPaymentError}
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
-                    Membership Plan
-                  </label>
-                  <select
-                    required
-                    value={assignForm.planId}
-                    onChange={(e) => {
-                      const chosen = plans.find((p) => p._id === e.target.value);
-                      setAssignForm({
-                        ...assignForm,
-                        planId: e.target.value,
-                        amount: chosen?.price || '',
-                      });
-                    }}
-                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
-                  >
-                    <option value="">Select a plan</option>
-                    {plans.map((p) => (
-                      <option key={p._id} value={p._id}>
-                        {p.name} ({p.durationMonths ? `${p.durationMonths} Mo` : `${p.durationDays} Days`} — ₹{p.price})
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">Amount (₹) *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max={recordPaymentInvoice.balanceAmount}
+                      required
+                      value={recordPaymentForm.amount}
+                      onChange={(e) => setRecordPaymentForm({ ...recordPaymentForm, amount: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">Method *</label>
+                    <select
+                      value={recordPaymentForm.paymentMethod}
+                      onChange={(e) => setRecordPaymentForm({ ...recordPaymentForm, paymentMethod: e.target.value })}
+                      className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                    >
+                      <option value="CASH">Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="CARD">Card</option>
+                      <option value="BANK_TRANSFER">Bank Transfer</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
-                      Start Date
-                    </label>
+                    <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">Payment Date</label>
                     <input
                       type="date"
-                      required
-                      value={assignForm.startDate}
-                      onChange={(e) => setAssignForm({ ...assignForm, startDate: e.target.value })}
+                      value={recordPaymentForm.paymentDate}
+                      onChange={(e) => setRecordPaymentForm({ ...recordPaymentForm, paymentDate: e.target.value })}
                       className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">
-                      Amount Paid (₹)
-                    </label>
+                    <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">Reference #</label>
                     <input
-                      type="number"
-                      min="0"
-                      placeholder="Auto from plan"
-                      value={assignForm.amount}
-                      onChange={(e) => setAssignForm({ ...assignForm, amount: e.target.value })}
+                      type="text"
+                      value={recordPaymentForm.referenceNumber}
+                      onChange={(e) => setRecordPaymentForm({ ...recordPaymentForm, referenceNumber: e.target.value })}
                       className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none font-mono"
+                      placeholder="Optional"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono text-[#B8B8B8] uppercase mb-1">Notes</label>
+                  <input
+                    type="text"
+                    value={recordPaymentForm.notes}
+                    onChange={(e) => setRecordPaymentForm({ ...recordPaymentForm, notes: e.target.value })}
+                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#F03B2E] focus:outline-none"
+                    placeholder="Optional payment note"
+                  />
                 </div>
               </div>
 
               <div className="px-5 py-4 border-t border-[#252525] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
-                  disabled={assignLoading}
-                  onClick={() => setIsAssignModalOpen(false)}
-                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#202020] hover:bg-[#2c2c2c] text-[#B8B8B8] transition-colors cursor-pointer w-full sm:w-auto"
+                  disabled={recordPaymentLoading}
+                  onClick={() => setIsRecordPaymentOpen(false)}
+                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold uppercase bg-[#202020] text-[#B8B8B8] cursor-pointer w-full sm:w-auto"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={assignLoading}
-                  className="min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#F03B2E] hover:bg-[#FF493B] text-white font-semibold transition-all cursor-pointer w-full sm:w-auto"
+                  disabled={recordPaymentLoading}
+                  className="min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold uppercase bg-[#F03B2E] hover:bg-[#FF493B] text-white cursor-pointer w-full sm:w-auto"
                 >
-                  {assignLoading ? 'Assigning...' : 'Confirm Assignment'}
+                  {recordPaymentLoading ? 'Recording...' : 'Record Payment'}
                 </button>
               </div>
             </form>

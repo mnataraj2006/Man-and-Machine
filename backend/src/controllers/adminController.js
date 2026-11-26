@@ -837,7 +837,13 @@ const createClient = async (req, res, next) => {
     const normalizedPhone = phone ? normalizeIndianPhone(phone) : null;
     if (phone && !normalizedPhone) return res.status(400).json({ success: false, message: 'Enter a valid Indian phone number or leave it blank.' });
     const cleanEmail = email ? String(email).trim().toLowerCase() : '';
-    const duplicate = await ClientProfile.findOne({ $or: [...(normalizedPhone ? [{ phone: normalizedPhone }] : []), ...(cleanEmail ? [{ email: cleanEmail }] : [])] }).populate('userId', 'name email phone');
+    const orConditions = [
+      ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
+      ...(cleanEmail ? [{ email: cleanEmail }] : []),
+    ];
+    const duplicate = orConditions.length > 0
+      ? await ClientProfile.findOne({ $or: orConditions }).populate('userId', 'name email phone')
+      : null;
     if (duplicate) return res.status(409).json({ success: false, message: 'A matching client profile already exists. Verify the existing client before registering again.', existingClient: { id: duplicate._id, name: duplicate.name || duplicate.userId?.name, phone: duplicate.phone || duplicate.userId?.phone, email: duplicate.email || duplicate.userId?.email } });
     if (createLoginAccess && !cleanEmail) return res.status(400).json({ success: false, message: 'A valid email is required to create login access and send a secure invitation.' });
     let user = null;
@@ -856,7 +862,7 @@ const createClient = async (req, res, next) => {
 const updateClient = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, phone, email, branchId, fitnessGoal, experienceLevel, whatsappOptIn } = req.body;
+    const { name, phone, email, branchId, fitnessGoal, experienceLevel, whatsappOptIn, gender, dateOfBirth, address, emergencyContact, notes } = req.body;
 
     const user = await User.findOne({ _id: id, role: 'CLIENT' });
     const walkInProfile = user ? null : await ClientProfile.findOne({ _id: id, userId: null });
@@ -876,10 +882,15 @@ const updateClient = async (req, res, next) => {
     let profile = walkInProfile || await ClientProfile.findOne({ userId: id });
     if (profile) {
       if (name) profile.name = name.trim();
-      if (phone) profile.phone = phone.trim();
-      if (email) profile.email = email.toLowerCase().trim();
+      if (phone !== undefined) profile.phone = phone ? String(phone).trim() : '';
+      if (email !== undefined) profile.email = email ? String(email).toLowerCase().trim() : '';
       if (fitnessGoal) profile.fitnessGoal = fitnessGoal;
       if (experienceLevel) profile.experienceLevel = experienceLevel;
+      if (gender !== undefined) profile.gender = gender;
+      if (dateOfBirth !== undefined) profile.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+      if (address !== undefined) profile.address = address;
+      if (emergencyContact !== undefined) profile.emergencyContact = emergencyContact;
+      if (notes !== undefined) profile.notes = notes;
       if (branchId && mongoose.Types.ObjectId.isValid(branchId)) profile.branchId = branchId;
       await profile.save();
     }
@@ -937,7 +948,11 @@ const assignTrainer = async (req, res, next) => {
     const { id } = req.params;
     const { trainerId } = req.body;
 
-    const profile = await ClientProfile.findOne({ userId: id });
+    // Support both userId (regular clients) and profileId (walk-in clients)
+    let profile = await ClientProfile.findOne({ userId: id });
+    if (!profile && mongoose.Types.ObjectId.isValid(id)) {
+      profile = await ClientProfile.findById(id);
+    }
     if (!profile) {
       return res.status(404).json({ success: false, message: 'Client profile not found' });
     }
@@ -2273,6 +2288,7 @@ const createClientMembership = async (req, res, next) => {
       else if (snapshot.discountType === 'PERCENTAGE') {
         discountAmt = ((snapshot.basePrice + snapshot.joiningFee) * (snapshot.discountValue || 0)) / 100;
       }
+      // For walk-in clients without a User account, clientId will be null — Invoice.clientId is now optional
       const finRes = await financeService.createInvoiceAndOptionalPayment({
         clientId: user?._id || null,
         clientProfileId: profile?._id || null,
@@ -2393,10 +2409,19 @@ const getAttendanceOverview = async (req, res, next) => {
 
     query.date = { $gte: startOfDay, $lte: endOfDay };
 
-    const records = await Attendance.find(query)
+    const rawRecords = await Attendance.find(query)
       .sort({ checkInTime: -1 })
       .populate('userId', 'name phone email')
+      .populate('clientProfileId', 'name phone email')
       .populate('branchId', 'name city');
+
+    const records = rawRecords.map((rec) => {
+      const obj = rec.toObject();
+      if (!obj.userId && obj.clientProfileId) {
+        obj.userId = obj.clientProfileId;
+      }
+      return obj;
+    });
 
     // Monthly stats
     const selYear = year ? parseInt(year, 10) : targetDate.getFullYear();
@@ -2423,36 +2448,54 @@ const getAttendanceOverview = async (req, res, next) => {
 
 const recordAttendance = async (req, res, next) => {
   try {
-    const { userId, branchId, date, checkInTime, method = 'STAFF_CHECKIN' } = req.body;
+    const { userId, clientProfileId, branchId, date, checkInTime, method = 'STAFF_CHECKIN' } = req.body;
 
-    if (!userId) {
-      return res.status(400).json({ success: false, message: 'Client ID is required' });
+    if (!userId && !clientProfileId) {
+      return res.status(400).json({ success: false, message: 'Client ID or Profile ID is required' });
     }
 
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ success: false, message: 'Client not found' });
+    let user = userId ? await User.findById(userId) : null;
+    let profile = clientProfileId
+      ? await ClientProfile.findById(clientProfileId)
+      : (!user && userId ? await ClientProfile.findById(userId) : await ClientProfile.findOne({ userId }));
+
+    if (!user && !profile) {
+      return res.status(404).json({ success: false, message: 'Client not found' });
+    }
+
+    if (!user && profile?.userId) {
+      user = await User.findById(profile.userId);
+    }
+
+    const clientName = user?.name || profile?.name || 'Client';
+    const targetBranchId = branchId || user?.branchId || profile?.branchId;
 
     const attDate = date ? new Date(date) : new Date();
     const startOfDay = new Date(attDate.getFullYear(), attDate.getMonth(), attDate.getDate());
     const endOfDay = new Date(attDate.getFullYear(), attDate.getMonth(), attDate.getDate(), 23, 59, 59);
 
     // Prevent duplicate attendance for the same day
+    const dupOr = [
+      ...(user ? [{ userId: user._id }] : []),
+      ...(profile ? [{ clientProfileId: profile._id }] : []),
+    ];
     const duplicate = await Attendance.findOne({
-      userId,
+      $or: dupOr,
       date: { $gte: startOfDay, $lte: endOfDay },
     });
 
     if (duplicate) {
       return res.status(400).json({
         success: false,
-        message: `Attendance has already been recorded for ${user.name} on this date.`,
+        message: `Attendance has already been recorded for ${clientName} on this date.`,
         record: duplicate,
       });
     }
 
     const record = await Attendance.create({
-      userId,
-      branchId: branchId || user.branchId,
+      userId: user?._id || null,
+      clientProfileId: profile?._id || null,
+      branchId: targetBranchId,
       date: startOfDay,
       checkInTime: checkInTime ? new Date(checkInTime) : new Date(),
       method,
@@ -2460,7 +2503,7 @@ const recordAttendance = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: `Check-in recorded for ${user.name}`,
+      message: `Check-in recorded for ${clientName}`,
       record,
     });
   } catch (err) {
@@ -3249,6 +3292,94 @@ const changeAdminPassword = async (req, res, next) => {
   }
 };
 
+// ==========================================
+// NEW: INVOICE PAYMENT RECORDING & CLIENT INVOICES
+// ==========================================
+
+/**
+ * @route   POST /api/admin/invoices/:id/record-payment
+ * @desc    Record a partial or full payment against an existing invoice
+ */
+const recordInvoicePayment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { amount, paymentMethod = 'CASH', paymentDate, referenceNumber = '', notes = '' } = req.body;
+
+    if (!amount || Number(amount) <= 0) {
+      return res.status(400).json({ success: false, message: 'Payment amount must be greater than zero.' });
+    }
+
+    const Invoice = require('../models/Invoice');
+    const invoice = await Invoice.findById(id);
+    if (!invoice) {
+      return res.status(404).json({ success: false, message: 'Invoice not found.' });
+    }
+
+    const { invoice: updatedInvoice, payment } = await financeService.recordPaymentOnInvoice(id, {
+      amount: Number(amount),
+      paymentMethod,
+      paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+      referenceNumber,
+      notes,
+      createdBy: req.user ? req.user._id : null,
+    });
+
+    // If invoice is now fully paid and linked to a membership, activate it
+    if (updatedInvoice.status === 'PAID' && updatedInvoice.membershipId) {
+      const mem = await Membership.findById(updatedInvoice.membershipId);
+      if (mem && mem.status === 'PENDING_PAYMENT') {
+        mem.status = 'ACTIVE';
+        await mem.save();
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Payment of ₹${amount} recorded successfully.`,
+      invoice: updatedInvoice,
+      payment,
+    });
+  } catch (err) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ success: false, message: err.message });
+    }
+    next(err);
+  }
+};
+
+/**
+ * @route   GET /api/admin/clients/:id/invoices
+ * @desc    Get all invoices for a client (by userId or clientProfileId)
+ */
+const getClientInvoices = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const Invoice = require('../models/Invoice');
+
+    // id may be a userId or clientProfileId
+    const query = {
+      $or: [
+        { clientId: mongoose.Types.ObjectId.isValid(id) ? id : null },
+        { clientProfileId: mongoose.Types.ObjectId.isValid(id) ? id : null },
+      ],
+    };
+
+    const invoices = await Invoice.find(query)
+      .sort({ invoiceDate: -1 })
+      .populate('branchId', 'city name')
+      .populate('membershipId', 'planName status startDate expiryDate')
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      count: invoices.length,
+      invoices,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getDashboardOverview,
   getBranches,
@@ -3306,4 +3437,6 @@ module.exports = {
   convertEnquiryToClient,
   getSettings,
   changeAdminPassword,
+  recordInvoicePayment,
+  getClientInvoices,
 };

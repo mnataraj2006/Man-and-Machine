@@ -74,6 +74,10 @@ router.get('/payments', adminController.getPayments);
 router.post('/payments/offline', adminController.recordOfflinePayment);
 router.put('/payments/:id/status', adminController.updatePaymentStatus);
 
+// 8b. Invoice payment recording (partial / full settlement against existing invoice)
+router.post('/invoices/:id/record-payment', adminController.recordInvoicePayment);
+router.get('/clients/:id/invoices', adminController.getClientInvoices);
+
 // 9. Reports & Analytics
 router.get('/reports', adminController.getReportsData);
 

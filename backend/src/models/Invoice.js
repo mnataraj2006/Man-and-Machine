@@ -42,7 +42,8 @@ const invoiceSchema = new mongoose.Schema(
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      // Optional: walk-in clients (no User account) are identified by clientProfileId only
+      default: null,
       index: true,
     },
     membershipId: {

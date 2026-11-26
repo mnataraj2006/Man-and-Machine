@@ -6,8 +6,6 @@ const clientProfileSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null,
-      sparse: true,
-      index: true,
     },
     branchId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -78,6 +76,11 @@ const clientProfileSchema = new mongoose.Schema(
   {
     timestamps: true,
   }
+);
+
+clientProfileSchema.index(
+  { userId: 1 },
+  { unique: true, partialFilterExpression: { userId: { $type: 'objectId' } } }
 );
 
 const ClientProfile = mongoose.model('ClientProfile', clientProfileSchema);

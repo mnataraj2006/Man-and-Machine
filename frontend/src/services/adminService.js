@@ -33,7 +33,10 @@ class AdminService {
           authService.logout();
           window.location.href = '/login';
         }
-        throw new Error(data.message || `Request failed with status ${response.status}`);
+        const apiError = new Error(data.message || `Request failed with status ${response.status}`);
+        apiError.status = response.status;
+        apiError.data = data;
+        throw apiError;
       }
 
       return data;
@@ -336,6 +339,19 @@ class AdminService {
       method: 'PUT',
       body: JSON.stringify({ status }),
     });
+  }
+
+  // Record a partial or full payment against an existing invoice
+  async recordInvoicePayment(invoiceId, data) {
+    return this.request(`/invoices/${invoiceId}/record-payment`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Get all invoices for a client
+  async getClientInvoices(clientId) {
+    return this.request(`/clients/${clientId}/invoices`);
   }
 
   // 9. Reports & Analytics
