@@ -80,6 +80,7 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
       icon: Wallet,
       children: financeSubItems,
     },
+    { label: 'Reports', path: '/admin/reports', icon: BarChart3 },
     { label: 'Announcements', path: '/admin/notifications', icon: Megaphone },
     { label: 'WhatsApp', path: '/admin/settings/whatsapp', icon: MessageCircle },
     { label: 'Settings', path: '/admin/settings', icon: Settings },

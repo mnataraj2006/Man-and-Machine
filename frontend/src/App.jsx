@@ -52,6 +52,7 @@ import AdminDailyCollections from './pages/Admin/Finance/DailyCollections.jsx';
 import AdminMonthlyCollections from './pages/Admin/Finance/MonthlyCollections.jsx';
 import AdminExpenses from './pages/Admin/Finance/Expenses.jsx';
 import AdminFinanceConfig from './pages/Admin/Finance/FinanceConfigPage.jsx';
+import AdminReports from './pages/Admin/Reports.jsx';
 
 // Trainer Application Suite
 import TrainerLayout from './components/Trainer/TrainerLayout.jsx';
@@ -237,6 +238,9 @@ export default function App() {
       adminContent = <AdminExpenses onNavigate={navigate} />;
     } else if (currentPath === '/admin/finance/config') {
       adminContent = <AdminFinanceConfig onNavigate={navigate} />;
+    } else if (currentPath === '/admin/reports' || currentPath.startsWith('/admin/reports/')) {
+      const cat = currentPath.startsWith('/admin/reports/') ? currentPath.replace('/admin/reports/', '').split('/')[0] : null;
+      adminContent = <AdminReports initialCategory={cat || null} onNavigate={navigate} />;
     } else if (currentPath === '/admin/notifications') {
       adminContent = <AdminNotifications onNavigate={navigate} />;
     } else if (currentPath === '/admin/settings') {

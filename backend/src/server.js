@@ -13,6 +13,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const trainerRoutes = require('./routes/trainerRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const whatsappRoutes = require('./routes/whatsappRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -214,6 +215,7 @@ app.use('/api/client', clientRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/trainer', trainerRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/reports', reportRoutes);
 // Public only for Meta's signed webhook verification/callback; all management routes are ADMIN-only.
 app.use('/api/whatsapp', whatsappRoutes);
 

@@ -82,6 +82,7 @@ clientProfileSchema.index(
   { userId: 1 },
   { unique: true, partialFilterExpression: { userId: { $type: 'objectId' } } }
 );
+clientProfileSchema.index({ branchId: 1, trainerId: 1, createdAt: -1 });
 
 const ClientProfile = mongoose.model('ClientProfile', clientProfileSchema);
 
