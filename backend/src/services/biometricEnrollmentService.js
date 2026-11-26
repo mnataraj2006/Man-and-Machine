@@ -791,10 +791,226 @@ const analyzeMigration = async ({ deviceId, biometricUserIds = [] }) => {
   };
 };
 
+const getClientBiometricSummary = async ({
+  clientProfileId,
+  userId = null,
+  branchId = null,
+  hasActiveMembership = false,
+}) => {
+  if (!clientProfileId) {
+    return {
+      enrollmentId: null,
+      mappingId: null,
+      rawEnrollmentStatus: null,
+      displayStatus: 'NOT_ENROLLED',
+      biometricUserId: null,
+      deviceId: null,
+      deviceName: null,
+      serialNumber: null,
+      deviceStatus: null,
+      branchName: null,
+      enrollmentDate: null,
+      lastSyncAt: null,
+      lastPunchAt: null,
+      lastPunchResult: null,
+      gymAccessStatus: hasActiveMembership ? 'NOT_ENROLLED' : 'NO_MEMBERSHIP',
+      failureReason: '',
+      eligibleToEnroll: false,
+      canRetrySync: false,
+      canDisableAccess: false,
+    };
+  }
+
+  const Attendance = require('../models/Attendance');
+  const attOr = [{ clientProfileId }];
+  if (userId) attOr.push({ userId });
+
+  const [latestEnrollment, mapping, lastBioPunch, branchDevice] = await Promise.all([
+    BiometricEnrollment.findOne({ clientProfileId })
+      .select('-faceCapture -captureFrames -history')
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .populate('assignedDeviceId', 'deviceName serialNumber status isActive lastSyncAt lastSeenAt branchId')
+      .populate('branchId', 'name city')
+      .lean(),
+    BiometricUserMapping.findOne({ clientProfileId })
+      .sort({ status: 1, updatedAt: -1 }) // ACTIVE sorts before INACTIVE
+      .populate('deviceId', 'deviceName serialNumber status isActive lastSyncAt lastSeenAt branchId')
+      .populate('branchId', 'name city')
+      .lean(),
+    Attendance.findOne({ $or: attOr, source: 'BIOMETRIC' })
+      .sort({ checkInTime: -1, date: -1 })
+      .select('date checkInTime attendanceStatus biometricUserId')
+      .lean(),
+    branchId
+      ? BiometricDevice.findOne({ branchId, isActive: true })
+          .select('deviceName serialNumber status isActive lastSyncAt lastSeenAt branchId')
+          .lean()
+      : Promise.resolve(null),
+  ]);
+
+  const device = mapping?.deviceId || latestEnrollment?.assignedDeviceId || branchDevice || null;
+  const branchDoc = mapping?.branchId || latestEnrollment?.branchId || null;
+  const rawStatus = latestEnrollment?.status || null;
+  const bioPin = mapping?.biometricUserId || latestEnrollment?.biometricUserId || null;
+
+  const PENDING_SET = new Set([
+    'INVITED',
+    'CAPTURE_IN_PROGRESS',
+    'CAPTURE_SUBMITTED',
+    'PENDING_REVIEW',
+    'APPROVED',
+    'REMOTE_ENROLLMENT_PENDING',
+    'AWAITING_PHYSICAL_ENROLLMENT',
+    'DEVICE_ENROLLMENT_IN_PROGRESS',
+  ]);
+
+  let displayStatus = 'NOT_ENROLLED';
+  if (mapping?.status === 'INACTIVE' || rawStatus === 'REJECTED' || (device && (device.isActive === false || device.status === 'DISABLED'))) {
+    displayStatus = 'DISABLED';
+  } else if (rawStatus === 'FAILED') {
+    displayStatus = 'SYNC_FAILED';
+  } else if (rawStatus && PENDING_SET.has(rawStatus)) {
+    displayStatus = 'PENDING';
+  } else if (rawStatus === 'ENROLLED' || mapping?.status === 'ACTIVE') {
+    displayStatus = device?.status === 'OFFLINE' ? 'DEVICE_OFFLINE' : 'ENROLLED';
+  } else if (!rawStatus || rawStatus === 'NOT_STARTED') {
+    displayStatus = 'NOT_ENROLLED';
+  } else {
+    displayStatus = 'UNKNOWN';
+  }
+
+  let gymAccessStatus = 'NO_MEMBERSHIP';
+  if (displayStatus === 'DISABLED') {
+    gymAccessStatus = 'DISABLED';
+  } else if (!hasActiveMembership) {
+    gymAccessStatus = 'NO_ACTIVE_MEMBERSHIP';
+  } else if (displayStatus === 'ENROLLED') {
+    gymAccessStatus = 'GRANTED';
+  } else if (displayStatus === 'DEVICE_OFFLINE') {
+    gymAccessStatus = 'DEVICE_OFFLINE';
+  } else if (displayStatus === 'PENDING') {
+    gymAccessStatus = 'PENDING_ENROLLMENT';
+  } else {
+    gymAccessStatus = 'NOT_ENROLLED';
+  }
+
+  const branchHasDevice = Boolean(branchDevice || mapping?.deviceId || latestEnrollment?.assignedDeviceId);
+
+  return {
+    enrollmentId: latestEnrollment?._id || null,
+    mappingId: mapping?._id || null,
+    rawEnrollmentStatus: rawStatus,
+    displayStatus,
+    biometricUserId: bioPin,
+    deviceId: device?._id || null,
+    deviceName: device?.deviceName || null,
+    serialNumber: device?.serialNumber || null,
+    deviceStatus: device?.status || null,
+    branchName: branchDoc ? `${branchDoc.city || branchDoc.name}` : null,
+    enrollmentDate: latestEnrollment?.enrolledAt || latestEnrollment?.enrollmentRequestedAt || mapping?.createdAt || null,
+    lastSyncAt: device?.lastSyncAt || latestEnrollment?.updatedAt || null,
+    lastPunchAt: lastBioPunch?.checkInTime || lastBioPunch?.date || null,
+    lastPunchResult: lastBioPunch?.attendanceStatus || null,
+    gymAccessStatus,
+    failureReason: latestEnrollment?.failureReason || '',
+    eligibleToEnroll: Boolean(hasActiveMembership && displayStatus === 'NOT_ENROLLED' && branchHasDevice),
+    canRetrySync: Boolean(device?._id && ['SYNC_FAILED', 'PENDING'].includes(displayStatus)),
+    canDisableAccess: Boolean(mapping?._id && mapping.status === 'ACTIVE'),
+  };
+};
+
+const getClientBiometricLogs = async (clientId, { branchId = null } = {}) => {
+  if (!mongoose.Types.ObjectId.isValid(clientId)) {
+    const err = new Error('Invalid client ID.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  let profile = await ClientProfile.findById(clientId).select('_id userId branchId').lean();
+  if (!profile) {
+    profile = await ClientProfile.findOne({ userId: clientId }).select('_id userId branchId').lean();
+  }
+  if (!profile) {
+    const err = new Error('Client profile not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (branchId && branchId !== 'ALL' && String(profile.branchId) !== String(branchId)) {
+    const err = new Error('Access denied for client outside the selected branch.');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const Attendance = require('../models/Attendance');
+  const BiometricDeviceLog = require('../models/BiometricDeviceLog');
+
+  const [enrollments, mappings, biometricAttendances] = await Promise.all([
+    BiometricEnrollment.find({ clientProfileId: profile._id })
+      .select('status enrollmentMethod biometricUserId failureReason history createdAt updatedAt')
+      .sort({ updatedAt: -1 })
+      .limit(5)
+      .lean(),
+    BiometricUserMapping.find({ clientProfileId: profile._id })
+      .select('biometricUserId deviceId status createdAt updatedAt')
+      .lean(),
+    Attendance.find({
+      $or: [{ clientProfileId: profile._id }, ...(profile.userId ? [{ userId: profile.userId }] : [])],
+      source: 'BIOMETRIC',
+    })
+      .select('date checkInTime attendanceStatus biometricUserId branchId')
+      .populate('branchId', 'city name')
+      .sort({ checkInTime: -1, date: -1 })
+      .limit(15)
+      .lean(),
+  ]);
+
+  const bioIds = [
+    ...new Set([
+      ...mappings.map((m) => m.biometricUserId).filter(Boolean),
+      ...enrollments.map((e) => e.biometricUserId).filter(Boolean),
+    ]),
+  ];
+
+  const logOr = [
+    { 'metadata.clientProfileId': profile._id },
+    { 'metadata.clientProfileId': String(profile._id) },
+    ...(profile.userId ? [{ 'metadata.userId': profile.userId }, { 'metadata.userId': String(profile.userId) }] : []),
+    ...(bioIds.length > 0 ? [{ 'metadata.biometricUserId': { $in: bioIds } }] : []),
+  ];
+
+  const deviceLogs = await BiometricDeviceLog.find({
+    branchId: profile.branchId,
+    $or: logOr,
+  })
+    .select('category status action message createdAt')
+    .sort({ createdAt: -1 })
+    .limit(20)
+    .lean();
+
+  const enrollmentHistory = enrollments.flatMap((e) =>
+    (e.history || []).map((h) => ({
+      action: h.action,
+      fromStatus: h.fromStatus,
+      toStatus: h.toStatus,
+      note: h.note,
+      timestamp: h.timestamp,
+    }))
+  ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  return {
+    enrollmentHistory,
+    deviceLogs,
+    biometricAttendances,
+  };
+};
+
 module.exports = {
   getEnrollmentOverview,
   listEnrollments,
   getEnrollmentDetails,
+  getClientBiometricSummary,
+  getClientBiometricLogs,
   generateNextBiometricUserId,
   completeManualEnrollment,
   initiateRemoteEnrollment,

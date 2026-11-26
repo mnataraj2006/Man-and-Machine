@@ -213,6 +213,15 @@ const analyzeMigration = async (req, res, next) => {
   }
 };
 
+const getClientBiometricLogs = async (req, res, next) => {
+  try {
+    const logs = await biometricEnrollmentService.getClientBiometricLogs(req.params.clientId, req.query);
+    res.status(200).json({ success: true, ...logs });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getDevices,
   registerDevice,
@@ -227,6 +236,7 @@ module.exports = {
   getEnrollmentOverview,
   listEnrollments,
   getEnrollmentDetails,
+  getClientBiometricLogs,
   completeManualEnrollment,
   initiateRemoteEnrollment,
   approveEnrollment,

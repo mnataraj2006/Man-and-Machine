@@ -29,8 +29,10 @@ import {
   Wallet,
   ShieldCheck,
   UserCog,
+  Fingerprint,
 } from 'lucide-react';
 import adminService from '../../services/adminService.js';
+import biometricService from '../../services/biometricService.js';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
 
 export default function Clients() {
@@ -170,6 +172,11 @@ export default function Clients() {
   });
 
   const [newPassword, setNewPassword] = useState('');
+  const [bioLogsOpen, setBioLogsOpen] = useState(false);
+  const [bioLogsLoading, setBioLogsLoading] = useState(false);
+  const [bioLogsData, setBioLogsData] = useState(null);
+  const [bioLogsError, setBioLogsError] = useState('');
+  const [bioActionLoading, setBioActionLoading] = useState(false);
 
   const activeTrainers = trainersList.filter((t) => t.status === 'ACTIVE');
 
@@ -353,6 +360,98 @@ export default function Clients() {
       trainerFilter !== 'ALL'
   );
 
+  const getBiometricStatusBadge = (status) => {
+    switch (status) {
+      case 'ENROLLED':
+        return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+      case 'PENDING':
+        return 'bg-amber-500/15 text-amber-400 border-amber-500/30';
+      case 'SYNC_FAILED':
+      case 'DEVICE_OFFLINE':
+        return 'bg-rose-500/15 text-rose-400 border-rose-500/30';
+      case 'DISABLED':
+        return 'bg-[#202020] text-[#858585] border-[#303030]';
+      case 'UNKNOWN':
+        return 'bg-purple-500/15 text-purple-300 border-purple-500/30';
+      case 'NOT_ENROLLED':
+      default:
+        return 'bg-[#202020] text-[#B8B8B8] border-[#303030]';
+    }
+  };
+
+  const handleToggleBiometricLogs = async () => {
+    if (bioLogsOpen) {
+      setBioLogsOpen(false);
+      return;
+    }
+    const targetId = clientDetailData?.profile?._id || clientDetailData?.client?.id;
+    if (!targetId) return;
+    setBioLogsOpen(true);
+    if (bioLogsData) return;
+    try {
+      setBioLogsLoading(true);
+      setBioLogsError('');
+      const res = await biometricService.getClientLogs(targetId, {
+        branchId: selectedBranch !== 'ALL' ? selectedBranch : '',
+      });
+      setBioLogsData(res);
+    } catch (err) {
+      setBioLogsError(err.message || 'Failed to load biometric logs.');
+    } finally {
+      setBioLogsLoading(false);
+    }
+  };
+
+  const handleEnrollBiometric = async () => {
+    const bio = clientDetailData?.biometricSummary;
+    const profileId = clientDetailData?.profile?._id;
+    if (!profileId || !bio?.deviceId) return;
+    try {
+      setBioActionLoading(true);
+      await biometricService.initiateRemoteEnrollment({
+        clientProfileId: profileId,
+        deviceId: bio.deviceId,
+      });
+      showFeedback('success', 'Biometric enrollment initiated.');
+      await handleOpenClientDetails(clientDetailData.client.id);
+    } catch (err) {
+      showFeedback('error', err.message || 'Failed to initiate biometric enrollment.');
+    } finally {
+      setBioActionLoading(false);
+    }
+  };
+
+  const handleRetryBiometricSync = async () => {
+    const deviceId = clientDetailData?.biometricSummary?.deviceId;
+    if (!deviceId) return;
+    try {
+      setBioActionLoading(true);
+      await biometricService.syncDevice(deviceId);
+      showFeedback('success', 'Device synchronization triggered.');
+      await handleOpenClientDetails(clientDetailData.client.id);
+    } catch (err) {
+      showFeedback('error', err.message || 'Failed to sync biometric device.');
+    } finally {
+      setBioActionLoading(false);
+    }
+  };
+
+  const handleDisableBiometric = async () => {
+    const mappingId = clientDetailData?.biometricSummary?.mappingId;
+    if (!mappingId) return;
+    if (!window.confirm('Disable biometric access for this member on the terminal?')) return;
+    try {
+      setBioActionLoading(true);
+      await biometricService.unmapUser(mappingId);
+      showFeedback('success', 'Biometric access disabled.');
+      await handleOpenClientDetails(clientDetailData.client.id);
+    } catch (err) {
+      showFeedback('error', err.message || 'Failed to disable biometric access.');
+    } finally {
+      setBioActionLoading(false);
+    }
+  };
+
   const handleExportCSV = () => {
     const exportData = clients.map((c) => ({
       ClientID: c.clientId || '—',
@@ -373,6 +472,9 @@ export default function Clients() {
   const handleOpenClientDetails = async (id, focusSection = null) => {
     setActionSheetClient(null);
     setDetailTargetSection(focusSection);
+    setBioLogsOpen(false);
+    setBioLogsData(null);
+    setBioLogsError('');
     setSelectedClientId(id);
     setDetailLoading(true);
     setClientInvoices([]);
@@ -2003,13 +2105,181 @@ export default function Clients() {
                     </div>
                   </section>
 
-                  {/* 5. Attendance History */}
+                  {/* 5. Biometric Information */}
+                  <section className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-3">
+                    {(() => {
+                      const bio = clientDetailData.biometricSummary || {};
+                      const status = bio.displayStatus || 'NOT_ENROLLED';
+                      return (
+                        <>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold flex items-center gap-1.5">
+                              <Fingerprint className="w-3.5 h-3.5" />
+                              5. Biometric Information
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${getBiometricStatusBadge(status)}`}>
+                              {status.replace(/_/g, ' ')}
+                            </span>
+                          </div>
+
+                          {bio.failureReason && (
+                            <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
+                              {bio.failureReason}
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div>
+                              <span className="text-[10px] font-mono uppercase text-[#858585] block">Biometric User ID / PIN</span>
+                              <p className="font-mono font-bold text-[#F5F5F5] mt-0.5">{bio.biometricUserId || 'Not Assigned'}</p>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-mono uppercase text-[#858585] block">Gym Access Status</span>
+                              <p className="font-mono font-bold text-[#F5F5F5] mt-0.5">{(bio.gymAccessStatus || 'NOT_ENROLLED').replace(/_/g, ' ')}</p>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-mono uppercase text-[#858585] block">Registered Device</span>
+                              <p className="text-[#F5F5F5] mt-0.5">{bio.deviceName || 'Not Assigned'}</p>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-mono uppercase text-[#858585] block">Device Serial Number</span>
+                              <p className="font-mono text-[#F5F5F5] mt-0.5">{bio.serialNumber || 'Not Assigned'}</p>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-mono uppercase text-[#858585] block">Assigned Branch</span>
+                              <p className="text-[#F5F5F5] mt-0.5">{bio.branchName || clientDetailData.client?.branch?.city || 'Not Assigned'}</p>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-mono uppercase text-[#858585] block">Enrollment Date</span>
+                              <p className="font-mono text-[#F5F5F5] mt-0.5">
+                                {bio.enrollmentDate ? new Date(bio.enrollmentDate).toLocaleDateString() : 'Not Enrolled'}
+                              </p>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-mono uppercase text-[#858585] block">Last Successful Sync</span>
+                              <p className="font-mono text-[#F5F5F5] mt-0.5">
+                                {bio.lastSyncAt ? new Date(bio.lastSyncAt).toLocaleString() : 'No Records'}
+                              </p>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-mono uppercase text-[#858585] block">Last Attendance Punch</span>
+                              <p className="font-mono text-[#F5F5F5] mt-0.5">
+                                {bio.lastPunchAt ? new Date(bio.lastPunchAt).toLocaleString() : 'No Records'}
+                              </p>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-mono uppercase text-[#858585] block">Last Punch Result</span>
+                              <p className="font-mono text-[#F5F5F5] mt-0.5">
+                                {bio.lastPunchResult ? bio.lastPunchResult.replace(/_/g, ' ') : 'No Records'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Conditional Admin Actions */}
+                          <div className="flex flex-wrap gap-2 pt-2 border-t border-[#252525]">
+                            {bio.eligibleToEnroll && (
+                              <button
+                                type="button"
+                                disabled={bioActionLoading}
+                                onClick={handleEnrollBiometric}
+                                className="px-3 py-1.5 rounded-lg bg-[#F03B2E] hover:bg-[#FF493B] text-white text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                              >
+                                Enroll Member
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={handleToggleBiometricLogs}
+                              className="px-3 py-1.5 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-[#F5F5F5] text-[11px] font-bold uppercase tracking-wider cursor-pointer"
+                            >
+                              {bioLogsOpen ? 'Hide Biometric Logs' : 'View Biometric Logs'}
+                            </button>
+                            {bio.canRetrySync && (
+                              <button
+                                type="button"
+                                disabled={bioActionLoading}
+                                onClick={handleRetryBiometricSync}
+                                className="px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                              >
+                                Retry Sync
+                              </button>
+                            )}
+                            {bio.canDisableAccess && (
+                              <button
+                                type="button"
+                                disabled={bioActionLoading}
+                                onClick={handleDisableBiometric}
+                                className="px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                              >
+                                Disable Biometric Access
+                              </button>
+                            )}
+                          </div>
+
+                          {/* On-Demand Biometric Logs Drawer */}
+                          {bioLogsOpen && (
+                            <div className="mt-2 p-3 rounded-lg bg-[#111111] border border-[#252525] space-y-2 text-xs">
+                              {bioLogsLoading ? (
+                                <p className="text-[#858585] font-mono">Loading biometric logs...</p>
+                              ) : bioLogsError ? (
+                                <p className="text-rose-400">{bioLogsError}</p>
+                              ) : (
+                                <>
+                                  {(!bioLogsData?.enrollmentHistory?.length && !bioLogsData?.deviceLogs?.length && !bioLogsData?.biometricAttendances?.length) ? (
+                                    <p className="text-[#858585]">No biometric logs recorded for this member.</p>
+                                  ) : (
+                                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                      {(bioLogsData?.enrollmentHistory || []).map((ev, idx) => (
+                                        <div key={`eh-${idx}`} className="flex items-start justify-between gap-2 border-b border-[#1E1E1E] pb-1">
+                                          <div>
+                                            <span className="font-mono text-[10px] text-[#F03B2E] uppercase">{ev.action}</span>
+                                            {ev.note && <p className="text-[11px] text-[#B8B8B8]">{ev.note}</p>}
+                                          </div>
+                                          <span className="font-mono text-[10px] text-[#858585] shrink-0">
+                                            {ev.timestamp ? new Date(ev.timestamp).toLocaleString() : ''}
+                                          </span>
+                                        </div>
+                                      ))}
+                                      {(bioLogsData?.deviceLogs || []).map((dl) => (
+                                        <div key={dl._id} className="flex items-start justify-between gap-2 border-b border-[#1E1E1E] pb-1">
+                                          <div>
+                                            <span className="font-mono text-[10px] text-amber-400 uppercase">{dl.action || dl.category}</span>
+                                            <p className="text-[11px] text-[#B8B8B8]">{dl.message}</p>
+                                          </div>
+                                          <span className="font-mono text-[10px] text-[#858585] shrink-0">
+                                            {new Date(dl.createdAt).toLocaleString()}
+                                          </span>
+                                        </div>
+                                      ))}
+                                      {(bioLogsData?.biometricAttendances || []).map((att) => (
+                                        <div key={att._id} className="flex items-start justify-between gap-2 border-b border-[#1E1E1E] pb-1">
+                                          <div>
+                                            <span className="font-mono text-[10px] text-emerald-400 uppercase">BIOMETRIC PUNCH ({att.attendanceStatus})</span>
+                                            <p className="text-[11px] text-[#B8B8B8]">PIN {att.biometricUserId || '—'}</p>
+                                          </div>
+                                          <span className="font-mono text-[10px] text-[#858585] shrink-0">
+                                            {new Date(att.checkInTime || att.date).toLocaleString()}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </section>
+
+                  {/* 6. Attendance History */}
                   <section
                     ref={attendanceSectionRef}
                     className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-2.5"
                   >
                     <span className="text-[11px] font-mono uppercase text-[#F03B2E] font-bold block">
-                      5. Attendance History
+                      6. Attendance History
                     </span>
                     <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto">
                       {clientDetailData.attendances?.length > 0 ? (

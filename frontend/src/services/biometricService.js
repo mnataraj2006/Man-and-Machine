@@ -80,6 +80,11 @@ class BiometricService {
     return this.request(`/attendance${qs ? `?${qs}` : ''}`);
   }
 
+  getClientLogs(clientId, params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return this.request(`/clients/${clientId}/logs${qs ? `?${qs}` : ''}`);
+  }
+
   getEnrollmentOverview(params = {}) {
     const qs = new URLSearchParams(params).toString();
     return this.request(`/enrollments/overview${qs ? `?${qs}` : ''}`);

@@ -867,6 +867,16 @@ const getClientDetails = async (req, res, next) => {
     ) || null;
     const latestMembership = !activeMembership ? memberships[0] || null : null;
 
+    const biometricEnrollmentService = require('../services/biometricEnrollmentService');
+    const biometricSummary = await biometricEnrollmentService
+      .getClientBiometricSummary({
+        clientProfileId: profile?._id || null,
+        userId: client?._id || null,
+        branchId: client?.branchId?._id || client?.branchId || profile?.branchId?._id || profile?.branchId || null,
+        hasActiveMembership: Boolean(activeMembership),
+      })
+      .catch(() => null);
+
     res.status(200).json({
       success: true,
       client: {
@@ -885,6 +895,7 @@ const getClientDetails = async (req, res, next) => {
       profile: profile || null,
       activeMembership,
       latestMembership,
+      biometricSummary,
       memberships,
       payments,
       attendances,

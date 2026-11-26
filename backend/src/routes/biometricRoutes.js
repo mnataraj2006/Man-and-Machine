@@ -26,6 +26,7 @@ router.post('/mappings', biometricController.mapUser);
 router.delete('/mappings/:id', biometricController.unmapUser);
 
 router.get('/attendance', biometricController.getAttendance);
+router.get('/clients/:clientId/logs', biometricController.getClientBiometricLogs);
 
 // Enrollment & Migration endpoints
 router.get('/enrollments/overview', biometricController.getEnrollmentOverview);
