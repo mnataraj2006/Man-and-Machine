@@ -89,6 +89,11 @@ const registerClient = async ({
     profile = await ClientProfile.create({
       userId: user._id,
       branchId: verifiedBranch._id,
+      name: user.name,
+      phone: user.phone,
+      email: user.email,
+      registrationSource: 'SELF_REGISTERED',
+      accountAccessStatus: 'ACTIVE',
       fitnessGoal: fitnessGoal || 'General Fitness',
       experienceLevel: experienceLevel || 'Beginner',
       joiningDate: new Date(),

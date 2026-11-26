@@ -25,10 +25,12 @@ const hasActiveMembershipForClient = async (profile) => {
   const query = profile.userId
     ? { $or: [{ userId: profile.userId }, { clientProfileId: profile._id }] }
     : { clientProfileId: profile._id };
+  const { getKolkataEndOfToday } = require('../utils/membershipSync');
+  const endOfToday = getKolkataEndOfToday(now);
   const active = await Membership.findOne({
     ...query,
     status: 'ACTIVE',
-    startDate: { $lte: now },
+    startDate: { $lte: endOfToday },
     expiryDate: { $gte: now },
   }).lean();
   return Boolean(active);

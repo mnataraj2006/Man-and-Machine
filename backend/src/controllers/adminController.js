@@ -16,12 +16,20 @@ const Enquiry = require('../models/Enquiry');
 const Exercise = require('../models/Exercise');
 const TrainerBooking = require('../models/TrainerBooking');
 const TrainingAppointment = require('../models/TrainingAppointment');
+const Invoice = require('../models/Invoice');
 const financeService = require('../services/financeService');
 const notificationService = require('../services/notificationService');
 const { generateSecureToken, hashToken, getFrontendBaseUrl } = require('../utils/tokenUtils');
 const { sendTrainerInvitation, sendPasswordResetEmail } = require('../utils/emailService');
 const { normalizeIndianPhone } = require('../utils/phone');
 const dashboardCache = require('../utils/dashboardCache');
+const {
+  acquireUserPurchaseLock,
+  releaseUserPurchaseLock,
+  runWithOptionalTransaction,
+  syncClientProfileMembership,
+  resolveMembershipPlanPricing,
+} = require('../utils/membershipSync');
 
 // Helper to construct branch query filter
 const getBranchFilter = (branchId) => {
@@ -973,8 +981,53 @@ const createClientLoginAccess = async (req, res, next) => {
     if (!profile.email) return res.status(400).json({ success: false, message: 'A valid email is required for the current secure activation method.' });
     if (await User.findOne({ email: profile.email })) return res.status(409).json({ success: false, message: 'This email is already linked to an account.' });
     const rawToken = generateSecureToken();
-    const user = await User.create({ name: profile.name, email: profile.email, phone: profile.phone || '', branchId: profile.branchId, role: 'CLIENT', status: 'PENDING_ACTIVATION', activationTokenHash: hashToken(rawToken), activationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), activationSentAt: new Date() });
-    profile.userId = user._id; profile.accountAccessStatus = 'INVITATION_PENDING'; await profile.save();
+
+    await runWithOptionalTransaction(async (session) => {
+      const opts = session ? { session } : {};
+      const [user] = await User.create(
+        [
+          {
+            name: profile.name,
+            email: profile.email,
+            phone: profile.phone || '',
+            branchId: profile.branchId,
+            role: 'CLIENT',
+            status: 'PENDING_ACTIVATION',
+            activationTokenHash: hashToken(rawToken),
+            activationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            activationSentAt: new Date(),
+          },
+        ],
+        opts
+      );
+
+      profile.userId = user._id;
+      profile.accountAccessStatus = 'INVITATION_PENDING';
+      await profile.save(opts);
+
+      // Safely link walk-in historical records belonging to this profile & branch without overwriting existing refs
+      const branchScope = profile.branchId ? { branchId: profile.branchId } : {};
+      await Promise.all([
+        Membership.updateMany(
+          { clientProfileId: profile._id, userId: null, ...branchScope },
+          { $set: { userId: user._id } },
+          opts
+        ),
+        Payment.updateMany(
+          { clientProfileId: profile._id, userId: null, ...branchScope },
+          { $set: { userId: user._id } },
+          opts
+        ),
+        Invoice.updateMany(
+          { clientProfileId: profile._id, clientId: null, ...branchScope },
+          { $set: { clientId: user._id } },
+          opts
+        ),
+      ]);
+
+      await syncClientProfileMembership({ userId: user._id, clientProfileId: profile._id, session });
+    });
+
     const activationUrl = `${getFrontendBaseUrl()}/activate-account/${rawToken}`;
     res.status(201).json({ success: true, message: 'Login access created. Share the secure, single-use activation link through an approved channel.', accountAccessStatus: profile.accountAccessStatus, manualActivationUrl: activationUrl });
   } catch (err) { next(err); }
@@ -995,6 +1048,9 @@ const updateClientStatus = async (req, res, next) => {
     }
 
     user.status = status;
+    if (status === 'SUSPENDED' || status === 'INACTIVE') {
+      user.tokenVersion = (user.tokenVersion || 0) + 1;
+    }
     await user.save();
 
     res.status(200).json({
@@ -1074,13 +1130,37 @@ const changeClientBranch = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Valid branch ID is required' });
     }
 
+    const targetBranch = await Branch.findOne({ _id: branchId, isActive: true });
+    if (!targetBranch) {
+      return res.status(404).json({ success: false, message: 'Target branch not found or inactive' });
+    }
+
     const user = await User.findById(id);
-    if (!user) return res.status(404).json({ success: false, message: 'Client not found' });
+    const profile = user
+      ? await ClientProfile.findOne({ userId: id })
+      : await ClientProfile.findOne({ _id: id, userId: null });
 
-    user.branchId = branchId;
-    await user.save();
+    if (!user && !profile) {
+      return res.status(404).json({ success: false, message: 'Client not found' });
+    }
 
-    await ClientProfile.updateOne({ userId: id }, { branchId });
+    if (user) {
+      user.branchId = branchId;
+      await user.save();
+    }
+
+    if (profile) {
+      profile.branchId = branchId;
+      // Clear trainer assignment if the trainer does not belong to the new branch
+      if (profile.trainerId) {
+        const assignedTrainer = await User.findById(profile.trainerId).select('branchId').lean();
+        if (!assignedTrainer || String(assignedTrainer.branchId) !== String(branchId)) {
+          profile.trainerId = null;
+          profile.trainingPreference = 'SELF_TRAINED';
+        }
+      }
+      await profile.save();
+    }
 
     res.status(200).json({ success: true, message: 'Client branch changed successfully' });
   } catch (err) {
@@ -1101,6 +1181,7 @@ const resetClientPassword = async (req, res, next) => {
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     user.password = newPassword; // Handled by pre-save hash
+    user.tokenVersion = (user.tokenVersion || 0) + 1; // Revoke active sessions on admin password reset
     await user.save();
 
     res.status(200).json({ success: true, message: `Password reset successfully for ${user.name}` });
@@ -2247,9 +2328,38 @@ const createClientMembership = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Client and membership plan are required.' });
     }
 
-    const profile = clientProfileId ? await ClientProfile.findById(clientProfileId) : await ClientProfile.findOne({ userId });
-    const user = userId ? await User.findById(userId) : profile?.userId ? await User.findById(profile.userId) : null;
-    if (!profile && !user) return res.status(404).json({ success: false, message: 'Client not found.' });
+    const targetLockKey = `admin-mem:${clientProfileId || userId}`;
+    if (!acquireUserPurchaseLock(targetLockKey)) {
+      return res.status(409).json({ success: false, message: 'Membership assignment already in progress for this client.' });
+    }
+
+    try {
+      const profile = clientProfileId ? await ClientProfile.findById(clientProfileId) : await ClientProfile.findOne({ userId });
+      const user = userId ? await User.findById(userId) : profile?.userId ? await User.findById(profile.userId) : null;
+      if (!profile && !user) return res.status(404).json({ success: false, message: 'Client not found.' });
+
+      // Prevent accidental duplicate double-submit for same plan within 2 minutes
+      if (planId) {
+        const twoMinsAgo = new Date(Date.now() - 2 * 60 * 1000);
+        const dupOr = [];
+        if (user?._id) dupOr.push({ userId: user._id });
+        if (profile?._id) dupOr.push({ clientProfileId: profile._id });
+        if (dupOr.length > 0) {
+          const recentSame = await Membership.findOne({
+            $or: dupOr,
+            planId,
+            createdAt: { $gte: twoMinsAgo },
+            status: { $in: ['ACTIVE', 'PENDING', 'PENDING_PAYMENT'] },
+          });
+          if (recentSame) {
+            return res.status(409).json({
+              success: false,
+              message: 'A membership for this plan was just assigned to this client. Please refresh to view it.',
+              existingMembershipId: recentSame._id,
+            });
+          }
+        }
+      }
 
     const targetBranchId = branchId || profile?.branchId || user?.branchId;
     if (!targetBranchId) {
@@ -2277,39 +2387,25 @@ const createClientMembership = async (req, res, next) => {
     };
 
     if (plan) {
-      if (!plan.isActive) {
-        return res.status(400).json({ success: false, message: 'This membership plan is currently deactivated.' });
-      }
-
-      // Check branch-specific pricing
-      const branchConfig = plan.branchPricing?.find(
-        (bp) => bp.branchId.toString() === targetBranchId.toString()
-      );
-
-      if (branchConfig) {
-        if (!branchConfig.isAvailable) {
-          return res.status(400).json({
-            success: false,
-            message: `The plan "${plan.name}" is not available at the selected branch.`,
-          });
-        }
-        snapshot.basePrice = branchConfig.basePrice;
-        snapshot.joiningFee = branchConfig.joiningFee;
-        snapshot.discountType = branchConfig.discountType;
-        snapshot.discountValue = branchConfig.discountValue;
-        snapshot.finalAmount = amount !== undefined && amount !== '' ? Number(amount) : branchConfig.finalPrice;
-      } else {
-        snapshot.basePrice = plan.price || 0;
-        snapshot.finalAmount = amount !== undefined && amount !== '' ? Number(amount) : plan.price || 0;
-      }
-
+      const pricing = resolveMembershipPlanPricing({
+        plan,
+        branchId: targetBranchId,
+        customAmount: amount,
+        allowCustomAmount: true,
+      });
+      snapshot.basePrice = pricing.basePrice;
+      snapshot.joiningFee = pricing.joiningFee;
+      snapshot.discountType = pricing.discountType;
+      snapshot.discountValue = pricing.discountValue;
+      snapshot.finalAmount = pricing.finalPrice;
       snapshot.durationDays = durationDays && Number(durationDays) > 0
         ? Number(durationDays)
-        : plan.durationDays || (plan.durationMonths * 30) || 30;
+        : pricing.durationDays;
       snapshot.durationMonths = durationMonths && Number(durationMonths) > 0
         ? Number(durationMonths)
-        : plan.durationMonths || Math.max(1, Math.round(snapshot.durationDays / 30));
+        : pricing.durationMonths;
     } else {
+      snapshot.basePrice = Number(amount) || 0;
       if (durationDays) snapshot.durationDays = Number(durationDays);
       if (durationMonths) snapshot.durationMonths = Number(durationMonths);
     }
@@ -2382,6 +2478,8 @@ const createClientMembership = async (req, res, next) => {
       }
     }
 
+    await syncClientProfileMembership({ userId: user?._id || null, clientProfileId: profile?._id || null });
+
     res.status(201).json({
       success: true,
       message: 'Membership assigned successfully',
@@ -2389,6 +2487,9 @@ const createClientMembership = async (req, res, next) => {
       invoice: generatedInvoice,
       payment: generatedPayment,
     });
+    } finally {
+      releaseUserPurchaseLock(`admin-mem:${clientProfileId || userId}`);
+    }
   } catch (err) {
     next(err);
   }
@@ -2425,6 +2526,7 @@ const updateClientMembershipStatus = async (req, res, next) => {
             : renewAmount;
         await financeService.createInvoiceAndOptionalPayment({
           clientId: membership.userId,
+          clientProfileId: membership.clientProfileId || null,
           branchId: membership.branchId,
           membershipId: membership._id,
           category: 'MEMBERSHIP_RENEWAL',
@@ -2455,6 +2557,10 @@ const updateClientMembershipStatus = async (req, res, next) => {
     }
 
     await membership.save();
+    await syncClientProfileMembership({
+      userId: membership.userId,
+      clientProfileId: membership.clientProfileId,
+    });
     res.status(200).json({ success: true, message: `Membership action ${action} completed successfully`, membership });
   } catch (err) {
     next(err);
@@ -2542,8 +2648,9 @@ const recordAttendance = async (req, res, next) => {
     const targetBranchId = branchId || user?.branchId || profile?.branchId;
 
     const attDate = date ? new Date(date) : new Date();
-    const startOfDay = new Date(attDate.getFullYear(), attDate.getMonth(), attDate.getDate());
-    const endOfDay = new Date(attDate.getFullYear(), attDate.getMonth(), attDate.getDate(), 23, 59, 59);
+    const { dateStr } = getKolkataDateParts(attDate);
+    const startOfDay = new Date(`${dateStr}T00:00:00+05:30`);
+    const endOfDay = new Date(`${dateStr}T23:59:59.999+05:30`);
 
     // Prevent duplicate attendance for the same day
     const dupOr = [
@@ -3401,6 +3508,7 @@ const recordInvoicePayment = async (req, res, next) => {
       if (mem && mem.status === 'PENDING_PAYMENT') {
         mem.status = 'ACTIVE';
         await mem.save();
+        await syncClientProfileMembership({ userId: mem.userId, clientProfileId: mem.clientProfileId });
       }
     }
 

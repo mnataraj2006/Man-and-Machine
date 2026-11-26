@@ -520,8 +520,10 @@ const validateMembershipForProfile = async (profile) => {
   }
 
   const now = new Date();
+  const { getKolkataEndOfToday } = require('../utils/membershipSync');
+  const endOfToday = getKolkataEndOfToday(now);
   const active = memberships.find(
-    (m) => m.status === 'ACTIVE' && new Date(m.startDate) <= now && new Date(m.expiryDate) >= now
+    (m) => m.status === 'ACTIVE' && new Date(m.startDate) <= endOfToday && new Date(m.expiryDate) >= now
   );
   if (active) {
     return { membershipStatus: 'ACTIVE', attendanceStatus: 'SUCCESS' };

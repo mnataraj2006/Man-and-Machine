@@ -18,6 +18,12 @@ const bcrypt = require('bcryptjs');
 const { resolveClientTrainer } = require('../utils/trainerAssignment');
 const financeService = require('../services/financeService');
 const dashboardCache = require('../utils/dashboardCache');
+const {
+  acquireUserPurchaseLock,
+  releaseUserPurchaseLock,
+  syncClientProfileMembership,
+  resolveMembershipPlanPricing,
+} = require('../utils/membershipSync');
 
 const getKolkataEndOfToday = () => {
   const dateStr = new Intl.DateTimeFormat('en-CA', {
@@ -943,8 +949,14 @@ const checkoutMembership = async (req, res, next) => {
  * @desc    Purchase membership with Self-Trained or Personal Trainer preference
  */
 const purchaseMembership = async (req, res, next) => {
+  const userId = req.user._id;
+  if (!acquireUserPurchaseLock(userId)) {
+    return res.status(409).json({
+      success: false,
+      message: 'A membership purchase is already in progress. Please wait a moment.',
+    });
+  }
   try {
-    const userId = req.user._id;
     const {
       planId,
       trainingPreference = 'SELF_TRAINED',
@@ -953,6 +965,7 @@ const purchaseMembership = async (req, res, next) => {
       startTime,
       paymentMethod = 'UPI',
       instantConfirm = true,
+      isRenewal = false,
       notes = '',
     } = req.body;
 
@@ -966,32 +979,65 @@ const purchaseMembership = async (req, res, next) => {
       clientProfile = await ClientProfile.create({
         userId,
         branchId: clientUser.branchId,
+        name: clientUser.name || '',
+        phone: clientUser.phone || '',
+        email: clientUser.email || '',
+        registrationSource: 'SELF_REGISTERED',
+        accountAccessStatus: 'ACTIVE',
+      });
+    } else {
+      // Backfill missing contact fields from User without overwriting existing non-empty values
+      if (!clientProfile.name && clientUser.name) clientProfile.name = clientUser.name;
+      if (!clientProfile.phone && clientUser.phone) clientProfile.phone = clientUser.phone;
+      if (!clientProfile.email && clientUser.email) clientProfile.email = clientUser.email;
+    }
+
+    const nowCheck = new Date();
+    const tenMinutesAgo = new Date(nowCheck.getTime() - 10 * 60 * 1000);
+    const identityOr = [{ userId }, { clientProfileId: clientProfile._id }];
+
+    if (!isRenewal) {
+      const existingActive = await Membership.findOne({
+        $or: identityOr,
+        status: 'ACTIVE',
+        expiryDate: { $gte: nowCheck },
+      });
+      if (existingActive) {
+        return res.status(409).json({
+          success: false,
+          message: `You already have an active membership (${existingActive.planName}) valid until ${new Date(existingActive.expiryDate).toLocaleDateString()}. Use renewal to extend your plan.`,
+          existingMembershipId: existingActive._id,
+        });
+      }
+    }
+
+    const recentPending = await Membership.findOne({
+      $or: identityOr,
+      planId,
+      status: { $in: ['PENDING', 'PENDING_PAYMENT'] },
+      createdAt: { $gte: tenMinutesAgo },
+    });
+    if (recentPending) {
+      return res.status(409).json({
+        success: false,
+        message: 'A pending membership purchase for this plan was already submitted. Please complete payment at branch reception.',
+        existingMembershipId: recentPending._id,
       });
     }
 
     const branchId = clientUser.branchId || clientProfile.branchId;
     const plan = await MembershipPlan.findById(planId);
-    if (!plan || !plan.isActive) {
-      return res.status(404).json({ success: false, message: 'Selected plan is inactive or no longer exists.' });
-    }
-
-    // Branch pricing snapshot
-    let branchConfig = (plan.branchPricing || []).find(
-      (bp) => bp.branchId?.toString() === branchId?.toString()
-    );
-
-    if (branchConfig && !branchConfig.isAvailable) {
-      return res.status(400).json({
-        success: false,
-        message: `Plan "${plan.name}" is not currently available at your branch.`,
-      });
-    }
-
-    const basePrice = branchConfig ? branchConfig.basePrice : plan.price || 1500;
-    const joiningFee = branchConfig ? branchConfig.joiningFee || 0 : 0;
-    const discountType = branchConfig ? branchConfig.discountType || 'NONE' : 'NONE';
-    const discountValue = branchConfig ? branchConfig.discountValue || 0 : 0;
-    const planPayable = branchConfig ? branchConfig.finalPrice : basePrice;
+    const pricing = resolveMembershipPlanPricing({ plan, branchId, allowCustomAmount: false });
+    const {
+      basePrice,
+      joiningFee,
+      discountType,
+      discountValue,
+      discountAmount,
+      finalPrice: planPayable,
+      durationDays,
+      durationMonths,
+    } = pricing;
 
     let trainerUser = null;
     let trainerProf = null;
@@ -1026,8 +1072,6 @@ const purchaseMembership = async (req, res, next) => {
     }
 
     const grandTotal = planPayable + trainerPrice;
-    const durationDays = plan.durationDays || 30;
-    const durationMonths = plan.durationMonths || Math.max(1, Math.round(durationDays / 30));
     const now = new Date();
     const expiryDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
@@ -1077,13 +1121,14 @@ const purchaseMembership = async (req, res, next) => {
 
     await financeService.createInvoiceAndOptionalPayment({
       clientId: userId,
+      clientProfileId: clientProfile._id,
       branchId,
       membershipId: membership._id,
       category: 'MEMBERSHIP_PURCHASE',
       description: payment.description,
       subtotal: basePrice,
       joiningFee,
-      discount: Math.max(0, basePrice + joiningFee - planPayable),
+      discount: discountAmount,
       additionalCharges: trainerPrice,
       totalAmount: grandTotal,
       paymentMethod: payment.paymentMethod,
@@ -1180,6 +1225,7 @@ const purchaseMembership = async (req, res, next) => {
     }
 
     await clientProfile.save();
+    await syncClientProfileMembership({ userId, clientProfileId: clientProfile._id });
 
     res.status(201).json({
       success: true,
@@ -1192,6 +1238,8 @@ const purchaseMembership = async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  } finally {
+    releaseUserPurchaseLock(userId);
   }
 };
 

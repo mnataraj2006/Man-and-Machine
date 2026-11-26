@@ -229,13 +229,11 @@ const recalculateInvoiceFromPayments = async (invoiceId, actorId = null, reason 
   // Sync linked Membership if invoice settles it
   if (invoice.membershipId && invoice.status === 'PAID') {
     const mem = await Membership.findById(invoice.membershipId);
-    if (mem && mem.status === 'PENDING') {
+    if (mem && (mem.status === 'PENDING' || mem.status === 'PENDING_PAYMENT')) {
       mem.status = 'ACTIVE';
       await mem.save();
-      await ClientProfile.findOneAndUpdate(
-        { userId: mem.userId },
-        { membershipStatus: 'ACTIVE', membershipExpiryDate: mem.expiryDate }
-      );
+      const { syncClientProfileMembership } = require('../utils/membershipSync');
+      await syncClientProfileMembership({ userId: mem.userId, clientProfileId: mem.clientProfileId });
     }
   }
 

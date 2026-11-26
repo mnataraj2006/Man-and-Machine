@@ -24,8 +24,14 @@ const userSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
-      required: [true, 'Please provide your mobile number'],
+      required: [
+        function () {
+          return this.status !== 'PENDING_ACTIVATION';
+        },
+        'Please provide your mobile number',
+      ],
       trim: true,
+      default: '',
     },
     password: {
       type: String,
