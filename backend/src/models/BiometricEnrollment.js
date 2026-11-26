@@ -132,8 +132,8 @@ const biometricEnrollmentSchema = new mongoose.Schema(
   }
 );
 
-biometricEnrollmentSchema.index({ clientProfileId: 1, branchId: 1 });
-biometricEnrollmentSchema.index({ status: 1, createdAt: -1 });
+biometricEnrollmentSchema.index({ clientProfileId: 1, branchId: 1 }, { unique: true });
+biometricEnrollmentSchema.index({ status: 1, branchId: 1, createdAt: -1 });
 
 const BiometricEnrollment = mongoose.model('BiometricEnrollment', biometricEnrollmentSchema);
 

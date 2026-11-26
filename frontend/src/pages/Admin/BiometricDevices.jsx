@@ -115,6 +115,7 @@ export default function BiometricDevices() {
 
   // Map User state
   const [clientsList, setClientsList] = useState([]);
+  const [clientSearch, setClientSearch] = useState('');
   const [mapBioId, setMapBioId] = useState('');
   const [mapClientProfileId, setMapClientProfileId] = useState('');
   const [mappingBusy, setMappingBusy] = useState(false);
@@ -141,7 +142,11 @@ export default function BiometricDevices() {
   const [enrLoading, setEnrLoading] = useState(false);
   const [enrStatusFilter, setEnrStatusFilter] = useState('ALL');
   const [enrSearch, setEnrSearch] = useState('');
+  const [enrPage, setEnrPage] = useState(1);
+  const [enrTotalPages, setEnrTotalPages] = useState(1);
+  const [enrTotal, setEnrTotal] = useState(0);
   const [selectedEnrollmentDetail, setSelectedEnrollmentDetail] = useState(null);
+  const [enrDetailLoading, setEnrDetailLoading] = useState(false);
 
   // Manual & Remote Enrollment Form
   const [manualForm, setManualForm] = useState({
@@ -215,29 +220,61 @@ export default function BiometricDevices() {
     }
   }, [activeTab, fetchAttendance]);
 
+  const fetchClientsForSelector = useCallback(async (searchTerm = clientSearch) => {
+    try {
+      const res = await adminService.getClients({
+        search: searchTerm,
+        branchId: branchFilter,
+        limit: 100,
+      });
+      setClientsList(res.clients || []);
+    } catch (err) {
+      showToast('error', err.message || 'Failed to load members');
+    }
+  }, [branchFilter, clientSearch]);
+
   const fetchEnrollmentsData = useCallback(async () => {
     setEnrLoading(true);
     try {
-      const [ovRes, listRes, cRes] = await Promise.all([
+      const [ovRes, listRes] = await Promise.all([
         biometricService.getEnrollmentOverview({ branchId: branchFilter }),
-        biometricService.listEnrollments({ branchId: branchFilter, status: enrStatusFilter, search: enrSearch }),
-        clientsList.length ? Promise.resolve({ clients: clientsList }) : adminService.getClients({ limit: 150 }).catch(() => ({ clients: [] })),
+        biometricService.listEnrollments({
+          branchId: branchFilter,
+          status: enrStatusFilter,
+          search: enrSearch,
+          page: enrPage,
+          limit: 20,
+        }),
       ]);
       setEnrOverview(ovRes.overview || null);
       setEnrollments(listRes.enrollments || []);
-      if (cRes.clients && clientsList.length === 0) setClientsList(cRes.clients);
+      setEnrTotalPages(listRes.totalPages || 1);
+      setEnrTotal(listRes.total || 0);
     } catch (err) {
       showToast('error', err.message || 'Failed to load enrollment data');
     } finally {
       setEnrLoading(false);
     }
-  }, [branchFilter, enrStatusFilter, enrSearch, clientsList]);
+  }, [branchFilter, enrStatusFilter, enrSearch, enrPage]);
+
+  const handleOpenEnrollmentDetail = async (id) => {
+    setEnrDetailLoading(true);
+    try {
+      const res = await biometricService.getEnrollmentDetails(id);
+      setSelectedEnrollmentDetail(res);
+    } catch (err) {
+      showToast('error', err.message || 'Failed to load enrollment details');
+    } finally {
+      setEnrDetailLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (['enrollments', 'manual', 'migration'].includes(activeTab)) {
       fetchEnrollmentsData();
+      fetchClientsForSelector(clientSearch);
     }
-  }, [activeTab, fetchEnrollmentsData]);
+  }, [activeTab, fetchEnrollmentsData, fetchClientsForSelector, clientSearch]);
 
   // Near real-time polling (every 10 seconds)
   useEffect(() => {
@@ -246,99 +283,7 @@ export default function BiometricDevices() {
       fetchDevices();
       if (activeTab === 'attendance') fetchAttendance();
     }, 10000);
-    const handleManualEnroll = async (e) => {
-    e.preventDefault();
-    if (!manualForm.clientProfileId || !manualForm.deviceId) {
-      showToast('error', 'Please select both a member and a biometric device.');
-      return;
-    }
-    setManualBusy(true);
-    try {
-      await biometricService.completeManualEnrollment(manualForm);
-      showToast('success', 'Manual physical enrollment confirmed and mapped.');
-      setManualForm({ clientProfileId: '', deviceId: manualForm.deviceId, biometricUserId: '', captureType: 'FACE', verifiedByDevice: false });
-      fetchEnrollmentsData();
-    } catch (err) {
-      showToast('error', err.message);
-    } finally {
-      setManualBusy(false);
-    }
-  };
-
-  const handleRemoteEnroll = async () => {
-    if (!manualForm.clientProfileId || !manualForm.deviceId) {
-      showToast('error', 'Please select both a member and a biometric device.');
-      return;
-    }
-    setManualBusy(true);
-    try {
-      await biometricService.initiateRemoteEnrollment(manualForm);
-      showToast('success', 'Remote enrollment initiated. Waiting for physical device capture.');
-      fetchEnrollmentsData();
-    } catch (err) {
-      showToast('error', err.message);
-    } finally {
-      setManualBusy(false);
-    }
-  };
-
-  const handleApproveEnrollment = async (enr) => {
-    try {
-      await biometricService.approveEnrollment(enr._id, {});
-      showToast('success', 'Enrollment approved and queued for physical X2008 capture.');
-      fetchEnrollmentsData();
-      if (selectedEnrollmentDetail?._id === enr._id) setSelectedEnrollmentDetail(null);
-    } catch (err) {
-      showToast('error', err.message);
-    }
-  };
-
-  const handleRejectEnrollment = async (enr) => {
-    const reason = window.prompt('Enter rejection reason (member will be notified to retake):', 'Lighting or face alignment unclear');
-    if (!reason) return;
-    try {
-      await biometricService.rejectEnrollment(enr._id, reason);
-      showToast('success', 'Enrollment request rejected.');
-      fetchEnrollmentsData();
-      if (selectedEnrollmentDetail?._id === enr._id) setSelectedEnrollmentDetail(null);
-    } catch (err) {
-      showToast('error', err.message);
-    }
-  };
-
-  const handleAnalyzeMigration = async (e) => {
-    e.preventDefault();
-    if (!migDeviceId || !migRawIds.trim()) {
-      showToast('error', 'Select a device and enter biometric user IDs.');
-      return;
-    }
-    setMigBusy(true);
-    try {
-      const ids = migRawIds.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
-      const res = await biometricService.analyzeMigration({ deviceId: migDeviceId, biometricUserIds: ids });
-      setMigAnalysis(res);
-    } catch (err) {
-      showToast('error', err.message);
-    } finally {
-      setMigBusy(false);
-    }
-  };
-
-  const handleMapMigrationRow = async (bioId) => {
-    const clientProfileId = migAssignMap[bioId];
-    if (!clientProfileId || !migDeviceId) return;
-    try {
-      await biometricService.mapUser({ deviceId: migDeviceId, biometricUserId: bioId, clientProfileId });
-      showToast('success', `Mapped Biometric ID ${bioId}.`);
-      const ids = migRawIds.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
-      const res = await biometricService.analyzeMigration({ deviceId: migDeviceId, biometricUserIds: ids });
-      setMigAnalysis(res);
-    } catch (err) {
-      showToast('error', err.message);
-    }
-  };
-
-  return () => clearInterval(timer);
+    return () => clearInterval(timer);
   }, [autoRefresh, activeTab, fetchDevices, fetchAttendance]);
 
   const openDeviceDetail = async (id) => {
@@ -747,99 +692,7 @@ export default function BiometricDevices() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {devices.map((d) => {
               const pill = getStatusPill(d.effectiveStatus);
-              const handleManualEnroll = async (e) => {
-    e.preventDefault();
-    if (!manualForm.clientProfileId || !manualForm.deviceId) {
-      showToast('error', 'Please select both a member and a biometric device.');
-      return;
-    }
-    setManualBusy(true);
-    try {
-      await biometricService.completeManualEnrollment(manualForm);
-      showToast('success', 'Manual physical enrollment confirmed and mapped.');
-      setManualForm({ clientProfileId: '', deviceId: manualForm.deviceId, biometricUserId: '', captureType: 'FACE', verifiedByDevice: false });
-      fetchEnrollmentsData();
-    } catch (err) {
-      showToast('error', err.message);
-    } finally {
-      setManualBusy(false);
-    }
-  };
-
-  const handleRemoteEnroll = async () => {
-    if (!manualForm.clientProfileId || !manualForm.deviceId) {
-      showToast('error', 'Please select both a member and a biometric device.');
-      return;
-    }
-    setManualBusy(true);
-    try {
-      await biometricService.initiateRemoteEnrollment(manualForm);
-      showToast('success', 'Remote enrollment initiated. Waiting for physical device capture.');
-      fetchEnrollmentsData();
-    } catch (err) {
-      showToast('error', err.message);
-    } finally {
-      setManualBusy(false);
-    }
-  };
-
-  const handleApproveEnrollment = async (enr) => {
-    try {
-      await biometricService.approveEnrollment(enr._id, {});
-      showToast('success', 'Enrollment approved and queued for physical X2008 capture.');
-      fetchEnrollmentsData();
-      if (selectedEnrollmentDetail?._id === enr._id) setSelectedEnrollmentDetail(null);
-    } catch (err) {
-      showToast('error', err.message);
-    }
-  };
-
-  const handleRejectEnrollment = async (enr) => {
-    const reason = window.prompt('Enter rejection reason (member will be notified to retake):', 'Lighting or face alignment unclear');
-    if (!reason) return;
-    try {
-      await biometricService.rejectEnrollment(enr._id, reason);
-      showToast('success', 'Enrollment request rejected.');
-      fetchEnrollmentsData();
-      if (selectedEnrollmentDetail?._id === enr._id) setSelectedEnrollmentDetail(null);
-    } catch (err) {
-      showToast('error', err.message);
-    }
-  };
-
-  const handleAnalyzeMigration = async (e) => {
-    e.preventDefault();
-    if (!migDeviceId || !migRawIds.trim()) {
-      showToast('error', 'Select a device and enter biometric user IDs.');
-      return;
-    }
-    setMigBusy(true);
-    try {
-      const ids = migRawIds.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
-      const res = await biometricService.analyzeMigration({ deviceId: migDeviceId, biometricUserIds: ids });
-      setMigAnalysis(res);
-    } catch (err) {
-      showToast('error', err.message);
-    } finally {
-      setMigBusy(false);
-    }
-  };
-
-  const handleMapMigrationRow = async (bioId) => {
-    const clientProfileId = migAssignMap[bioId];
-    if (!clientProfileId || !migDeviceId) return;
-    try {
-      await biometricService.mapUser({ deviceId: migDeviceId, biometricUserId: bioId, clientProfileId });
-      showToast('success', `Mapped Biometric ID ${bioId}.`);
-      const ids = migRawIds.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
-      const res = await biometricService.analyzeMigration({ deviceId: migDeviceId, biometricUserIds: ids });
-      setMigAnalysis(res);
-    } catch (err) {
-      showToast('error', err.message);
-    }
-  };
-
-  return (
+              return (
                 <div
                   key={d._id}
                   onClick={() => openDeviceDetail(d._id)}
@@ -1170,73 +1023,150 @@ export default function BiometricDevices() {
                 No biometric enrollment requests match the selected filters.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-[#303030] bg-[#111111] text-[10px] font-mono uppercase text-[#B8B8B8]">
-                      <th className="py-3 px-4">Member</th>
-                      <th className="py-3 px-4">Client ID</th>
-                      <th className="py-3 px-4">Branch</th>
-                      <th className="py-3 px-4">Method</th>
-                      <th className="py-3 px-4">Capture</th>
-                      <th className="py-3 px-4">Device Status</th>
-                      <th className="py-3 px-4">Overall</th>
-                      <th className="py-3 px-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#252525]">
-                    {enrollments.map((enr) => (
-                      <tr key={enr._id} className="hover:bg-[#202020]">
-                        <td className="py-3 px-4 font-bold text-[#F5F5F5]">{enr.clientProfileId?.name || '—'}</td>
-                        <td className="py-3 px-4 font-mono text-[#F03B2E] font-bold">{enr.clientProfileId?.clientId || '—'}</td>
-                        <td className="py-3 px-4">{enr.branchId?.city || '—'}</td>
-                        <td className="py-3 px-4 font-mono">{enr.enrollmentMethod}</td>
-                        <td className="py-3 px-4 font-mono">{enr.mobileCaptureStatus}</td>
-                        <td className="py-3 px-4 font-mono">{enr.deviceEnrollmentStatus}</td>
-                        <td className="py-3 px-4 font-mono font-bold text-amber-400">{enr.status}</td>
-                        <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
-                          {['CAPTURE_SUBMITTED', 'PENDING_REVIEW'].includes(enr.status) && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleApproveEnrollment(enr)}
-                                className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold uppercase cursor-pointer"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRejectEnrollment(enr)}
-                                className="px-2.5 py-1 rounded bg-[#F03B2E]/20 text-[#FF493B] border border-[#F03B2E]/40 text-[11px] font-bold uppercase cursor-pointer"
-                              >
-                                Reject
-                              </button>
-                            </>
-                          )}
-                          {enr.status !== 'ENROLLED' && (
+              <>
+                {/* Desktop Table */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-[#303030] bg-[#111111] text-[10px] font-mono uppercase text-[#B8B8B8]">
+                        <th className="py-3 px-4">Member</th>
+                        <th className="py-3 px-4">Client ID</th>
+                        <th className="py-3 px-4">Branch</th>
+                        <th className="py-3 px-4">Method</th>
+                        <th className="py-3 px-4">Capture</th>
+                        <th className="py-3 px-4">Device Status</th>
+                        <th className="py-3 px-4">Overall</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#252525]">
+                      {enrollments.map((enr) => (
+                        <tr key={enr._id} className="hover:bg-[#202020]">
+                          <td className="py-3 px-4 font-bold text-[#F5F5F5]">{enr.clientProfileId?.name || '—'}</td>
+                          <td className="py-3 px-4 font-mono text-[#F03B2E] font-bold">{enr.clientProfileId?.clientId || '—'}</td>
+                          <td className="py-3 px-4">{enr.branchId?.city || '—'}</td>
+                          <td className="py-3 px-4 font-mono">{enr.enrollmentMethod}</td>
+                          <td className="py-3 px-4 font-mono">{enr.mobileCaptureStatus}</td>
+                          <td className="py-3 px-4 font-mono">{enr.deviceEnrollmentStatus}</td>
+                          <td className="py-3 px-4 font-mono font-bold text-amber-400">{enr.status}</td>
+                          <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
                             <button
                               type="button"
-                              onClick={() => {
-                                setManualForm({
-                                  enrollmentId: enr._id,
-                                  clientProfileId: enr.clientProfileId?._id || '',
-                                  deviceId: enr.assignedDeviceId?._id || devices[0]?._id || '',
-                                  biometricUserId: enr.biometricUserId || '',
-                                  captureType: 'FACE',
-                                  verifiedByDevice: false,
-                                });
-                                setActiveTab('manual');
-                              }}
+                              onClick={() => handleOpenEnrollmentDetail(enr._id)}
                               className="px-2.5 py-1 rounded bg-[#202020] hover:bg-[#303030] border border-[#303030] text-[#F5F5F5] text-[11px] font-bold uppercase cursor-pointer"
                             >
-                              Complete on Device
+                              Details
                             </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                            {['CAPTURE_SUBMITTED', 'PENDING_REVIEW'].includes(enr.status) && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveEnrollment(enr)}
+                                  className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold uppercase cursor-pointer"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRejectEnrollment(enr)}
+                                  className="px-2.5 py-1 rounded bg-[#F03B2E]/20 text-[#FF493B] border border-[#F03B2E]/40 text-[11px] font-bold uppercase cursor-pointer"
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            )}
+                            {enr.status !== 'ENROLLED' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setManualForm({
+                                    enrollmentId: enr._id,
+                                    clientProfileId: enr.clientProfileId?._id || '',
+                                    deviceId: enr.assignedDeviceId?._id || devices[0]?._id || '',
+                                    biometricUserId: enr.biometricUserId || '',
+                                    captureType: 'FACE',
+                                    verifiedByDevice: false,
+                                  });
+                                  setActiveTab('manual');
+                                }}
+                                className="px-2.5 py-1 rounded bg-[#F03B2E] hover:bg-[#FF493B] text-white text-[11px] font-bold uppercase cursor-pointer"
+                              >
+                                Complete on Device
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Cards */}
+                <div className="lg:hidden divide-y divide-[#252525]">
+                  {enrollments.map((enr) => (
+                    <div key={enr._id} className="p-4 space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-[#F5F5F5]">{enr.clientProfileId?.name || '—'}</span>
+                        <span className="font-mono font-bold text-[#F03B2E]">{enr.clientProfileId?.clientId || '—'}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] font-mono text-[#B8B8B8]">
+                        <span>{enr.branchId?.city || '—'} • {enr.enrollmentMethod}</span>
+                        <span className="text-amber-400 font-bold">{enr.status}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEnrollmentDetail(enr._id)}
+                          className="min-h-[38px] px-3 py-1 rounded-lg bg-[#202020] border border-[#303030] text-[#F5F5F5] text-[11px] font-bold uppercase cursor-pointer"
+                        >
+                          View Details
+                        </button>
+                        {['CAPTURE_SUBMITTED', 'PENDING_REVIEW'].includes(enr.status) && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleApproveEnrollment(enr)}
+                              className="min-h-[38px] px-3 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold uppercase cursor-pointer"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRejectEnrollment(enr)}
+                              className="min-h-[38px] px-3 py-1 rounded-lg bg-[#F03B2E]/20 text-[#FF493B] border border-[#F03B2E]/40 text-[11px] font-bold uppercase cursor-pointer"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {enrTotalPages > 1 && (
+              <div className="px-4 py-3 border-t border-[#303030] flex items-center justify-between text-xs text-[#B8B8B8]">
+                <span>Total: {enrTotal} • Page {enrPage} of {enrTotalPages}</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={enrPage <= 1}
+                    onClick={() => setEnrPage((p) => p - 1)}
+                    className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg bg-[#202020] border border-[#303030] disabled:opacity-40"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={enrPage >= enrTotalPages}
+                    onClick={() => setEnrPage((p) => p + 1)}
+                    className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg bg-[#202020] border border-[#303030] disabled:opacity-40"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1253,7 +1183,14 @@ export default function BiometricDevices() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Select Member *</label>
+              <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Search &amp; Select Member *</label>
+              <input
+                type="text"
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                placeholder="Search by Client ID (MM...), name, phone, or email..."
+                className="w-full min-h-[40px] mb-2 bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5]"
+              />
               <select
                 required
                 value={manualForm.clientProfileId}
@@ -1262,8 +1199,8 @@ export default function BiometricDevices() {
               >
                 <option value="">Choose a Man &amp; Machine member</option>
                 {clientsList.map((c) => (
-                  <option key={c.profileId || c.id} value={c.profileId || c.id}>
-                    {c.clientId || '—'} — {c.name} ({c.phone || 'No phone'})
+                  <option key={c.profileId || c.id} value={c.profileId || ''} disabled={!c.profileId}>
+                    {c.clientId || '—'} — {c.name} ({c.phone || 'No phone'}) {!c.profileId ? '[No ClientProfile — cannot enroll]' : ''}
                   </option>
                 ))}
               </select>
@@ -1436,8 +1373,8 @@ export default function BiometricDevices() {
                         >
                           <option value="">Select Member</option>
                           {clientsList.map((c) => (
-                            <option key={c.profileId || c.id} value={c.profileId || c.id}>
-                              {c.clientId || '—'} — {c.name}
+                            <option key={c.profileId || c.id} value={c.profileId || ''} disabled={!c.profileId}>
+                              {c.clientId || '—'} — {c.name} {!c.profileId ? '[No ClientProfile]' : ''}
                             </option>
                           ))}
                         </select>
@@ -1455,6 +1392,169 @@ export default function BiometricDevices() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── ENROLLMENT DETAILS MODAL ── */}
+      {(selectedEnrollmentDetail || enrDetailLoading) && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => setSelectedEnrollmentDetail(null)}
+        >
+          <div
+            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[90dvh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-[#252525] flex items-center justify-between shrink-0">
+              <div>
+                <span className="text-[10px] font-mono uppercase text-[#F03B2E] font-bold block">ENROLLMENT REQUEST DETAILS</span>
+                <h3 className="mm-page-title text-lg">
+                  {selectedEnrollmentDetail?.enrollment?.clientProfileId?.name || 'Loading...'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedEnrollmentDetail(null)}
+                className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg bg-[#202020] text-[#F5F5F5]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {enrDetailLoading || !selectedEnrollmentDetail?.enrollment ? (
+              <div className="p-8 text-center text-xs text-[#B8B8B8]">Loading enrollment details...</div>
+            ) : (() => {
+              const e = selectedEnrollmentDetail.enrollment;
+              const mem = selectedEnrollmentDetail.latestMembership;
+              return (
+                <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-[#111111] border border-[#252525] rounded-xl p-4">
+                    <div>
+                      <span className="text-[10px] text-[#858585] block">Client ID</span>
+                      <span className="font-mono font-bold text-[#F03B2E]">{e.clientProfileId?.clientId || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#858585] block">Branch</span>
+                      <span className="font-bold text-[#F5F5F5]">{e.branchId?.city || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#858585] block">Request ID</span>
+                      <span className="font-mono text-[#B8B8B8]">{String(e._id).slice(-8)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#858585] block">Consent Status</span>
+                      <span className="font-mono font-bold text-[#F5F5F5]">{e.consentStatus}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#858585] block">Capture Status</span>
+                      <span className="font-mono text-[#F5F5F5]">{e.mobileCaptureStatus}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#858585] block">Identity Verification</span>
+                      <span className="font-mono text-[#F5F5F5]">{e.identityVerificationStatus}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#858585] block">Admin Approval</span>
+                      <span className="font-mono text-[#F5F5F5]">{e.adminApprovalStatus}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#858585] block">Device Enrollment</span>
+                      <span className="font-mono text-[#F5F5F5]">{e.deviceEnrollmentStatus}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#858585] block">Face / Finger</span>
+                      <span className="font-mono text-[#F5F5F5]">{e.faceEnrollmentStatus} / {e.fingerprintEnrollmentStatus}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#858585] block">Assigned Device</span>
+                      <span className="text-[#F5F5F5]">{e.assignedDeviceId ? `${e.assignedDeviceId.model} (${e.assignedDeviceId.deviceName})` : '—'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#858585] block">Biometric User ID</span>
+                      <span className="font-mono font-bold text-[#F5F5F5]">{e.biometricUserId || 'Not assigned'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#858585] block">Membership</span>
+                      <span className="font-mono text-[#F5F5F5]">{mem ? `${mem.planName} (${mem.status})` : 'None'}</span>
+                    </div>
+                  </div>
+
+                  {e.captureQuality && e.captureQuality.frameCount > 0 && (
+                    <div className="bg-[#111111] border border-[#252525] rounded-xl p-3.5 flex flex-wrap gap-4 font-mono">
+                      <span>Brightness: <strong>{e.captureQuality.brightnessScore}</strong></span>
+                      <span>Sharpness: <strong>{e.captureQuality.sharpnessScore}</strong></span>
+                      <span>Frames: <strong>{e.captureQuality.frameCount}</strong></span>
+                      <span>Liveness: <strong>{e.captureQuality.livenessPassed ? 'Passed' : 'Failed'}</strong></span>
+                    </div>
+                  )}
+
+                  {e.failureReason && (
+                    <div className="p-3 rounded-xl bg-[#F03B2E]/10 border border-[#F03B2E]/35 text-[#FF6A5E]">
+                      <strong>Failure / Rejection Reason:</strong> {e.failureReason}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-mono uppercase text-[#858585] block">Enrollment History</span>
+                    <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                      {(e.history || []).map((h, i) => (
+                        <div key={i} className="p-2.5 rounded-lg bg-[#111111] border border-[#252525] flex justify-between gap-2">
+                          <div>
+                            <span className="font-mono font-bold text-[#F03B2E]">{h.action}</span>
+                            {h.note && <p className="text-[#B8B8B8] mt-0.5">{h.note}</p>}
+                          </div>
+                          <span className="font-mono text-[10px] text-[#858585] shrink-0">
+                            {new Date(h.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-[#252525] flex flex-wrap justify-end gap-2">
+                    {['CAPTURE_SUBMITTED', 'PENDING_REVIEW'].includes(e.status) && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleApproveEnrollment(e)}
+                          className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold uppercase cursor-pointer"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRejectEnrollment(e)}
+                          className="min-h-[40px] px-4 py-2 rounded-xl bg-[#F03B2E]/20 text-[#FF493B] border border-[#F03B2E]/40 font-bold uppercase cursor-pointer"
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+                    {e.status !== 'ENROLLED' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setManualForm({
+                            enrollmentId: e._id,
+                            clientProfileId: e.clientProfileId?._id || '',
+                            deviceId: e.assignedDeviceId?._id || devices[0]?._id || '',
+                            biometricUserId: e.biometricUserId || '',
+                            captureType: 'FACE',
+                            verifiedByDevice: false,
+                          });
+                          setSelectedEnrollmentDetail(null);
+                          setActiveTab('manual');
+                        }}
+                        className="min-h-[40px] px-4 py-2 rounded-xl bg-[#F03B2E] text-white font-bold uppercase cursor-pointer"
+                      >
+                        {['FAILED', 'REJECTED'].includes(e.status) ? 'Retry / Complete on Device' : 'Complete Manual Enrollment'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
         </div>
       )}
 
@@ -1644,8 +1744,8 @@ export default function BiometricDevices() {
                         >
                           <option value="">Select Member</option>
                           {clientsList.map((c) => (
-                            <option key={c.profileId || c.id} value={c.profileId || c.id}>
-                              {c.clientId || '—'} — {c.name}
+                            <option key={c.profileId || c.id} value={c.profileId || ''} disabled={!c.profileId}>
+                              {c.clientId || '—'} — {c.name} {!c.profileId ? '[No ClientProfile]' : ''}
                             </option>
                           ))}
                         </select>

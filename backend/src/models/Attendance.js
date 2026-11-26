@@ -70,12 +70,12 @@ const attendanceSchema = new mongoose.Schema(
     },
     membershipStatusAtEvent: {
       type: String,
-      enum: ['ACTIVE', 'EXPIRED', 'NOT_FOUND', 'SUSPENDED', 'NO_MEMBERSHIP', 'N/A'],
+      enum: ['ACTIVE', 'EXPIRED', 'NOT_FOUND', 'SUSPENDED', 'FROZEN', 'CANCELLED', 'NO_MEMBERSHIP', 'N/A'],
       default: 'N/A',
     },
     attendanceStatus: {
       type: String,
-      enum: ['SUCCESS', 'FLAGGED_EXPIRED', 'FLAGGED_SUSPENDED', 'FLAGGED_NO_MEMBERSHIP', 'UNMAPPED_USER'],
+      enum: ['SUCCESS', 'FLAGGED_EXPIRED', 'FLAGGED_SUSPENDED', 'FLAGGED_FROZEN', 'FLAGGED_CANCELLED', 'FLAGGED_NO_MEMBERSHIP', 'UNMAPPED_USER'],
       default: 'SUCCESS',
       index: true,
     },

@@ -12,6 +12,7 @@ import {
   RotateCcw,
   X,
 } from 'lucide-react';
+import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
 import clientService from '../../services/clientService.js';
 
 const analyzeFrame = (videoEl) => {
@@ -79,8 +80,11 @@ export default function BiometricAccess({ onNavigate }) {
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const landmarkerRef = useRef(null);
   const [cameraError, setCameraError] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [modelReady, setModelReady] = useState(false);
+  const [challengeType, setChallengeType] = useState('BLINK'); // 'BLINK' | 'TURN_HEAD'
   const [capturing, setCapturing] = useState(false);
   const [capturedPreview, setCapturedPreview] = useState(null);
   const [captureMetrics, setCaptureMetrics] = useState(null);
@@ -105,6 +109,10 @@ export default function BiometricAccess({ onNavigate }) {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
+      if (landmarkerRef.current) {
+        landmarkerRef.current.close();
+        landmarkerRef.current = null;
+      }
     };
   }, [loadStatus]);
 
@@ -116,10 +124,34 @@ export default function BiometricAccess({ onNavigate }) {
     setCameraReady(false);
   };
 
+  const initFaceLandmarker = async () => {
+    if (landmarkerRef.current) {
+      setModelReady(true);
+      return landmarkerRef.current;
+    }
+    const vision = await FilesetResolver.forVisionTasks(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+    );
+    const landmarker = await FaceLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath:
+          'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+        delegate: 'GPU',
+      },
+      outputFaceBlendshapes: true,
+      runningMode: 'VIDEO',
+      numFaces: 2,
+    });
+    landmarkerRef.current = landmarker;
+    setModelReady(true);
+    return landmarker;
+  };
+
   const startCamera = async () => {
     setCameraError(null);
     setCapturedPreview(null);
     setCaptureMetrics(null);
+    setChallengeType(Math.random() > 0.5 ? 'BLINK' : 'TURN_HEAD');
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setCameraError('Your browser does not support camera access. Please use a modern mobile browser or enroll at reception.');
       return;
@@ -135,6 +167,10 @@ export default function BiometricAccess({ onNavigate }) {
         await videoRef.current.play();
       }
       setCameraReady(true);
+      initFaceLandmarker().catch((err) => {
+        console.warn('MediaPipe FaceLandmarker init error:', err);
+        setCameraError('Face detection model could not initialize on this browser. Please visit branch reception for manual enrollment.');
+      });
     } catch (err) {
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setCameraError('Camera permission was denied. Please allow front-camera access in browser settings or visit reception.');
@@ -165,17 +201,56 @@ export default function BiometricAccess({ onNavigate }) {
     setCapturing(true);
     setCameraError(null);
     try {
-      const f1 = analyzeFrame(videoRef.current);
-      await new Promise((r) => setTimeout(r, 350));
-      const f2 = analyzeFrame(videoRef.current);
-      await new Promise((r) => setTimeout(r, 350));
-      const f3 = analyzeFrame(videoRef.current);
+      const landmarker = await initFaceLandmarker();
+      const samples = [];
 
-      const avgBrightness = Math.round((f1.brightnessScore + f2.brightnessScore + f3.brightnessScore) / 3);
-      const avgSharpness = Math.round((f1.sharpnessScore + f2.sharpnessScore + f3.sharpnessScore) / 3);
-      const motion12 = computeMotionDelta(f1.gray, f2.gray);
-      const motion23 = computeMotionDelta(f2.gray, f3.gray);
-      const livenessPassed = motion12 > 0.35 || motion23 > 0.35;
+      for (let i = 0; i < 6; i++) {
+        const frameQuality = analyzeFrame(videoRef.current);
+        const lmRes = landmarker.detectForVideo(videoRef.current, performance.now());
+
+        if (!lmRes.faceLandmarks || lmRes.faceLandmarks.length === 0) {
+          setCameraError('No face detected. Keep your face inside the alignment oval and ensure good lighting.');
+          setCapturing(false);
+          return;
+        }
+        if (lmRes.faceLandmarks.length > 1) {
+          setCameraError('Multiple faces detected. Ensure only you are visible in the camera frame.');
+          setCapturing(false);
+          return;
+        }
+
+        const landmarks = lmRes.faceLandmarks[0];
+        const nose = landmarks[1];
+        const leftCheek = landmarks[234];
+        const rightCheek = landmarks[454];
+        const faceWidth = Math.abs((rightCheek?.x || 0) - (leftCheek?.x || 0));
+
+        if (faceWidth < 0.16) {
+          setCameraError('Move slightly closer to the camera so your face fills the alignment oval.');
+          setCapturing(false);
+          return;
+        }
+        if (nose && (nose.x < 0.25 || nose.x > 0.75 || nose.y < 0.22 || nose.y > 0.78)) {
+          setCameraError('Center your face inside the alignment oval.');
+          setCapturing(false);
+          return;
+        }
+
+        const blend = lmRes.faceBlendshapes?.[0]?.categories || [];
+        const blinkLeft = blend.find((c) => c.categoryName === 'eyeBlinkLeft')?.score || 0;
+        const blinkRight = blend.find((c) => c.categoryName === 'eyeBlinkRight')?.score || 0;
+
+        samples.push({
+          ...frameQuality,
+          noseX: nose?.x || 0.5,
+          blinkScore: Math.max(blinkLeft, blinkRight),
+        });
+
+        if (i < 5) await new Promise((r) => setTimeout(r, 280));
+      }
+
+      const avgBrightness = Math.round(samples.reduce((s, x) => s + x.brightnessScore, 0) / samples.length);
+      const avgSharpness = Math.round(samples.reduce((s, x) => s + x.sharpnessScore, 0) / samples.length);
 
       if (avgBrightness < 35) {
         setCameraError('Lighting is too dim. Please move to a well-lit area and retake.');
@@ -187,22 +262,34 @@ export default function BiometricAccess({ onNavigate }) {
         setCapturing(false);
         return;
       }
-      if (!livenessPassed) {
-        setCameraError('Liveness check failed (static frame detected). Slightly blink or move your head while capturing.');
+
+      const maxBlink = Math.max(...samples.map((s) => s.blinkScore));
+      const noseXs = samples.map((s) => s.noseX);
+      const headTurnDelta = Math.max(...noseXs) - Math.min(...noseXs);
+
+      const challengePassed =
+        challengeType === 'BLINK' ? maxBlink >= 0.32 : headTurnDelta >= 0.04;
+
+      if (!challengePassed) {
+        setCameraError(
+          challengeType === 'BLINK'
+            ? 'Blink challenge not detected. Please blink naturally while capturing.'
+            : 'Head-turn challenge not detected. Gently turn your head slightly left/right while capturing.'
+        );
         setCapturing(false);
         return;
       }
 
-      setCapturedPreview(f3.previewUrl);
+      setCapturedPreview(samples[samples.length - 1].previewUrl);
       setCaptureMetrics({
         brightnessScore: avgBrightness,
         sharpnessScore: avgSharpness,
         livenessPassed: true,
-        frameCount: 3,
+        frameCount: samples.length,
       });
       stopCamera();
     } catch (err) {
-      setCameraError('Failed to analyze camera frames. Please retake.');
+      setCameraError(err.message || 'Face analysis failed. Please retake or enroll at reception.');
     } finally {
       setCapturing(false);
     }
@@ -457,11 +544,25 @@ export default function BiometricAccess({ onNavigate }) {
                 </button>
               </div>
 
+              <div className="p-3 rounded-xl bg-[#111111] border border-[#252525] text-xs text-[#F5F5F5]">
+                <span className="text-[10px] font-mono uppercase text-[#F03B2E] font-bold block">
+                  Challenge Prompt (Basic Landmark Verification)
+                </span>
+                <p className="mt-0.5 font-semibold">
+                  {challengeType === 'BLINK'
+                    ? 'Look at the camera and BLINK naturally during capture.'
+                    : 'Look at the camera and gently TURN YOUR HEAD slightly left or right during capture.'}
+                </p>
+                {!modelReady && cameraReady && (
+                  <p className="text-[11px] text-amber-400 mt-1">Initializing MediaPipe face landmark model...</p>
+                )}
+              </div>
+
               <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] text-[#B8B8B8]">
                 <li>• Find a well-lit location</li>
-                <li>• Keep your face inside the alignment oval</li>
+                <li>• Keep only your face inside the alignment oval</li>
                 <li>• Remove sunglasses/masks where practical</li>
-                <li>• Blink or slightly nod during capture (liveness check)</li>
+                <li>• Admin review &amp; branch terminal scan complete registration</li>
               </ul>
 
               {cameraError && (

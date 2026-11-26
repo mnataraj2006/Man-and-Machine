@@ -1,0 +1,247 @@
+const { URL } = require('node:url');
+const { validateDeviceRequest, normalizeIp } = require('../security/deviceValidation');
+const {
+  parseAdmsLines,
+  isLikelyMalformedAttlog,
+  extractFirmwareVersion,
+} = require('./protocolHandler');
+const { sendText, sendJson, buildFallbackCdataOptions } = require('./responseHandler');
+
+const MAX_BODY_BYTES = 256 * 1024;
+
+function readRequestBody(req, maxBytes = MAX_BODY_BYTES) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    let settled = false;
+
+    req.on('data', (chunk) => {
+      if (settled) return;
+      total += chunk.length;
+      if (total > maxBytes) {
+        settled = true;
+        req.pause();
+        reject(Object.assign(new Error('Payload too large'), { statusCode: 413 }));
+        return;
+      }
+      chunks.push(chunk);
+    });
+
+    req.on('end', () => {
+      if (settled) return;
+      settled = true;
+      resolve(Buffer.concat(chunks).toString('utf8'));
+    });
+
+    req.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    });
+  });
+}
+
+function isLoopbackIp(ip) {
+  const norm = normalizeIp(ip);
+  return norm === '127.0.0.1' || norm === '::1' || norm === 'localhost';
+}
+
+function createRequestHandler({ settings, queue, renderClient, retryManager, healthMonitor, logger }) {
+  return async function handleRequest(req, res) {
+    const remoteIp = req.socket?.remoteAddress || '';
+    const parsedUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    const pathname = parsedUrl.pathname;
+    const queryString = parsedUrl.search.startsWith('?') ? parsedUrl.search.slice(1) : '';
+    const method = (req.method || 'GET').toUpperCase();
+
+    try {
+      // Local administrative health & status endpoints
+      if (method === 'GET' && (pathname === '/health' || pathname === '/status')) {
+        if (settings.healthBindLocalOnly && !isLoopbackIp(remoteIp)) {
+          logger.warn('Rejected non-local health check', { remoteIp: normalizeIp(remoteIp), pathname });
+          return sendJson(res, 403, { error: 'Health endpoint is restricted to localhost' });
+        }
+        return sendJson(res, 200, healthMonitor.getStatusSnapshot());
+      }
+
+      // ADMS endpoints
+      if (
+        pathname === '/iclock/cdata' ||
+        pathname === '/iclock/getrequest' ||
+        pathname === '/iclock/devicecmd'
+      ) {
+        const sn = parsedUrl.searchParams.get('SN') || parsedUrl.searchParams.get('sn') || '';
+        const validation = validateDeviceRequest({ sn, remoteIp, settings });
+        if (!validation.ok) {
+          logger.warn('Rejected ADMS request', {
+            reason: validation.reason,
+            sn: sn || null,
+            remoteIp: normalizeIp(remoteIp),
+            pathname,
+          });
+          return sendText(res, validation.statusCode, `ERROR: ${validation.message}`);
+        }
+
+        const validSn = validation.sn;
+        const validIp = validation.remoteIp;
+
+        // 1. Handshake / Options: GET /iclock/cdata
+        if (pathname === '/iclock/cdata' && method === 'GET') {
+          const fw = extractFirmwareVersion(parsedUrl.searchParams);
+          queue.recordDeviceActivity({
+            deviceSerial: validSn,
+            ip: validIp,
+            firmwareVersion: fw,
+            heartbeat: true,
+          });
+
+          const cloudRes = await renderClient.forwardCdataGet(queryString);
+          if (cloudRes.ok) {
+            queue.recordDeviceActivity({
+              deviceSerial: validSn,
+              cloudSync: true,
+              cloudError: '__CLEAR__',
+            });
+            logger.info('ADMS handshake forwarded to Render', { sn: validSn, ip: validIp });
+            return sendText(res, cloudRes.statusCode, cloudRes.body);
+          }
+
+          // If Render explicitly rejected the device (401/403/404), surface that
+          if (cloudRes.statusCode >= 400 && cloudRes.statusCode < 500) {
+            logger.warn('Render rejected ADMS handshake', {
+              sn: validSn,
+              statusCode: cloudRes.statusCode,
+            });
+            return sendText(res, cloudRes.statusCode, cloudRes.body || `ERROR: HTTP ${cloudRes.statusCode}`);
+          }
+
+          // Network/5xx fallback so X2008 can still initialize and queue logs offline
+          logger.warn('Render unreachable during handshake; serving local fallback options', {
+            sn: validSn,
+            error: cloudRes.error || `HTTP ${cloudRes.statusCode}`,
+          });
+          return sendText(res, 200, buildFallbackCdataOptions(validSn));
+        }
+
+        // 2. Attendance / Operlog upload: POST /iclock/cdata
+        if (pathname === '/iclock/cdata' && method === 'POST') {
+          const rawBody = await readRequestBody(req);
+          const tableName = (parsedUrl.searchParams.get('table') || 'ATTLOG').trim().toUpperCase();
+
+          if (tableName !== 'ATTLOG' && tableName !== 'OPERLOG' && tableName !== 'ATTPHOTO') {
+            logger.info('Ignored unsupported ADMS table upload', { sn: validSn, tableName });
+            return sendText(res, 200, 'OK');
+          }
+
+          if (tableName === 'ATTPHOTO') {
+            return sendText(res, 200, 'OK');
+          }
+
+          const lines = parseAdmsLines(rawBody);
+          if (tableName === 'ATTLOG' && isLikelyMalformedAttlog(lines)) {
+            logger.warn('Rejected malformed ATTLOG payload', { sn: validSn, ip: validIp });
+            return sendText(res, 400, 'ERROR: Malformed ATTLOG payload');
+          }
+
+          if (lines.length === 0) {
+            queue.recordDeviceActivity({ deviceSerial: validSn, ip: validIp });
+            return sendText(res, 200, tableName === 'ATTLOG' ? 'OK: 0' : 'OK: 1');
+          }
+
+          const queued = queue.enqueueEvent({
+            deviceSerial: validSn,
+            tableName,
+            queryString,
+            rawPayload: rawBody,
+            lineCount: lines.length,
+          });
+
+          queue.recordDeviceActivity({
+            deviceSerial: validSn,
+            ip: validIp,
+            attlog: tableName === 'ATTLOG',
+            operlog: tableName === 'OPERLOG',
+          });
+
+          logger.info('Persisted ADMS event to SQLite outbox', {
+            eventId: queued.id,
+            inserted: queued.inserted,
+            sn: validSn,
+            table: tableName,
+            lineCount: lines.length,
+          });
+
+          // Trigger asynchronous flush without blocking the X2008 response
+          retryManager.triggerFlush().catch((err) => {
+            logger.error('Async flush trigger failed', { error: err.message });
+          });
+
+          return sendText(res, 200, tableName === 'ATTLOG' ? `OK: ${lines.length}` : 'OK: 1');
+        }
+
+        // 3. Heartbeat / Command poll: GET /iclock/getrequest (live only, never queued)
+        if (pathname === '/iclock/getrequest' && method === 'GET') {
+          queue.recordDeviceActivity({
+            deviceSerial: validSn,
+            ip: validIp,
+            heartbeat: true,
+          });
+
+          const cloudRes = await renderClient.forwardGetRequest(queryString);
+          if (cloudRes.ok) {
+            queue.recordDeviceActivity({
+              deviceSerial: validSn,
+              cloudSync: true,
+              cloudError: '__CLEAR__',
+            });
+            return sendText(res, cloudRes.statusCode, cloudRes.body);
+          }
+
+          if (cloudRes.statusCode >= 400 && cloudRes.statusCode < 500) {
+            return sendText(res, cloudRes.statusCode, cloudRes.body || `ERROR: HTTP ${cloudRes.statusCode}`);
+          }
+
+          logger.debug('Render unreachable on getrequest; returning local OK', {
+            sn: validSn,
+            error: cloudRes.error || `HTTP ${cloudRes.statusCode}`,
+          });
+          return sendText(res, 200, 'OK');
+        }
+
+        // 4. Device command acknowledgment: POST /iclock/devicecmd (live only, never queued)
+        if (pathname === '/iclock/devicecmd' && method === 'POST') {
+          const rawBody = await readRequestBody(req);
+          queue.recordDeviceActivity({
+            deviceSerial: validSn,
+            ip: validIp,
+          });
+
+          const cloudRes = await renderClient.forwardDeviceCmd(queryString, rawBody);
+          if (cloudRes.ok) {
+            return sendText(res, cloudRes.statusCode, cloudRes.body);
+          }
+
+          if (cloudRes.statusCode >= 400 && cloudRes.statusCode < 500) {
+            return sendText(res, cloudRes.statusCode, cloudRes.body || `ERROR: HTTP ${cloudRes.statusCode}`);
+          }
+
+          return sendText(res, 200, 'OK');
+        }
+
+        return sendText(res, 405, 'ERROR: Method Not Allowed');
+      }
+
+      return sendText(res, 404, 'Not Found');
+    } catch (err) {
+      if (err && err.statusCode === 413) {
+        return sendText(res, 413, 'ERROR: Payload Too Large');
+      }
+      logger.error('Unhandled request error', { pathname, method, error: err.message });
+      return sendText(res, 500, 'ERROR: Internal Bridge Error');
+    }
+  };
+}
+
+module.exports = {
+  createRequestHandler,
+};

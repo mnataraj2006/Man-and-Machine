@@ -410,6 +410,12 @@ const syncDevice = async (id, adminUser) => {
 // ==========================================
 
 const mapBiometricUser = async ({ deviceId, biometricUserId, clientProfileId }, adminUser) => {
+  if (!clientProfileId || !mongoose.Types.ObjectId.isValid(clientProfileId)) {
+    const err = new Error('A valid ClientProfile ID is required for biometric user mapping.');
+    err.statusCode = 400;
+    throw err;
+  }
+
   const [device, profile] = await Promise.all([
     BiometricDevice.findById(deviceId),
     ClientProfile.findById(clientProfileId),
@@ -421,7 +427,7 @@ const mapBiometricUser = async ({ deviceId, biometricUserId, clientProfileId }, 
     throw err;
   }
   if (!profile) {
-    const err = new Error('Member profile not found.');
+    const err = new Error('ClientProfile not found for the selected member. Ensure the client has a valid profile before biometric mapping.');
     err.statusCode = 404;
     throw err;
   }
@@ -525,8 +531,12 @@ const validateMembershipForProfile = async (profile) => {
     return { membershipStatus: 'EXPIRED', attendanceStatus: 'FLAGGED_EXPIRED' };
   }
 
-  if (latest.status === 'FROZEN' || latest.status === 'PAUSED' || latest.status === 'CANCELLED') {
-    return { membershipStatus: 'SUSPENDED', attendanceStatus: 'FLAGGED_SUSPENDED' };
+  if (latest.status === 'FROZEN' || latest.status === 'PAUSED') {
+    return { membershipStatus: 'FROZEN', attendanceStatus: 'FLAGGED_FROZEN' };
+  }
+
+  if (latest.status === 'CANCELLED') {
+    return { membershipStatus: 'CANCELLED', attendanceStatus: 'FLAGGED_CANCELLED' };
   }
 
   return { membershipStatus: 'NO_MEMBERSHIP', attendanceStatus: 'FLAGGED_NO_MEMBERSHIP' };
@@ -673,22 +683,34 @@ const handleAdmsAttLog = async (sn, rawBody) => {
 
   let processed = 0;
   let duplicates = 0;
+  let malformedCount = 0;
 
   for (const line of lines) {
     // eSSL / ZKTeco ATTLOG tab-separated format:
     // PIN \t DateTime \t Status \t Verify \t WorkCode \t Reserved1 \t Reserved2
     const parts = line.split('\t');
-    if (parts.length < 2) continue;
+    if (parts.length < 2) {
+      malformedCount += 1;
+      continue;
+    }
 
     const biometricUserId = parts[0].trim();
     const rawTs = parts[1].trim();
     const statusCode = parts[2] ?? '0';
     const verifyCode = parts[3] ?? '15';
 
+    if (!biometricUserId || !/^[A-Za-z0-9_-]{1,32}$/.test(biometricUserId)) {
+      malformedCount += 1;
+      continue;
+    }
+
     // Device local time is IST (+05:30)
     const isoLike = rawTs.includes('T') ? rawTs : `${rawTs.replace(' ', 'T')}+05:30`;
     const eventTime = new Date(isoLike);
-    if (Number.isNaN(eventTime.getTime())) continue;
+    if (Number.isNaN(eventTime.getTime())) {
+      malformedCount += 1;
+      continue;
+    }
 
     const res = await processAttendanceEvent({
       device,
@@ -701,6 +723,18 @@ const handleAdmsAttLog = async (sn, rawBody) => {
 
     if (res.duplicate) duplicates += 1;
     else processed += 1;
+  }
+
+  if (lines.length > 0 && processed === 0 && duplicates === 0 && malformedCount > 0) {
+    await logDeviceEvent({
+      deviceId: device._id,
+      branchId: device.branchId,
+      category: 'ERROR',
+      status: 'ERROR',
+      action: 'ADMS_MALFORMED_PAYLOAD',
+      message: `Rejected malformed ATTLOG payload from ${device.serialNumber} (${malformedCount} invalid line(s)).`,
+    });
+    return { found: true, malformed: true, processed: 0, duplicates: 0 };
   }
 
   const now = new Date();
@@ -741,6 +775,35 @@ const handleAdmsOperLog = async (sn, rawBody) => {
   if (faceMatch) device.faceCount = Number(faceMatch[1]);
   if (fwMatch) device.firmwareVersion = fwMatch[1];
 
+  // Parse USER PIN=... records if sent in OPERLOG (never store Passwd or templates)
+  const existingMap = new Map(
+    (device.discoveredUsers || []).map((u) => [u.biometricUserId, u])
+  );
+  let parsedUsersCount = 0;
+  let invalidUsersCount = 0;
+  const operLines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  for (const line of operLines) {
+    if (!/^USER\b/i.test(line)) continue;
+    const pinMatch = line.match(/\bPIN=([^\t\s]+)/i);
+    const pin = pinMatch ? pinMatch[1].trim() : '';
+    if (!pin || !/^[A-Za-z0-9_-]{1,32}$/.test(pin)) {
+      invalidUsersCount += 1;
+      continue;
+    }
+    const nameMatch = line.match(/\bName=([^\t\r\n]*)/i);
+    const priMatch = line.match(/\bPri=([^\t\s]*)/i);
+    existingMap.set(pin, {
+      biometricUserId: pin,
+      name: nameMatch ? nameMatch[1].trim() : '',
+      privilege: priMatch ? priMatch[1].trim() : '0',
+      seenAt: new Date(),
+    });
+    parsedUsersCount += 1;
+  }
+  if (parsedUsersCount > 0) {
+    device.discoveredUsers = Array.from(existingMap.values());
+  }
+
   device.lastSeenAt = new Date();
   if (device.isActive && device.status !== 'DISABLED') device.status = 'ONLINE';
   await device.save();
@@ -751,7 +814,7 @@ const handleAdmsOperLog = async (sn, rawBody) => {
     category: 'USER_SYNC',
     status: 'INFO',
     action: 'ADMS_OPERLOG',
-    message: `Received OPERLOG update from ${device.serialNumber}.`,
+    message: `Received OPERLOG update from ${device.serialNumber}${parsedUsersCount ? ` (${parsedUsersCount} user record(s) parsed, ${invalidUsersCount} invalid)` : ''}.`,
   });
 
   return device;

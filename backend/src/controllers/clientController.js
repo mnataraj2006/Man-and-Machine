@@ -1963,7 +1963,7 @@ const biometricEnrollmentService = require('../services/biometricEnrollmentServi
 
 const getBiometricStatus = async (req, res, next) => {
   try {
-    const data = await biometricEnrollmentService.getClientBiometricStatus(req.user._id);
+    const data = await biometricEnrollmentService.getClientBiometricStatus(req.user._id, req.query.branchId || null);
     res.status(200).json({ success: true, ...data });
   } catch (err) {
     next(err);
@@ -1974,6 +1974,7 @@ const recordBiometricConsent = async (req, res, next) => {
   try {
     const data = await biometricEnrollmentService.recordClientConsent(req.user._id, {
       agreed: req.body.agreed,
+      branchId: req.body.branchId || null,
       ipAddress: req.ip || '',
     });
     res.status(201).json({ success: true, message: 'Biometric consent recorded.', ...data });
@@ -1984,7 +1985,9 @@ const recordBiometricConsent = async (req, res, next) => {
 
 const withdrawBiometricConsent = async (req, res, next) => {
   try {
-    const data = await biometricEnrollmentService.withdrawClientConsent(req.user._id);
+    const data = await biometricEnrollmentService.withdrawClientConsent(req.user._id, {
+      branchId: req.body?.branchId || null,
+    });
     res.status(200).json({ success: true, message: 'Biometric consent withdrawn.', ...data });
   } catch (err) {
     next(err);

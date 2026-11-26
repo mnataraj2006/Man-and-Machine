@@ -1,0 +1,17 @@
+{
+  "name": "man-and-machine-adms-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Windows 11 local ADMS bridge for eSSL X2008 to Man & Machine Render HTTPS backend",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "status": "node src/cli/status.js",
+    "queue": "node src/cli/queue.js",
+    "logs": "node src/cli/logs.js",
+    "test": "node --test tests/bridge.test.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

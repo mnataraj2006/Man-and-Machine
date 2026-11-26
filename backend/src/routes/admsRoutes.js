@@ -1,24 +1,60 @@
 const express = require('express');
 const router = express.Router();
 const biometricDeviceService = require('../services/biometricDeviceService');
+const { createRateLimiter } = require('../middleware/rateLimitMiddleware');
 
-// ADMS devices send text/plain tab-separated payloads
-router.use(express.text({ type: '*/*', limit: '2mb' }));
+// ADMS devices send text/plain tab-separated payloads (strict 256KB limit)
+router.use(express.text({ type: '*/*', limit: '256kb' }));
+
+// Rate limit ADMS endpoints to prevent flood/abuse while allowing continuous heartbeats
+router.use(
+  createRateLimiter({
+    windowMs: 60 * 1000,
+    max: 300,
+    keyPrefix: 'adms',
+    message: 'Too many ADMS requests.',
+  })
+);
 
 /**
- * Optional server-side ADMS shared secret validation (if ADMS_SHARED_SECRET is configured)
+ * Optional IP allowlist & shared secret validation for ADMS receiver.
+ * Note: Physical eSSL X2008 firmware does not send custom HTTP headers;
+ * use ADMS_ALLOWED_IPS / VPN / private reverse proxy in production.
  */
-const verifyAdmsSecret = (req, res, next) => {
-  const secret = process.env.ADMS_SHARED_SECRET;
-  if (!secret) return next();
-  const provided = req.headers['x-adms-secret'] || req.query.secret;
-  if (provided !== secret) {
-    return res.status(401).type('text/plain').send('ERROR: Unauthorized');
+const verifyAdmsAccess = (req, res, next) => {
+  const allowedIps = (process.env.ADMS_ALLOWED_IPS || '')
+    .split(',')
+    .map((ip) => ip.trim())
+    .filter(Boolean);
+
+  if (allowedIps.length > 0) {
+    const reqIp =
+      req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+      req.ip ||
+      req.socket?.remoteAddress ||
+      '';
+    if (!allowedIps.includes(reqIp)) {
+      return res.status(403).type('text/plain').send('ERROR: Forbidden source IP');
+    }
   }
+
+  const secret = process.env.ADMS_SHARED_SECRET;
+  if (secret) {
+    const provided = req.headers['x-adms-secret'] || req.query.secret;
+    if (provided !== secret) {
+      return res.status(401).type('text/plain').send('ERROR: Unauthorized');
+    }
+  }
+
+  const sn = String(req.query.SN || req.query.sn || '').trim();
+  if (!sn || !/^[A-Za-z0-9_-]{3,40}$/.test(sn)) {
+    return res.status(400).type('text/plain').send('ERROR: Invalid or missing device SN');
+  }
+
   return next();
 };
 
-router.use(verifyAdmsSecret);
+router.use(verifyAdmsAccess);
 
 /**
  * GET /iclock/cdata?SN=TDDB250600919&options=all
@@ -74,6 +110,7 @@ router.post('/cdata', async (req, res) => {
       const result = await biometricDeviceService.handleAdmsAttLog(sn, bodyText);
       if (!result.found) return res.status(404).type('text/plain').send('ERROR: Device not registered');
       if (result.disabled) return res.status(403).type('text/plain').send('ERROR: Device disabled');
+      if (result.malformed) return res.status(400).type('text/plain').send('ERROR: Malformed ATTLOG payload');
       return res.status(200).type('text/plain').send(`OK: ${result.processed + result.duplicates}`);
     }
 

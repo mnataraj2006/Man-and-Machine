@@ -112,6 +112,18 @@ const biometricDeviceSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Non-sensitive user IDs discovered via ADMS OPERLOG (for non-destructive migration)
+    discoveredUsers: {
+      type: [
+        {
+          biometricUserId: { type: String, trim: true, required: true },
+          name: { type: String, trim: true, default: '' },
+          privilege: { type: String, trim: true, default: '0' },
+          seenAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
     // Server-side ADMS key (never exposed to frontend)
     admsSecretKey: {
       type: String,

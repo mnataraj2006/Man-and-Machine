@@ -716,12 +716,15 @@ const getClients = async (req, res, next) => {
 
         return {
           id: c._id,
+          userId: c._id,
+          profileId: profile?._id || null,
           clientId: profile?.clientId || '',
           name: c.name,
           email: c.email,
           phone: c.phone,
           status: c.status,
           branch: c.branchId,
+          branchId: c.branchId?._id || c.branchId || null,
           createdAt: c.createdAt,
           fitnessGoal: profile?.fitnessGoal || 'General Fitness',
           experienceLevel: profile?.experienceLevel || 'Beginner',
@@ -748,7 +751,7 @@ const getClients = async (req, res, next) => {
     for (const profile of walkInProfiles) {
       const active = await Membership.findOne({ clientProfileId: profile._id, status: 'ACTIVE', startDate: { $lte: now }, expiryDate: { $gte: now } }).sort({ expiryDate: -1 });
       const latest = active || await Membership.findOne({ clientProfileId: profile._id }).sort({ createdAt: -1 });
-      clientList.push({ id: profile._id, profileId: profile._id, clientId: profile.clientId || '', name: profile.name, email: profile.email, phone: profile.phone, status: 'NOT_CREATED', accountAccessStatus: 'NOT_CREATED', branch: profile.branchId, createdAt: profile.joiningDate || profile.createdAt, fitnessGoal: profile.fitnessGoal, experienceLevel: profile.experienceLevel, trainer: profile.trainerId?.status === 'ACTIVE' ? profile.trainerId : null, membership: latest ? { id: latest._id, planName: latest.planName, status: latest.status, startDate: latest.startDate, expiryDate: latest.expiryDate, isExpired: latest.status === 'EXPIRED' || new Date(latest.expiryDate) < now } : null });
+      clientList.push({ id: profile._id, userId: null, profileId: profile._id, clientId: profile.clientId || '', name: profile.name, email: profile.email, phone: profile.phone, status: 'NOT_CREATED', accountAccessStatus: 'NOT_CREATED', branch: profile.branchId, branchId: profile.branchId?._id || profile.branchId || null, createdAt: profile.joiningDate || profile.createdAt, fitnessGoal: profile.fitnessGoal, experienceLevel: profile.experienceLevel, trainer: profile.trainerId?.status === 'ACTIVE' ? profile.trainerId : null, membership: latest ? { id: latest._id, planName: latest.planName, status: latest.status, startDate: latest.startDate, expiryDate: latest.expiryDate, isExpired: latest.status === 'EXPIRED' || new Date(latest.expiryDate) < now } : null });
     }
 
     let filteredList = clientList;

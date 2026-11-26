@@ -1,0 +1,9 @@
+.env
+data/
+logs/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.log
+installer/ManAndMachine-ADMS-Bridge.exe
+node_modules/

@@ -275,10 +275,11 @@ const startServer = async () => {
     });
     const admsPort = Number(process.env.ADMS_PORT);
     if (admsPort && admsPort !== Number(PORT)) {
+      const admsHost = process.env.ADMS_HOST || '127.0.0.1';
       const admsApp = express();
       admsApp.use('/iclock', admsRoutes);
-      admsApp.listen(admsPort, () => {
-        console.log(`ADMS Biometric Listener running on port ${admsPort}`);
+      admsApp.listen(admsPort, admsHost, () => {
+        console.log(`ADMS Biometric Listener running on ${admsHost}:${admsPort}`);
       });
     }
   } catch (error) {

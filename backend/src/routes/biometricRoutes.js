@@ -2,7 +2,16 @@ const express = require('express');
 const router = express.Router();
 const biometricController = require('../controllers/biometricController');
 const { protect, authorize } = require('../middleware/authMiddleware');
+const { createRateLimiter } = require('../middleware/rateLimitMiddleware');
 
+router.use(
+  createRateLimiter({
+    windowMs: 60 * 1000,
+    max: 120,
+    keyPrefix: 'bio-admin',
+    message: 'Too many biometric management requests. Please slow down.',
+  })
+);
 router.use(protect, authorize('ADMIN'));
 
 router.get('/devices', biometricController.getDevices);

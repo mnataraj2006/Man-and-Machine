@@ -136,9 +136,18 @@ const listEnrollments = async (query = {}) => {
     );
   }
 
+  const page = Math.max(1, parseInt(query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 20));
+  const total = mapped.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const paged = mapped.slice((page - 1) * limit, page * limit);
+
   return {
-    total: mapped.length,
-    enrollments: mapped,
+    total,
+    page,
+    limit,
+    totalPages,
+    enrollments: paged,
   };
 };
 
@@ -185,13 +194,19 @@ const completeManualEnrollment = async (
   { enrollmentId = null, clientProfileId, deviceId, biometricUserId, captureType = 'FACE', verifiedByDevice = false },
   adminUser
 ) => {
+  if (!clientProfileId || !mongoose.Types.ObjectId.isValid(clientProfileId)) {
+    const err = new Error('A valid ClientProfile ID is required for biometric enrollment.');
+    err.statusCode = 400;
+    throw err;
+  }
+
   const [profile, device] = await Promise.all([
     ClientProfile.findById(clientProfileId),
     BiometricDevice.findById(deviceId),
   ]);
 
   if (!profile) {
-    const err = new Error('Member profile not found.');
+    const err = new Error('ClientProfile not found for the selected member. Ensure the client has a valid profile before biometric enrollment.');
     err.statusCode = 404;
     throw err;
   }
@@ -455,7 +470,7 @@ const rejectEnrollment = async (enrollmentId, adminUser, { reason = 'Image quali
 // 5. METHOD C — CLIENT SELF-ENROLLMENT
 // ==========================================
 
-const getClientBiometricStatus = async (userId) => {
+const getClientBiometricStatus = async (userId, requestedBranchId = null) => {
   const profile = await ClientProfile.findOne({ userId }).populate('branchId', 'name city');
   if (!profile) {
     const err = new Error('Client profile not found.');
@@ -463,11 +478,20 @@ const getClientBiometricStatus = async (userId) => {
     throw err;
   }
 
+  const targetBranchId =
+    requestedBranchId && mongoose.Types.ObjectId.isValid(requestedBranchId)
+      ? requestedBranchId
+      : (profile.branchId?._id || profile.branchId);
+
   const isEligible = await hasActiveMembershipForClient(profile);
-  const [enrollment, consent, lastBiometricAttendance, branchDevice] = await Promise.all([
-    BiometricEnrollment.findOne({ clientProfileId: profile._id })
+  const [enrollment, branchEnrollments, consent, lastBiometricAttendance, branchDevice] = await Promise.all([
+    BiometricEnrollment.findOne({ clientProfileId: profile._id, branchId: targetBranchId })
       .populate('assignedDeviceId', 'deviceName model serialNumber status lastSeenAt')
       .populate('branchId', 'name city')
+      .lean(),
+    BiometricEnrollment.find({ clientProfileId: profile._id })
+      .populate('branchId', 'name city')
+      .populate('assignedDeviceId', 'deviceName model')
       .lean(),
     BiometricConsent.findOne({ clientProfileId: profile._id, status: 'GRANTED' })
       .sort({ consentedAt: -1 })
@@ -478,7 +502,7 @@ const getClientBiometricStatus = async (userId) => {
     })
       .sort({ checkInTime: -1 })
       .lean(),
-    BiometricDevice.findOne({ branchId: profile.branchId?._id || profile.branchId, isActive: true })
+    BiometricDevice.findOne({ branchId: targetBranchId, isActive: true })
       .select('deviceName model')
       .lean(),
   ]);
@@ -490,6 +514,7 @@ const getClientBiometricStatus = async (userId) => {
     branch: profile.branchId,
     assignedDevice: enrollment?.assignedDeviceId || branchDevice || null,
     consent: consent ? { status: consent.status, consentedAt: consent.consentedAt } : null,
+    branchEnrollments,
     enrollment: enrollment || {
       status: isEligible ? 'INVITED' : 'NOT_STARTED',
       faceEnrollmentStatus: 'NOT_ENROLLED',
@@ -503,7 +528,7 @@ const getClientBiometricStatus = async (userId) => {
   };
 };
 
-const recordClientConsent = async (userId, { agreed, ipAddress = '' }) => {
+const recordClientConsent = async (userId, { agreed, ipAddress = '', branchId = null }) => {
   if (!agreed) {
     const err = new Error('Explicit biometric consent is required to proceed.');
     err.statusCode = 400;
@@ -523,22 +548,28 @@ const recordClientConsent = async (userId, { agreed, ipAddress = '' }) => {
     throw err;
   }
 
+  const targetBranchId =
+    branchId && mongoose.Types.ObjectId.isValid(branchId) ? branchId : profile.branchId;
+
   const consent = await BiometricConsent.create({
     clientProfileId: profile._id,
     userId,
-    branchId: profile.branchId,
+    branchId: targetBranchId,
     consentGiven: true,
     ipAddress,
     status: 'GRANTED',
     consentedAt: new Date(),
   });
 
-  let enrollment = await BiometricEnrollment.findOne({ clientProfileId: profile._id });
+  let enrollment = await BiometricEnrollment.findOne({
+    clientProfileId: profile._id,
+    branchId: targetBranchId,
+  });
   if (!enrollment) {
     enrollment = new BiometricEnrollment({
       clientProfileId: profile._id,
       userId,
-      branchId: profile.branchId,
+      branchId: targetBranchId,
       enrollmentMethod: 'CLIENT_MOBILE',
       status: 'CAPTURE_IN_PROGRESS',
     });
@@ -559,7 +590,7 @@ const recordClientConsent = async (userId, { agreed, ipAddress = '' }) => {
   return { consent, enrollment };
 };
 
-const withdrawClientConsent = async (userId) => {
+const withdrawClientConsent = async (userId, { branchId = null } = {}) => {
   const profile = await ClientProfile.findOne({ userId });
   if (!profile) {
     const err = new Error('Client profile not found.');
@@ -567,18 +598,27 @@ const withdrawClientConsent = async (userId) => {
     throw err;
   }
 
+  const scopeFilter = { clientProfileId: profile._id };
+  if (branchId && mongoose.Types.ObjectId.isValid(branchId)) {
+    scopeFilter.branchId = branchId;
+  }
+
   await BiometricConsent.updateMany(
-    { clientProfileId: profile._id, status: 'GRANTED' },
+    { ...scopeFilter, status: 'GRANTED' },
     { status: 'WITHDRAWN', withdrawnAt: new Date() }
   );
 
   await BiometricUserMapping.updateMany(
-    { clientProfileId: profile._id },
+    { ...scopeFilter, status: 'ACTIVE' },
     { status: 'INACTIVE' }
   );
 
-  const enrollment = await BiometricEnrollment.findOne({ clientProfileId: profile._id });
-  if (enrollment) {
+  const enrollments = await BiometricEnrollment.find({
+    ...scopeFilter,
+    status: { $ne: 'REVOKED' },
+  });
+
+  for (const enrollment of enrollments) {
     const prev = enrollment.status;
     enrollment.status = 'REVOKED';
     enrollment.consentStatus = 'WITHDRAWN';
@@ -592,12 +632,12 @@ const withdrawClientConsent = async (userId) => {
     await enrollment.save();
   }
 
-  return { withdrawn: true };
+  return { withdrawn: true, revokedCount: enrollments.length };
 };
 
 const submitMobileCapture = async (
   userId,
-  { brightnessScore = 0, sharpnessScore = 0, livenessPassed = false, frameCount = 0 }
+  { brightnessScore = 0, sharpnessScore = 0, livenessPassed = false, frameCount = 0, branchId = null }
 ) => {
   const profile = await ClientProfile.findOne({ userId });
   if (!profile) {
@@ -611,6 +651,9 @@ const submitMobileCapture = async (
     err.statusCode = 403;
     throw err;
   }
+
+  const targetBranchId =
+    branchId && mongoose.Types.ObjectId.isValid(branchId) ? branchId : profile.branchId;
 
   const consent = await BiometricConsent.findOne({ clientProfileId: profile._id, status: 'GRANTED' });
   if (!consent) {
@@ -635,15 +678,18 @@ const submitMobileCapture = async (
     throw err;
   }
 
-  const branchDevice = await BiometricDevice.findOne({ branchId: profile.branchId, isActive: true });
+  const branchDevice = await BiometricDevice.findOne({ branchId: targetBranchId, isActive: true });
 
-  let enrollment = await BiometricEnrollment.findOne({ clientProfileId: profile._id });
+  let enrollment = await BiometricEnrollment.findOne({
+    clientProfileId: profile._id,
+    branchId: targetBranchId,
+  });
   const prevStatus = enrollment?.status || 'NOT_STARTED';
   if (!enrollment) {
     enrollment = new BiometricEnrollment({
       clientProfileId: profile._id,
       userId,
-      branchId: profile.branchId,
+      branchId: targetBranchId,
     });
   }
 
@@ -698,11 +744,21 @@ const analyzeMigration = async ({ deviceId, biometricUserIds = [] }) => {
     throw err;
   }
 
-  const cleanIds = biometricUserIds.map((x) => String(x).trim()).filter(Boolean);
+  const rawSourceIds =
+    biometricUserIds && biometricUserIds.length > 0
+      ? biometricUserIds
+      : (device.discoveredUsers || []).map((u) => u.biometricUserId);
+
+  const cleanIds = rawSourceIds.map((x) => String(x).trim()).filter(Boolean);
   const seen = new Set();
   const duplicateIds = [];
+  const invalidIds = [];
   const uniqueIds = [];
   for (const id of cleanIds) {
+    if (!/^[A-Za-z0-9_-]{1,32}$/.test(id)) {
+      invalidIds.push(id);
+      continue;
+    }
     if (seen.has(id)) duplicateIds.push(id);
     else {
       seen.add(id);
@@ -727,6 +783,7 @@ const analyzeMigration = async ({ deviceId, biometricUserIds = [] }) => {
     successfullyMapped: mapped.length,
     unmappedCount: unmapped.length,
     duplicateIds,
+    invalidIds,
     mapped,
     unmapped,
   };

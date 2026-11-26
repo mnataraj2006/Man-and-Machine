@@ -2,6 +2,21 @@ const express = require('express');
 const router = express.Router();
 const clientController = require('../controllers/clientController');
 const { protect, authorize } = require('../middleware/authMiddleware');
+const { createRateLimiter } = require('../middleware/rateLimitMiddleware');
+
+const clientBioLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 30,
+  keyPrefix: 'bio-client',
+  message: 'Too many biometric requests. Please wait a moment.',
+});
+
+const clientCaptureLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 10,
+  keyPrefix: 'bio-capture',
+  message: 'Too many capture attempts. Please wait a minute and try again.',
+});
 
 // All client endpoints require authentication and CLIENT role
 router.use(protect);
@@ -54,9 +69,9 @@ router.put('/notifications/read-all', clientController.markAllNotificationsAsRea
 router.put('/settings/password', clientController.changePassword);
 
 // 11. Biometric Self-Enrollment
-router.get('/biometric/status', clientController.getBiometricStatus);
-router.post('/biometric/consent', clientController.recordBiometricConsent);
-router.post('/biometric/consent/withdraw', clientController.withdrawBiometricConsent);
-router.post('/biometric/capture', clientController.submitBiometricCapture);
+router.get('/biometric/status', clientBioLimiter, clientController.getBiometricStatus);
+router.post('/biometric/consent', clientBioLimiter, clientController.recordBiometricConsent);
+router.post('/biometric/consent/withdraw', clientBioLimiter, clientController.withdrawBiometricConsent);
+router.post('/biometric/capture', clientCaptureLimiter, clientController.submitBiometricCapture);
 
 module.exports = router;
