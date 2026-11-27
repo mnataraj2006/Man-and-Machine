@@ -909,8 +909,8 @@ const recordClientConsent = async (userId, { agreed, ipAddress = '', branchId = 
     clientProfileId: profile._id,
     branchId: targetBranchId,
   });
-  if (enrollment && enrollment.status === 'ENROLLED') {
-    const err = new Error('Biometric enrollment is already completed for this branch.');
+  if (enrollment && enrollment.consentStatus === 'GRANTED') {
+    const err = new Error('Biometric consent has already been granted for this branch.');
     err.statusCode = 409;
     throw err;
   }
