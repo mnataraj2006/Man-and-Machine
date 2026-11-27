@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import adminService from '../../services/adminService.js';
 import biometricService from '../../services/biometricService.js';
+import TrainerAvatar from '../../components/UI/TrainerAvatar.jsx';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
 
 export default function Clients() {
@@ -2081,13 +2082,18 @@ export default function Clients() {
                       4. Trainer Information
                     </span>
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="text-xs">
-                        <span className="text-[10px] font-mono uppercase text-[#858585] block">
-                          Assigned Coach
-                        </span>
-                        <p className="font-bold text-[#F5F5F5] mt-0.5">
-                          {clientDetailData.profile?.trainerId?.name || 'No Trainer Assigned'}
-                        </p>
+                      <div className="flex items-center gap-3 text-xs">
+                        {clientDetailData.profile?.trainerId && (
+                          <TrainerAvatar trainer={clientDetailData.profile.trainerId} size="sm" rounded="rounded-lg" />
+                        )}
+                        <div>
+                          <span className="text-[10px] font-mono uppercase text-[#858585] block">
+                            Assigned Coach
+                          </span>
+                          <p className="font-bold text-[#F5F5F5] mt-0.5">
+                            {clientDetailData.profile?.trainerId?.name || 'No Trainer Assigned'}
+                          </p>
+                        </div>
                       </div>
                       <select
                         aria-label="Assign active trainer"
@@ -2469,11 +2475,16 @@ export default function Clients() {
                   </div>
                 )}
 
-                <div className="p-3 rounded-lg bg-[#111111] border border-[#252525] text-xs">
-                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Current Trainer</span>
-                  <span className="font-bold text-[#F5F5F5] mt-0.5 block">
-                    {trainerModalClient.trainer?.name || 'No Trainer Assigned'}
-                  </span>
+                <div className="p-3 rounded-lg bg-[#111111] border border-[#252525] text-xs flex items-center gap-3">
+                  {trainerModalClient.trainer && (
+                    <TrainerAvatar trainer={trainerModalClient.trainer} size="sm" rounded="rounded-lg" />
+                  )}
+                  <div>
+                    <span className="text-[10px] font-mono uppercase text-[#858585] block">Current Trainer</span>
+                    <span className="font-bold text-[#F5F5F5] mt-0.5 block">
+                      {trainerModalClient.trainer?.name || 'No Trainer Assigned'}
+                    </span>
+                  </div>
                 </div>
 
                 <div>

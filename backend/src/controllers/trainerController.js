@@ -14,6 +14,7 @@ const Branch = require('../models/Branch');
 const TrainerBooking = require('../models/TrainerBooking');
 const bcrypt = require('bcryptjs');
 const dashboardCache = require('../utils/dashboardCache');
+const { serializeTrainerPhoto } = require('../services/trainerPhotoService');
 
 /**
  * Helper to verify that a client is assigned to this trainer
@@ -59,7 +60,7 @@ const getDashboardOverview = async (req, res, next) => {
       unreadNotificationsCount,
     ] = await Promise.all([
       User.findById(trainerId).select('name email phone branchId').populate('branchId', 'name city').lean(),
-      TrainerProfile.findOne({ userId: trainerId }).select('contactPhone specialization experienceYears bio').lean(),
+      TrainerProfile.findOne({ userId: trainerId }).select('contactPhone specialization experienceYears bio profilePhoto profileImage').lean(),
       ClientProfile.find({ trainerId })
         .select('userId branchId fitnessGoal experienceLevel joiningDate')
         .populate('userId', 'name email phone avatar status branchId')
@@ -135,6 +136,7 @@ const getDashboardOverview = async (req, res, next) => {
         experienceYears: trainerProfile?.experienceYears || 5,
         bio: trainerProfile?.bio || '',
         branch: trainerUser.branchId,
+        ...serializeTrainerPhoto(trainerProfile),
       },
       kpis: {
         activeClients: activeClientsCount,
@@ -1602,6 +1604,7 @@ const getProfile = async (req, res, next) => {
       success: true,
       user,
       profile,
+      ...serializeTrainerPhoto(profile),
     });
   } catch (err) {
     next(err);

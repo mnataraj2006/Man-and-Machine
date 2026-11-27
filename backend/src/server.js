@@ -68,6 +68,19 @@ app.use(cors(corsOptions));
 app.use(express.json({ verify: (req, res, buffer) => { if (req.originalUrl === '/api/whatsapp/webhook') req.rawBody = Buffer.from(buffer); } }));
 app.use(express.urlencoded({ extended: true }));
 
+// Serve uploaded media files with browser caching & nosniff security header
+app.use(
+  '/uploads',
+  express.static(path.join(__dirname, '../uploads'), {
+    maxAge: '30d',
+    etag: true,
+    setHeaders: (res) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'public, max-age=2592000');
+    },
+  })
+);
+
 // Health Check Endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({
@@ -154,6 +167,7 @@ app.get('/api/public/trainers', async (req, res, next) => {
 
     const trainers = trainerUsers.map((u) => {
       const prof = profileMap.get(u._id.toString());
+      const photoUrl = prof?.profilePhoto?.url || prof?.profileImage || '';
       return {
         _id: u._id,
         name: u.name,
@@ -165,6 +179,12 @@ app.get('/api/public/trainers', async (req, res, next) => {
           'Purposeful coaching built around your movement, consistency and long-term progress.',
         rating: prof?.rating || 4.9,
         acceptingClients: prof?.acceptingClients !== false,
+        image: photoUrl,
+        profileImage: photoUrl,
+        profilePhoto: {
+          url: photoUrl,
+          uploadedAt: prof?.profilePhoto?.uploadedAt || null,
+        },
       };
     });
 

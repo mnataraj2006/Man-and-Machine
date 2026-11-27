@@ -27,6 +27,8 @@ import {
 } from 'lucide-react';
 import adminService from '../../services/adminService.js';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
+import TrainerAvatar from '../../components/UI/TrainerAvatar.jsx';
+import TrainerPhotoField from '../../components/Admin/TrainerPhotoField.jsx';
 
 export default function Trainers() {
   const { branches, selectedBranch } = useAdmin();
@@ -66,6 +68,9 @@ export default function Trainers() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [addError, setAddError] = useState(null);
   const [submittingAdd, setSubmittingAdd] = useState(false);
+  const [addPhotoFile, setAddPhotoFile] = useState(null);
+  const [editPhotoFile, setEditPhotoFile] = useState(null);
+  const [editRemovePhoto, setEditRemovePhoto] = useState(false);
 
   const [addForm, setAddForm] = useState({
     name: '',
@@ -244,6 +249,7 @@ export default function Trainers() {
 
   const handleOpenAdd = () => {
     setAddError(null);
+    setAddPhotoFile(null);
     setAddForm({
       name: '',
       email: '',
@@ -280,8 +286,9 @@ export default function Trainers() {
     }
     try {
       setSubmittingAdd(true);
-      const res = await adminService.createTrainer(addForm);
+      const res = await adminService.createTrainer(addForm, addPhotoFile);
       setIsAddModalOpen(false);
+      setAddPhotoFile(null);
       setPage(1);
       await fetchTrainers();
       setCopiedLink(false);
@@ -315,6 +322,8 @@ export default function Trainers() {
   const handleOpenEdit = (t) => {
     setActionSheetTrainer(null);
     setEditError(null);
+    setEditPhotoFile(null);
+    setEditRemovePhoto(false);
     setEditingTrainer(t);
     setEditForm({
       name: t.name || '',
@@ -338,9 +347,14 @@ export default function Trainers() {
     }
     try {
       setSavingEdit(true);
-      await adminService.updateTrainer(editingTrainer.id, editForm);
+      await adminService.updateTrainer(editingTrainer.id, editForm, {
+        photoFile: editPhotoFile,
+        removePhoto: editRemovePhoto,
+      });
       const editedId = editingTrainer.id;
       setEditingTrainer(null);
+      setEditPhotoFile(null);
+      setEditRemovePhoto(false);
       showFeedback('success', 'Trainer profile updated.');
       await fetchTrainers();
       if (selectedTrainerDetails?.trainer?.id === editedId) {
@@ -755,17 +769,7 @@ export default function Trainers() {
                         <tr key={t.id}>
                           <td>
                             <div className="flex items-center gap-3">
-                              {t.profileImage ? (
-                                <img
-                                  src={t.profileImage}
-                                  alt={t.name}
-                                  className="w-9 h-9 rounded-lg object-cover border border-[#303030] shrink-0"
-                                />
-                              ) : (
-                                <div className="w-9 h-9 rounded-lg bg-[#202020] border border-[#303030] flex items-center justify-center text-[#F03B2E] font-bold text-xs shrink-0">
-                                  {t.name ? t.name[0].toUpperCase() : 'T'}
-                                </div>
-                              )}
+                              <TrainerAvatar trainer={t} size="sm" rounded="rounded-lg" />
                               <div>
                                 <div className="font-bold text-[#F5F5F5] text-sm">{t.name}</div>
                                 <div className="text-[11px] text-[#858585]">
@@ -911,17 +915,7 @@ export default function Trainers() {
                     {/* Card Header: Name + Status + Three-dot Menu */}
                     <div className="flex items-start justify-between gap-2 min-w-0">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
-                        {t.profileImage ? (
-                          <img
-                            src={t.profileImage}
-                            alt={t.name}
-                            className="w-10 h-10 rounded-lg object-cover border border-[#303030] shrink-0"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg bg-[#202020] border border-[#303030] flex items-center justify-center text-[#F03B2E] font-bold text-sm shrink-0">
-                            {t.name ? t.name[0].toUpperCase() : 'T'}
-                          </div>
-                        )}
+                        <TrainerAvatar trainer={t} size="md" rounded="rounded-lg" />
                         <div className="min-w-0 flex-1 space-y-1">
                           <h3 className="font-display text-base sm:text-lg font-bold uppercase text-[#F5F5F5] leading-tight truncate">
                             {t.name}
@@ -1674,19 +1668,15 @@ export default function Trainers() {
                       placeholder="e.g. ACE Certified / CSCS"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B8B8B8] mb-1">
-                      Profile Image URL (Optional)
-                    </label>
-                    <input
-                      type="url"
-                      value={addForm.profileImage}
-                      onChange={(e) => setAddForm({ ...addForm, profileImage: e.target.value })}
-                      className="mm-input min-h-[44px] text-xs"
-                      placeholder="https://..."
-                    />
-                  </div>
                 </div>
+
+                <TrainerPhotoField
+                  trainerName={addForm.name}
+                  pendingFile={addPhotoFile}
+                  onSelectFile={(file) => setAddPhotoFile(file)}
+                  onRemove={() => setAddPhotoFile(null)}
+                  disabled={submittingAdd}
+                />
 
                 <p className="text-[11px] text-[#858585] bg-[#111111] border border-[#252525] p-3 rounded-lg">
                   Account status starts as <strong>PENDING_ACTIVATION</strong>. The coach sets their own password privately via a single-use 24-hour invitation link.
@@ -1728,15 +1718,23 @@ export default function Trainers() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 py-4 border-b border-[#252525] flex items-start justify-between gap-3 shrink-0">
-              <div className="min-w-0">
-                <span className="font-label text-[#F03B2E] block mb-0.5">COACH DOSSIER</span>
-                <h3 className="mm-page-title text-lg sm:text-xl truncate">
-                  {selectedTrainerDetails.trainer.name}
-                </h3>
-                <span className="text-xs text-[#B8B8B8] font-mono block truncate">
-                  {selectedTrainerDetails.trainer.branch?.city} Branch •{' '}
-                  {selectedTrainerDetails.trainer.specialization}
-                </span>
+              <div className="flex items-center gap-3.5 min-w-0">
+                <TrainerAvatar
+                  trainer={selectedTrainerDetails.trainer}
+                  size="lg"
+                  rounded="rounded-xl"
+                  lazy={false}
+                />
+                <div className="min-w-0">
+                  <span className="font-label text-[#F03B2E] block mb-0.5">COACH DOSSIER</span>
+                  <h3 className="mm-page-title text-lg sm:text-xl truncate">
+                    {selectedTrainerDetails.trainer.name}
+                  </h3>
+                  <span className="text-xs text-[#B8B8B8] font-mono block truncate">
+                    {selectedTrainerDetails.trainer.branch?.city} Branch •{' '}
+                    {selectedTrainerDetails.trainer.specialization}
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
@@ -1967,6 +1965,25 @@ export default function Trainers() {
                     </select>
                   </div>
                 </div>
+
+                <TrainerPhotoField
+                  trainerName={editForm.name || editingTrainer.name}
+                  existingUrl={editingTrainer.profilePhoto?.url || editingTrainer.profileImage || ''}
+                  pendingFile={editPhotoFile}
+                  removeExisting={editRemovePhoto}
+                  onSelectFile={(file) => {
+                    setEditPhotoFile(file);
+                    setEditRemovePhoto(false);
+                  }}
+                  onRemove={() => {
+                    if (editPhotoFile) {
+                      setEditPhotoFile(null);
+                    } else {
+                      setEditRemovePhoto(true);
+                    }
+                  }}
+                  disabled={savingEdit}
+                />
               </div>
 
               <div className="px-5 py-4 border-t border-[#252525] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0 bg-[#181818]">

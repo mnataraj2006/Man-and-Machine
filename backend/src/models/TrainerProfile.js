@@ -34,6 +34,15 @@ const trainerProfileSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    profilePhoto: {
+      url: { type: String, default: '', trim: true },
+      storageKey: { type: String, default: '', trim: true },
+      uploadedAt: { type: Date, default: null },
+      mimeType: { type: String, default: '', trim: true },
+      sizeBytes: { type: Number, default: 0 },
+      width: { type: Number, default: 0 },
+      height: { type: Number, default: 0 },
+    },
     employmentStatus: {
       type: String,
       enum: ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'FREELANCE'],

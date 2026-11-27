@@ -3,6 +3,7 @@ const router = express.Router();
 const { protect, authorize } = require('../middleware/authMiddleware');
 const adminController = require('../controllers/adminController');
 const financeRoutes = require('./financeRoutes');
+const { handleTrainerPhotoUpload } = require('../services/trainerPhotoService');
 
 // All admin routes require valid token and ADMIN role
 router.use(protect);
@@ -34,9 +35,11 @@ router.put('/clients/:id/reset-password', adminController.resetClientPassword);
 
 // 4. Trainer Management
 router.get('/trainers', adminController.getTrainers);
-router.post('/trainers', adminController.createTrainer);
+router.post('/trainers', handleTrainerPhotoUpload, adminController.createTrainer);
 router.get('/trainers/:id', adminController.getTrainerDetails);
-router.put('/trainers/:id', adminController.updateTrainer);
+router.put('/trainers/:id', handleTrainerPhotoUpload, adminController.updateTrainer);
+router.post('/trainers/:id/photo', handleTrainerPhotoUpload, adminController.uploadTrainerPhoto);
+router.delete('/trainers/:id/photo', adminController.deleteTrainerPhoto);
 router.patch('/trainers/:id/status', adminController.updateTrainerStatus);
 router.post('/trainers/:id/resend-invitation', adminController.resendTrainerInvitation);
 router.post('/trainers/:id/reset-password', adminController.resetTrainerPassword);

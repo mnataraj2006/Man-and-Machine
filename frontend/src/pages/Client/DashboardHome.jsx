@@ -18,6 +18,7 @@ import {
   Fingerprint,
 } from 'lucide-react';
 import clientService from '../../services/clientService.js';
+import TrainerAvatar from '../../components/UI/TrainerAvatar.jsx';
 
 export default function DashboardHome({ onNavigate }) {
   const { resolvedTheme } = useTheme();
@@ -620,9 +621,7 @@ export default function DashboardHome({ onNavigate }) {
 
             {trainer ? (
               <div className="py-4 flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-[#202020] border border-[#303030] flex items-center justify-center text-[#EB3E2E] font-bold text-lg shrink-0">
-                  {trainer.name ? trainer.name.charAt(0).toUpperCase() : 'T'}
-                </div>
+                <TrainerAvatar trainer={trainer} size="lg" rounded="rounded-2xl" />
                 <div className="flex flex-col min-w-0">
                   <span className="text-sm font-bold uppercase text-[#F5F5F5] truncate">{trainer.name}</span>
                   <span className="text-xs text-[#EB3E2E] truncate">{trainer.specialization}</span>

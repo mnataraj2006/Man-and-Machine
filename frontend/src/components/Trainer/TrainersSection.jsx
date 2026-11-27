@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import clientService from '../../services/clientService.js';
 import authService from '../../services/auth.js';
 import { Reveal } from '../Motion/ScrollMotion.jsx';
+import { resolveMediaUrl } from '../UI/TrainerAvatar.jsx';
 
 const ILLUSTRATIVE_COACHES = [
   {
@@ -112,9 +113,15 @@ export default function TrainersSection({ onNavigate }) {
               >
                 <div className="relative w-full h-full overflow-hidden">
                   <img
-                    src={coach.image || FALLBACK_PORTRAITS[idx % FALLBACK_PORTRAITS.length]}
+                    src={
+                      resolveMediaUrl(coach.profilePhoto?.url || coach.profileImage || coach.image) ||
+                      FALLBACK_PORTRAITS[idx % FALLBACK_PORTRAITS.length]
+                    }
                     alt={`${coach.name} — ${coach.specialization}`}
                     loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.src = FALLBACK_PORTRAITS[idx % FALLBACK_PORTRAITS.length];
+                    }}
                     className="w-full h-full object-cover object-top transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105"
                   />
                   <div

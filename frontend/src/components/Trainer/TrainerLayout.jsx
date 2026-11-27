@@ -19,11 +19,13 @@ import {
 import authService from '../../services/auth.js';
 import trainerService from '../../services/trainerService.js';
 import DashboardMobileDrawer from '../UI/DashboardMobileDrawer.jsx';
+import TrainerAvatar from '../UI/TrainerAvatar.jsx';
 
 export default function TrainerLayout({ children, currentPath, onNavigate, onLogout }) {
   const { resolvedTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState(authService.getUser());
+  const [trainerPhoto, setTrainerPhoto] = useState('');
   const [unreadNotifs, setUnreadNotifs] = useState(0);
 
   const navItems = [
@@ -53,6 +55,15 @@ export default function TrainerLayout({ children, currentPath, onNavigate, onLog
       }
     };
     fetchUnread();
+    trainerService
+      .getProfile()
+      .then((res) => {
+        if (isMounted) {
+          const url = res?.profilePhoto?.url || res?.profileImage || res?.profile?.profilePhoto?.url || res?.profile?.profileImage || '';
+          if (url) setTrainerPhoto(url);
+        }
+      })
+      .catch(() => {});
     return () => {
       isMounted = false;
     };
@@ -150,9 +161,7 @@ export default function TrainerLayout({ children, currentPath, onNavigate, onLog
         {/* Trainer Profile Card & Logout */}
         <div className="p-4 border-t border-[#252525] bg-[#111111] flex flex-col gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-[#202020] border border-[#303030] flex items-center justify-center text-[#EB3E2E] font-bold text-sm shrink-0">
-              {user?.name ? user.name.charAt(0).toUpperCase() : 'T'}
-            </div>
+            <TrainerAvatar src={trainerPhoto} name={user?.name || 'Coach'} size="sm" rounded="rounded-lg" />
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-bold text-[#F5F5F5] truncate">{user?.name || 'Coach'}</span>
               <span className="text-[10px] text-[#858585] truncate">{user?.email}</span>
@@ -214,9 +223,9 @@ export default function TrainerLayout({ children, currentPath, onNavigate, onLog
             type="button"
             onClick={() => handleNav('/trainer/profile')}
             aria-label="Coach Profile"
-            className="min-w-[44px] min-h-[44px] rounded-lg bg-[#202020] border border-[#303030] hover:border-[#F03B2E] flex items-center justify-center text-[#F03B2E] font-bold text-xs cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F03B2E]"
+            className="min-w-[44px] min-h-[44px] rounded-lg bg-[#202020] border border-[#303030] hover:border-[#F03B2E] flex items-center justify-center cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F03B2E] p-0.5"
           >
-            {user?.name ? user.name.charAt(0).toUpperCase() : 'T'}
+            <TrainerAvatar src={trainerPhoto} name={user?.name || 'Coach'} size="sm" rounded="rounded-md" />
           </button>
         </div>
       </header>

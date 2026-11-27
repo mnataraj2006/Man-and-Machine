@@ -19,6 +19,13 @@ const TrainingAppointment = require('../models/TrainingAppointment');
 const Invoice = require('../models/Invoice');
 const financeService = require('../services/financeService');
 const notificationService = require('../services/notificationService');
+const {
+  processTrainerPhotoBuffer,
+  saveProcessedTrainerPhoto,
+  deleteStoredTrainerPhoto,
+  emptyProfilePhoto,
+  serializeTrainerPhoto,
+} = require('../services/trainerPhotoService');
 const { generateSecureToken, hashToken, getFrontendBaseUrl } = require('../utils/tokenUtils');
 const { sendTrainerInvitation, sendPasswordResetEmail } = require('../utils/emailService');
 const { normalizeIndianPhone } = require('../utils/phone');
@@ -36,6 +43,27 @@ const getBranchFilter = (branchId) => {
   if (!branchId || branchId === 'ALL' || branchId === 'all') return {};
   if (mongoose.Types.ObjectId.isValid(branchId)) return { branchId };
   return {};
+};
+
+const enforceAdminBranchAccess = (reqUser, targetBranchId, requestedBranchId = null) => {
+  const adminBranchId = reqUser?.branchId?._id || reqUser?.branchId || null;
+  if (adminBranchId && targetBranchId && String(adminBranchId) !== String(targetBranchId)) {
+    const err = new Error('Access denied: trainer belongs to a different branch.');
+    err.statusCode = 403;
+    throw err;
+  }
+  if (
+    requestedBranchId &&
+    requestedBranchId !== 'ALL' &&
+    requestedBranchId !== 'all' &&
+    mongoose.Types.ObjectId.isValid(requestedBranchId) &&
+    targetBranchId &&
+    String(requestedBranchId) !== String(targetBranchId)
+  ) {
+    const err = new Error('Branch mismatch: trainer does not belong to the selected branch.');
+    err.statusCode = 403;
+    throw err;
+  }
 };
 
 // Asia/Kolkata (IST: UTC+5:30) Date Boundary Helpers
@@ -190,12 +218,14 @@ const getDashboardOverview = async (req, res, next) => {
       User.countDocuments({ ...clientQuery, status: 'ACTIVE' }),
       Membership.distinct('userId', {
         ...branchFilter,
+        userId: { $ne: null },
         status: 'ACTIVE',
         startDate: { $lte: endOfToday },
         expiryDate: { $gte: now },
       }),
       Membership.distinct('userId', {
         ...branchFilter,
+        userId: { $ne: null },
         $or: [{ status: 'EXPIRED' }, { expiryDate: { $lt: now } }],
       }),
       User.countDocuments(trainerQuery),
@@ -318,9 +348,10 @@ const getDashboardOverview = async (req, res, next) => {
         .lean(),
     ]);
 
-    const activeMembers = activeMemberUserIds.length;
-    const activeUserSet = new Set(activeMemberUserIds.map((id) => id.toString()));
-    const expiredMemberships = expiredUserIds.filter((id) => !activeUserSet.has(id.toString())).length;
+    const validActiveMemberUserIds = activeMemberUserIds.filter(Boolean);
+    const activeMembers = validActiveMemberUserIds.length;
+    const activeUserSet = new Set(validActiveMemberUserIds.map((id) => id.toString()));
+    const expiredMemberships = expiredUserIds.filter((id) => id && !activeUserSet.has(id.toString())).length;
     const prevMonthlyRevenue = prevMonthlyRevAgg[0]?.total || 0;
     const pendingPaymentsCount = financeSummary.pendingInvoicesCount;
     const pendingPaymentsTotal = financeSummary.pendingBalance;
@@ -798,6 +829,32 @@ const getClients = async (req, res, next) => {
       clientList.push({ id: profile._id, userId: null, profileId: profile._id, clientId: profile.clientId || '', name: profile.name, email: profile.email, phone: profile.phone, age: profile.age ?? null, gender: profile.gender || '', address: profile.address || '', status: 'NOT_CREATED', accountAccessStatus: 'NOT_CREATED', branch: profile.branchId, branchId: profile.branchId?._id || profile.branchId || null, createdAt: profile.joiningDate || profile.createdAt, fitnessGoal: profile.fitnessGoal, experienceLevel: profile.experienceLevel, trainer: profile.trainerId?.status === 'ACTIVE' ? profile.trainerId : null, membership: latest ? { id: latest._id, planName: latest.planName, status: latest.status, startDate: latest.startDate, expiryDate: latest.expiryDate, isExpired: latest.status === 'EXPIRED' || new Date(latest.expiryDate) < now } : null });
     }
 
+    // Preload trainer photos for assigned trainers in client list
+    const trainerPhotoMap = new Map();
+    const allTrainerIds = new Set();
+    for (const c of clientList) {
+      if (c.trainer?._id) allTrainerIds.add(String(c.trainer._id));
+    }
+    if (allTrainerIds.size > 0) {
+      const tProfs = await TrainerProfile.find({ userId: { $in: Array.from(allTrainerIds) } })
+        .select('userId profilePhoto profileImage')
+        .lean();
+      for (const tp of tProfs) {
+        trainerPhotoMap.set(String(tp.userId), serializeTrainerPhoto(tp));
+      }
+    }
+    for (const c of clientList) {
+      if (c.trainer?._id) {
+        const photoData = trainerPhotoMap.get(String(c.trainer._id));
+        if (photoData) {
+          c.trainer = {
+            ...(typeof c.trainer.toObject === 'function' ? c.trainer.toObject() : c.trainer),
+            ...photoData,
+          };
+        }
+      }
+    }
+
     let filteredList = clientList;
     if (membershipStatus && membershipStatus !== 'ALL') {
       filteredList = filteredList.filter((c) => {
@@ -847,6 +904,11 @@ const getClientDetails = async (req, res, next) => {
     }
 
     const profile = profileOnly || await ClientProfile.findOne({ userId: id }).populate('trainerId', 'name email phone');
+    let assignedTrainerPhoto = null;
+    if (profile?.trainerId?._id) {
+      const tProf = await TrainerProfile.findOne({ userId: profile.trainerId._id }).select('profilePhoto profileImage').lean();
+      assignedTrainerPhoto = serializeTrainerPhoto(tProf);
+    }
     const identityQuery = client
       ? profile
         ? { $or: [{ userId: client._id }, { clientProfileId: profile._id }] }
@@ -892,7 +954,17 @@ const getClientDetails = async (req, res, next) => {
         whatsappOptIn: Boolean(client?.whatsappOptIn),
         whatsappOptInAt: client?.whatsappOptInAt,
       },
-      profile: profile || null,
+      profile: profile
+        ? {
+            ...(typeof profile.toObject === 'function' ? profile.toObject() : profile),
+            trainerId: profile.trainerId
+              ? {
+                  ...(typeof profile.trainerId.toObject === 'function' ? profile.trainerId.toObject() : profile.trainerId),
+                  ...(assignedTrainerPhoto || {}),
+                }
+              : null,
+          }
+        : null,
       activeMembership,
       latestMembership,
       biometricSummary,
@@ -1253,7 +1325,7 @@ const getTrainers = async (req, res, next) => {
           specialization: prof?.specialization || 'Strength & Conditioning',
           experienceYears: prof?.experienceYears ?? 3,
           qualification: prof?.qualification || '',
-          profileImage: prof?.profileImage || '',
+          ...serializeTrainerPhoto(prof),
           employmentStatus: prof?.employmentStatus || 'FULL_TIME',
           bio: prof?.bio || '',
           assignedClientCount: clientCount,
@@ -1310,7 +1382,7 @@ const getTrainerDetails = async (req, res, next) => {
         specialization: profile?.specialization || 'Strength Training',
         experienceYears: profile?.experienceYears ?? 3,
         qualification: profile?.qualification || '',
-        profileImage: profile?.profileImage || '',
+        ...serializeTrainerPhoto(profile),
         employmentStatus: profile?.employmentStatus || 'FULL_TIME',
         bio: profile?.bio || '',
       },
@@ -1387,6 +1459,8 @@ const createTrainer = async (req, res, next) => {
       });
     }
 
+    enforceAdminBranchAccess(req.user, branch._id);
+
     const normalizedEmail = email.toLowerCase().trim();
     const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
@@ -1394,6 +1468,12 @@ const createTrainer = async (req, res, next) => {
         success: false,
         message: 'An account with this email address already exists.',
       });
+    }
+
+    // Validate and process uploaded profile photo BEFORE creating User/Profile
+    let processedPhoto = null;
+    if (req.file && req.file.buffer) {
+      processedPhoto = await processTrainerPhotoBuffer(req.file.buffer);
     }
 
     // Generate cryptographically secure 24-hour single-use activation token
@@ -1416,16 +1496,23 @@ const createTrainer = async (req, res, next) => {
     const allowedEmpStatuses = ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'FREELANCE'];
     const normalizedEmpStatus = allowedEmpStatuses.includes(employmentStatus) ? employmentStatus : 'FULL_TIME';
 
+    let savedPhoto = null;
+    let createdProfile = null;
     try {
+      if (processedPhoto) {
+        savedPhoto = await saveProcessedTrainerPhoto(user._id, processedPhoto);
+      }
+
       const existingProfile = await TrainerProfile.findOne({ userId: user._id });
       if (!existingProfile) {
-        await TrainerProfile.create({
+        createdProfile = await TrainerProfile.create({
           userId: user._id,
           branchId: branch._id,
           specialization: specialization?.trim() || 'Strength & Conditioning',
           experienceYears: Number(experienceYears) >= 0 ? Number(experienceYears) : 3,
           qualification: qualification?.trim() || '',
-          profileImage: profileImage?.trim() || '',
+          profileImage: savedPhoto ? savedPhoto.url : '',
+          profilePhoto: savedPhoto || emptyProfilePhoto(),
           employmentStatus: normalizedEmpStatus,
           bio: bio?.trim() || '',
           contactPhone: formattedPhone,
@@ -1434,6 +1521,9 @@ const createTrainer = async (req, res, next) => {
         });
       }
     } catch (profErr) {
+      if (savedPhoto?.storageKey) {
+        await deleteStoredTrainerPhoto(savedPhoto.storageKey);
+      }
       await User.findByIdAndDelete(user._id);
       throw profErr;
     }
@@ -1452,7 +1542,10 @@ const createTrainer = async (req, res, next) => {
       message: emailResult.delivered
         ? 'Trainer account created and activation invitation emailed.'
         : 'Trainer account created (Pending Activation). Email delivery is not configured — share the manual activation link.',
-      trainer: user.toSafeObject(),
+      trainer: {
+        ...user.toSafeObject(),
+        ...serializeTrainerPhoto(createdProfile),
+      },
       emailConfigured: emailResult.configured,
       emailDelivered: emailResult.delivered,
       emailNotice: emailResult.reason || null,
@@ -1482,6 +1575,14 @@ const updateTrainer = async (req, res, next) => {
     const user = await User.findOne({ _id: id, role: 'TRAINER' });
     if (!user) return res.status(404).json({ success: false, message: 'Trainer not found' });
 
+    enforceAdminBranchAccess(req.user, user.branchId);
+
+    // Process uploaded photo first before mutating records
+    let processedPhoto = null;
+    if (req.file && req.file.buffer) {
+      processedPhoto = await processTrainerPhotoBuffer(req.file.buffer);
+    }
+
     if (name && name.trim()) user.name = name.trim();
     if (phone && phone.trim()) user.phone = phone.trim();
 
@@ -1510,7 +1611,6 @@ const updateTrainer = async (req, res, next) => {
       if (specialization !== undefined) prof.specialization = specialization.trim();
       if (experienceYears !== undefined) prof.experienceYears = Number(experienceYears);
       if (qualification !== undefined) prof.qualification = qualification.trim();
-      if (profileImage !== undefined) prof.profileImage = profileImage.trim();
       if (employmentStatus && ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'FREELANCE'].includes(employmentStatus)) {
         prof.employmentStatus = employmentStatus;
       }
@@ -1520,10 +1620,42 @@ const updateTrainer = async (req, res, next) => {
       if (req.body.acceptingClients !== undefined) prof.acceptingClients = req.body.acceptingClients;
       if (req.body.pricing) prof.pricing = { ...prof.pricing, ...req.body.pricing };
       if (req.body.availability) prof.availability = { ...prof.availability, ...req.body.availability };
-      await prof.save();
+
+      const oldStorageKey = prof.profilePhoto?.storageKey || '';
+      let newlySavedPhoto = null;
+      const shouldRemovePhoto = req.body.removePhoto === true || req.body.removePhoto === 'true';
+
+      if (processedPhoto) {
+        newlySavedPhoto = await saveProcessedTrainerPhoto(user._id, processedPhoto);
+        prof.profilePhoto = newlySavedPhoto;
+        prof.profileImage = newlySavedPhoto.url;
+      } else if (shouldRemovePhoto) {
+        prof.profilePhoto = emptyProfilePhoto();
+        prof.profileImage = '';
+      }
+
+      try {
+        await prof.save();
+      } catch (saveErr) {
+        if (newlySavedPhoto?.storageKey) {
+          await deleteStoredTrainerPhoto(newlySavedPhoto.storageKey);
+        }
+        throw saveErr;
+      }
+
+      if ((newlySavedPhoto || shouldRemovePhoto) && oldStorageKey) {
+        await deleteStoredTrainerPhoto(oldStorageKey);
+      }
     }
 
-    res.status(200).json({ success: true, message: 'Trainer updated successfully', trainer: user.toSafeObject() });
+    res.status(200).json({
+      success: true,
+      message: 'Trainer updated successfully',
+      trainer: {
+        ...user.toSafeObject(),
+        ...serializeTrainerPhoto(prof),
+      },
+    });
   } catch (err) {
     next(err);
   }
@@ -1580,6 +1712,11 @@ const deleteTrainer = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Trainer not found.' });
     }
 
+    enforceAdminBranchAccess(req.user, user.branchId);
+
+    const existingProf = await TrainerProfile.findOne({ userId: id }).select('profilePhoto').lean();
+    const oldStorageKey = existingProf?.profilePhoto?.storageKey || '';
+
     await Promise.all([
       ClientProfile.updateMany(
         { trainerId: id },
@@ -1594,9 +1731,112 @@ const deleteTrainer = async (req, res, next) => {
 
     await User.deleteOne({ _id: id, role: 'TRAINER' });
 
+    if (oldStorageKey) {
+      await deleteStoredTrainerPhoto(oldStorageKey);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Trainer account deleted permanently.',
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const uploadTrainerPhoto = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid trainer ID.' });
+    }
+
+    const user = await User.findOne({ _id: id, role: 'TRAINER' });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Trainer not found.' });
+    }
+
+    enforceAdminBranchAccess(req.user, user.branchId, req.query.branchId || req.body?.branchId);
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, message: 'Please select a JPG, PNG, or WEBP image file.' });
+    }
+
+    const processed = await processTrainerPhotoBuffer(req.file.buffer);
+    let profile = await TrainerProfile.findOne({ userId: id });
+    if (!profile) {
+      profile = new TrainerProfile({
+        userId: user._id,
+        branchId: user.branchId,
+        contactPhone: user.phone,
+        contactEmail: user.email,
+      });
+    }
+
+    const oldStorageKey = profile.profilePhoto?.storageKey || '';
+    const savedPhoto = await saveProcessedTrainerPhoto(user._id, processed);
+
+    profile.profilePhoto = savedPhoto;
+    profile.profileImage = savedPhoto.url;
+
+    try {
+      await profile.save();
+    } catch (saveErr) {
+      await deleteStoredTrainerPhoto(savedPhoto.storageKey);
+      throw saveErr;
+    }
+
+    if (oldStorageKey) {
+      await deleteStoredTrainerPhoto(oldStorageKey);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Trainer profile photo updated.',
+      ...serializeTrainerPhoto(profile),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const deleteTrainerPhoto = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid trainer ID.' });
+    }
+
+    const user = await User.findOne({ _id: id, role: 'TRAINER' });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Trainer not found.' });
+    }
+
+    enforceAdminBranchAccess(req.user, user.branchId, req.query.branchId || req.body?.branchId);
+
+    const profile = await TrainerProfile.findOne({ userId: id });
+    if (!profile) {
+      return res.status(200).json({
+        success: true,
+        message: 'Trainer profile photo removed.',
+        profileImage: '',
+        profilePhoto: { url: '', uploadedAt: null },
+      });
+    }
+
+    const oldStorageKey = profile.profilePhoto?.storageKey || '';
+    profile.profilePhoto = emptyProfilePhoto();
+    profile.profileImage = '';
+    await profile.save();
+
+    if (oldStorageKey) {
+      await deleteStoredTrainerPhoto(oldStorageKey);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Trainer profile photo removed.',
+      ...serializeTrainerPhoto(profile),
     });
   } catch (err) {
     next(err);
@@ -3590,6 +3830,8 @@ module.exports = {
   getTrainerDetails,
   createTrainer,
   updateTrainer,
+  uploadTrainerPhoto,
+  deleteTrainerPhoto,
   updateTrainerStatus,
   deleteTrainer,
   resendTrainerInvitation,

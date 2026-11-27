@@ -18,6 +18,7 @@ const bcrypt = require('bcryptjs');
 const { resolveClientTrainer } = require('../utils/trainerAssignment');
 const financeService = require('../services/financeService');
 const dashboardCache = require('../utils/dashboardCache');
+const { serializeTrainerPhoto } = require('../services/trainerPhotoService');
 const {
   acquireUserPurchaseLock,
   releaseUserPurchaseLock,
@@ -160,7 +161,7 @@ const getDashboardSummary = async (req, res, next) => {
           .lean(),
         activeTrainerUser
           ? TrainerProfile.findOne({ userId: activeTrainerUser.id })
-              .select('contactPhone specialization experienceYears bio')
+              .select('contactPhone specialization experienceYears bio profilePhoto profileImage')
               .lean()
           : Promise.resolve(null),
         WorkoutSession.find({ userId })
@@ -198,6 +199,7 @@ const getDashboardSummary = async (req, res, next) => {
           specialization: trainerProf?.specialization || 'Strength & Conditioning',
           experienceYears: trainerProf?.experienceYears || 5,
           bio: trainerProf?.bio || '',
+          ...serializeTrainerPhoto(trainerProf),
         };
       }
     }
@@ -1352,6 +1354,7 @@ const getTrainer = async (req, res, next) => {
       bio: trainerProf?.bio || '',
       branch: trainerUser.branchId,
       rating: trainerProf?.rating || 4.9,
+      ...serializeTrainerPhoto(trainerProf),
       pricing: trainerProf?.pricing || {
         singleSession: { price: 500, enabled: true },
         package10: { price: 4500, sessionsCount: 10, enabled: true },
@@ -1452,6 +1455,7 @@ const getAvailableTrainers = async (req, res, next) => {
         activeClientsCount: prof?.activeClientsCount || 0,
         isAvailable: prof?.isAvailable !== false,
         acceptingClients: prof?.acceptingClients !== false,
+        ...serializeTrainerPhoto(prof),
         pricing: prof?.pricing || {
           singleSession: { price: 500, enabled: true },
           package10: { price: 4500, sessionsCount: 10, enabled: true },
@@ -1511,6 +1515,7 @@ const getTrainerPublicProfile = async (req, res, next) => {
         bio: profile?.bio || '',
         rating: profile?.rating || 4.9,
         ratingCount: profile?.ratingCount || 18,
+        ...serializeTrainerPhoto(profile),
         pricing: profile?.pricing || {
           singleSession: { price: 500, enabled: true },
           package10: { price: 4500, sessionsCount: 10, enabled: true },

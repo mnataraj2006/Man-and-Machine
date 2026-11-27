@@ -10,6 +10,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import trainerService from '../../services/trainerService.js';
+import TrainerAvatar from '../../components/UI/TrainerAvatar.jsx';
 
 export default function Profile() {
   const [user, setUser] = useState(null);
@@ -98,9 +99,13 @@ export default function Profile() {
       {/* ── FORM ── */}
       <form onSubmit={handleSubmit} className="p-6 sm:p-8 rounded-2xl bg-[#111111] border border-[#303030] flex flex-col gap-6">
         <div className="flex items-center gap-4 pb-6 border-b border-[#303030]">
-          <div className="w-16 h-16 rounded-2xl bg-[#202020] border border-[#303030] flex items-center justify-center text-[#EB3E2E] text-2xl font-black">
-            {form.name ? form.name.charAt(0).toUpperCase() : 'T'}
-          </div>
+          <TrainerAvatar
+            src={profile?.profilePhoto?.url || profile?.profileImage || ''}
+            name={form.name || user?.name || 'Coach'}
+            size="lg"
+            rounded="rounded-2xl"
+            lazy={false}
+          />
           <div className="flex flex-col">
             <h2 className="text-lg font-bold uppercase text-white">{form.name || 'Coach'}</h2>
             <span className="text-xs text-[#B8B8B8]">{user?.email}</span>

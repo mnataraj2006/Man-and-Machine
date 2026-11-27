@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import trainerService from '../../services/trainerService.js';
+import TrainerAvatar from '../../components/UI/TrainerAvatar.jsx';
 
 export default function DashboardHome({ onNavigate }) {
   const [data, setData] = useState(null);
@@ -133,9 +134,7 @@ export default function DashboardHome({ onNavigate }) {
         <div className="absolute top-0 right-0 w-80 h-80 bg-[#EB3E2E]/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-[#202020] border border-[#303030] flex items-center justify-center text-[#EB3E2E] text-2xl font-black shrink-0">
-            {trainer?.name ? trainer.name.charAt(0).toUpperCase() : 'T'}
-          </div>
+          <TrainerAvatar trainer={trainer} size="lg" rounded="rounded-2xl" lazy={false} />
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
               <h1

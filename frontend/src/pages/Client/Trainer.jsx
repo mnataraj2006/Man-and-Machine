@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import clientService from '../../services/clientService.js';
 import authService from '../../services/auth.js';
+import TrainerAvatar from '../../components/UI/TrainerAvatar.jsx';
 
 export default function Trainer({ onNavigate, selectedTrainerId }) {
   const [trainerData, setTrainerData] = useState({ assigned: false, trainer: null });
@@ -261,9 +262,7 @@ export default function Trainer({ onNavigate, selectedTrainerId }) {
             {/* Coach Banner */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 border-b border-[#303030] pb-6">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-[#202020] border border-[#303030] flex items-center justify-center text-[#EB3E2E] text-2xl sm:text-3xl font-bold shrink-0 shadow-[0_0_20px_rgba(235,62,46,0.2)]">
-                  {trainer.name ? trainer.name.charAt(0).toUpperCase() : 'T'}
-                </div>
+                <TrainerAvatar trainer={trainer} size="xl" rounded="rounded-2xl" lazy={false} />
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2">
                     <h2
@@ -554,9 +553,7 @@ export default function Trainer({ onNavigate, selectedTrainerId }) {
                       {/* Top: Photo & Info */}
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3.5">
-                          <div className="w-14 h-14 rounded-2xl bg-[#202020] border border-[#303030] flex items-center justify-center text-[#EB3E2E] text-xl font-bold shrink-0 group-hover:border-[#EB3E2E] transition-colors">
-                            {t.name ? t.name.charAt(0).toUpperCase() : 'T'}
-                          </div>
+                          <TrainerAvatar trainer={t} size="lg" rounded="rounded-2xl" />
                           <div className="flex flex-col min-w-0">
                             <div className="flex items-center gap-2">
                               <h4
@@ -660,9 +657,7 @@ export default function Trainer({ onNavigate, selectedTrainerId }) {
             {/* Header */}
             <div className="flex items-start justify-between border-b border-[#303030] pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-[#202020] border border-[#303030] flex items-center justify-center text-[#EB3E2E] text-xl font-bold">
-                  {activeBookingTrainer.name?.charAt(0) || 'T'}
-                </div>
+                <TrainerAvatar trainer={activeBookingTrainer} size="md" rounded="rounded-xl" lazy={false} />
                 <div className="flex flex-col">
                   <span className="text-[10px] font-mono text-[#EB3E2E] uppercase font-bold tracking-wider">
                     BOOKING &amp; SCHEDULING

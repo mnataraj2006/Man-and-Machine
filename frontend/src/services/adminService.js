@@ -25,6 +25,9 @@ class AdminService {
     const execute = async () => {
       const url = `${API_BASE_URL}/admin${endpoint}`;
       const headers = { ...this.getAuthHeaders(), ...options.headers };
+      if (options.body instanceof FormData) {
+        delete headers['Content-Type'];
+      }
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs || 25000);
 
@@ -172,17 +175,58 @@ class AdminService {
     return this.request(`/trainers/${id}`);
   }
 
-  async createTrainer(trainerData) {
+  async createTrainer(trainerData, photoFile = null) {
+    if (photoFile) {
+      const formData = new FormData();
+      Object.entries(trainerData || {}).forEach(([key, val]) => {
+        if (val !== undefined && val !== null) formData.append(key, String(val));
+      });
+      formData.append('photo', photoFile);
+      return this.request('/trainers', {
+        method: 'POST',
+        body: formData,
+      });
+    }
     return this.request('/trainers', {
       method: 'POST',
       body: JSON.stringify(trainerData),
     });
   }
 
-  async updateTrainer(id, trainerData) {
+  async updateTrainer(id, trainerData, { photoFile = null, removePhoto = false } = {}) {
+    if (photoFile || removePhoto) {
+      const formData = new FormData();
+      Object.entries(trainerData || {}).forEach(([key, val]) => {
+        if (val !== undefined && val !== null) formData.append(key, String(val));
+      });
+      if (photoFile) {
+        formData.append('photo', photoFile);
+      } else if (removePhoto) {
+        formData.append('removePhoto', 'true');
+      }
+      return this.request(`/trainers/${id}`, {
+        method: 'PUT',
+        body: formData,
+      });
+    }
     return this.request(`/trainers/${id}`, {
       method: 'PUT',
       body: JSON.stringify(trainerData),
+    });
+  }
+
+  async uploadTrainerPhoto(id, photoFile) {
+    const formData = new FormData();
+    formData.append('photo', photoFile);
+    return this.request(`/trainers/${id}/photo`, {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  async deleteTrainerPhoto(id) {
+    return this.request(`/trainers/${id}/photo`, {
+      method: 'DELETE',
     });
   }
 
