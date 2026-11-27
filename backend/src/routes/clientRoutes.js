@@ -70,8 +70,8 @@ router.put('/settings/password', clientController.changePassword);
 
 // 11. Biometric Self-Enrollment
 router.get('/biometric/status', clientBioLimiter, clientController.getBiometricStatus);
-router.post('/biometric/consent', clientBioLimiter, clientController.recordBiometricConsent);
-router.post('/biometric/consent/withdraw', clientBioLimiter, clientController.withdrawBiometricConsent);
+router.post('/biometric/consent', authorize('CLIENT'), clientBioLimiter, clientController.recordBiometricConsent);
+router.post('/biometric/consent/withdraw', authorize('CLIENT'), clientBioLimiter, clientController.withdrawBiometricConsent);
 router.post('/biometric/capture', clientCaptureLimiter, clientController.submitBiometricCapture);
 
 module.exports = router;

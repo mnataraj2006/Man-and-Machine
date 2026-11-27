@@ -285,6 +285,7 @@ async function testBranchIsolationAndAttendanceFlags() {
 
   stub(Attendance, 'findOne', () => makeQuery(null));
   stub(BiometricUserMapping, 'findOne', () => makeQuery({ clientProfileId: profile }));
+  stub(BiometricEnrollment, 'findOne', () => makeQuery({ status: 'ENROLLED', consentStatus: 'GRANTED' }));
   stub(Membership, 'find', () => makeQuery([{ status: 'FROZEN', startDate: new Date('2026-11-01'), expiryDate: new Date('2026-12-31') }]));
   stub(Attendance, 'create', async (doc) => {
     createdAttendance = doc;

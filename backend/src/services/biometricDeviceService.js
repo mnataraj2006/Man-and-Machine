@@ -1,6 +1,7 @@
 const net = require('net');
 const mongoose = require('mongoose');
 const BiometricDevice = require('../models/BiometricDevice');
+const BiometricEnrollment = require('../models/BiometricEnrollment');
 const BiometricUserMapping = require('../models/BiometricUserMapping');
 const BiometricDeviceLog = require('../models/BiometricDeviceLog');
 const BiometricDeviceCommand = require('../models/BiometricDeviceCommand');
@@ -729,6 +730,33 @@ const processAttendanceEvent = async ({
   }).populate('clientProfileId');
 
   const profile = mapping?.clientProfileId || null;
+  if (profile) {
+    const enrollment = await BiometricEnrollment.findOne({
+      clientProfileId: profile._id,
+      branchId: device.branchId,
+    })
+      .select('consentStatus status')
+      .lean();
+
+    if (!enrollment || enrollment.consentStatus !== 'GRANTED') {
+      await logDeviceEvent({
+        deviceId: device._id,
+        branchId: device.branchId,
+        category: 'ATTENDANCE_SYNC',
+        status: 'WARNING',
+        action: 'ATTENDANCE_REJECTED_NO_CONSENT',
+        message: `Ignored biometric punch for Biometric ID ${cleanBioId} (${profile.name || profile._id}): biometric consent is ${enrollment?.consentStatus || 'PENDING'}.`,
+      });
+      return {
+        duplicate: false,
+        accepted: false,
+        rejected: true,
+        reason: 'CONSENT_REQUIRED',
+        record: null,
+      };
+    }
+  }
+
   const { membershipStatus, attendanceStatus } = await validateMembershipForProfile(profile);
 
   const dateStr = getKolkataParts(eventTime).dateStr;
@@ -861,7 +889,7 @@ const handleAdmsAttLog = async (sn, rawBody) => {
     });
 
     if (res.duplicate) duplicates += 1;
-    else processed += 1;
+    else if (!res.rejected) processed += 1;
   }
 
   if (lines.length > 0 && processed === 0 && duplicates === 0 && malformedCount > 0) {

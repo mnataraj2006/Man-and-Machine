@@ -187,8 +187,16 @@ export default function BiometricAccess({ onNavigate }) {
     setConsentBusy(true);
     try {
       await clientService.recordBiometricConsent(true);
-      setStep('camera');
-      setTimeout(() => startCamera(), 150);
+      const currentStatus = data?.enrollment?.status || 'NOT_STARTED';
+      const needsCamera = ['NOT_STARTED', 'INVITED', 'CAPTURE_IN_PROGRESS', 'REJECTED', 'FAILED', 'REVOKED'].includes(currentStatus);
+      if (needsCamera) {
+        setStep('camera');
+        setTimeout(() => startCamera(), 150);
+      } else {
+        setFeedback({ type: 'success', message: 'Biometric consent granted. Your branch terminal access is now active.' });
+        setStep('status');
+        await loadStatus();
+      }
     } catch (err) {
       setFeedback({ type: 'error', message: err.message });
     } finally {
@@ -333,6 +341,8 @@ export default function BiometricAccess({ onNavigate }) {
 
   const enr = data?.enrollment || {};
   const status = enr.status || 'NOT_STARTED';
+  const isConsentGranted = data?.consent?.status === 'GRANTED' || enr.consentStatus === 'GRANTED';
+  const requiresCameraAfterConsent = ['NOT_STARTED', 'INVITED', 'CAPTURE_IN_PROGRESS', 'REJECTED', 'FAILED', 'REVOKED'].includes(status);
 
   return (
     <div className="space-y-6 min-w-0">
@@ -403,7 +413,7 @@ export default function BiometricAccess({ onNavigate }) {
                   </div>
                 </div>
 
-                {['NOT_STARTED', 'INVITED', 'REJECTED', 'FAILED', 'REVOKED'].includes(status) && (
+                {['NOT_STARTED', 'INVITED', 'REJECTED', 'FAILED', 'REVOKED'].includes(status) ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -414,7 +424,18 @@ export default function BiometricAccess({ onNavigate }) {
                   >
                     {status === 'REJECTED' || status === 'FAILED' ? 'Retry Face Registration' : 'Start Face Registration'}
                   </button>
-                )}
+                ) : !isConsentGranted ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConsentChecked(false);
+                      setStep('consent');
+                    }}
+                    className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#F03B2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
+                  >
+                    Grant Biometric Consent
+                  </button>
+                ) : null}
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
@@ -467,6 +488,10 @@ export default function BiometricAccess({ onNavigate }) {
               ) : status === 'AWAITING_PHYSICAL_ENROLLMENT' || status === 'APPROVED' ? (
                 <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200">
                   Approved! Visit your assigned branch ({data.branch?.city}) reception desk to complete your face capture on the physical eSSL X2008 terminal (Assigned Biometric ID: <strong className="font-mono">{enr.biometricUserId || 'Assigned at desk'}</strong>).
+                </div>
+              ) : status === 'ENROLLED' && !isConsentGranted ? (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200">
+                  <strong>Biometric Consent Required:</strong> Your branch terminal profile is linked, but biometric check-ins are paused until you click <strong>Grant Biometric Consent</strong> above.
                 </div>
               ) : status === 'ENROLLED' ? (
                 <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200">
@@ -537,7 +562,7 @@ export default function BiometricAccess({ onNavigate }) {
                   onClick={handleAcceptConsent}
                   className="min-h-[44px] px-5 py-2 rounded-xl bg-[#F03B2E] hover:bg-[#FF493B] disabled:opacity-40 text-white text-xs font-bold uppercase cursor-pointer"
                 >
-                  {consentBusy ? 'Saving Consent...' : 'Agree & Open Camera'}
+                  {consentBusy ? 'Saving Consent...' : requiresCameraAfterConsent ? 'Agree & Open Camera' : 'Grant Biometric Consent'}
                 </button>
               </div>
             </div>
