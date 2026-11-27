@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const biometricDeviceService = require('../services/biometricDeviceService');
 const { createRateLimiter } = require('../middleware/rateLimitMiddleware');
@@ -16,10 +17,19 @@ router.use(
   })
 );
 
+const timingSafeMatches = (provided, expected) => {
+  if (!provided || !expected) return false;
+  const a = Buffer.from(String(provided), 'utf8');
+  const b = Buffer.from(String(expected), 'utf8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+};
+
 /**
  * Optional IP allowlist & shared secret validation for ADMS receiver.
- * Note: Physical eSSL X2008 firmware does not send custom HTTP headers;
- * use ADMS_ALLOWED_IPS / VPN / private reverse proxy in production.
+ * In production, ADMS_SHARED_SECRET is mandatory so unauthenticated internet
+ * requests cannot spoof device punches. In local development (NODE_ENV !== 'production'),
+ * unconfigured ADMS_SHARED_SECRET is allowed unless ADMS_REQUIRE_SECRET=true.
  */
 const verifyAdmsAccess = (req, res, next) => {
   const allowedIps = (process.env.ADMS_ALLOWED_IPS || '')
@@ -38,10 +48,18 @@ const verifyAdmsAccess = (req, res, next) => {
     }
   }
 
-  const secret = process.env.ADMS_SHARED_SECRET;
-  if (secret) {
-    const provided = req.headers['x-adms-secret'] || req.query.secret;
-    if (provided !== secret) {
+  const secret = String(process.env.ADMS_SHARED_SECRET || '').trim();
+  const isProd = process.env.NODE_ENV === 'production';
+  const requireSecretInDev = process.env.ADMS_REQUIRE_SECRET === 'true';
+
+  if (!secret) {
+    if (isProd || requireSecretInDev) {
+      return res.status(503).type('text/plain').send('ERROR: ADMS authentication not configured');
+    }
+  } else {
+    // Prefer x-adms-secret header (sent by ManAndMachine-ADMS-Bridge); do not accept query-string secrets
+    const provided = String(req.headers['x-adms-secret'] || '').trim();
+    if (!timingSafeMatches(provided, secret)) {
       return res.status(401).type('text/plain').send('ERROR: Unauthorized');
     }
   }
@@ -142,6 +160,10 @@ router.get('/getrequest', async (req, res) => {
     if (!device.isActive || device.status === 'DISABLED') {
       return res.status(403).type('text/plain').send('ERROR: Device disabled');
     }
+    const { commandLines } = await biometricDeviceService.dispatchPendingCommandsForDevice(device);
+    if (commandLines && commandLines.length > 0) {
+      return res.status(200).type('text/plain').send(`${commandLines.join('\n')}\n`);
+    }
     return res.status(200).type('text/plain').send('OK');
   } catch (err) {
     console.error('ADMS GET /iclock/getrequest error:', err.message);
@@ -155,7 +177,12 @@ router.get('/getrequest', async (req, res) => {
 router.post('/devicecmd', async (req, res) => {
   try {
     const sn = req.query.SN || req.query.sn;
-    await biometricDeviceService.handleAdmsHeartbeat(sn);
+    const device = await biometricDeviceService.handleAdmsHeartbeat(sn);
+    if (!device) {
+      return res.status(404).type('text/plain').send('ERROR: Device not registered');
+    }
+    const rawBody = typeof req.body === 'string' ? req.body : '';
+    await biometricDeviceService.handleAdmsDeviceCmdResponse(sn, rawBody);
     return res.status(200).type('text/plain').send('OK');
   } catch (err) {
     return res.status(500).type('text/plain').send('ERROR');

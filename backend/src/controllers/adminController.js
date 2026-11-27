@@ -983,7 +983,12 @@ const getClientDetails = async (req, res, next) => {
 const createClient = async (req, res, next) => {
   try {
     const { name, email = '', phone = '', branchId, createLoginAccess = false, fitnessGoal, experienceLevel, trainerId, registrationDate, gender, age, dateOfBirth, address, emergencyContact, notes } = req.body;
-    if (!name?.trim() || !branchId || !mongoose.Types.ObjectId.isValid(branchId)) return res.status(400).json({ success: false, message: 'Full name and a valid branch are required.' });
+    const adminBranch = req.user?.branchId?._id || req.user?.branchId;
+    if (adminBranch && branchId && String(adminBranch) !== String(branchId)) {
+      return res.status(403).json({ success: false, message: 'Access denied: cannot create client under another branch.' });
+    }
+    const targetBranchId = adminBranch ? String(adminBranch) : branchId;
+    if (!name?.trim() || !targetBranchId || !mongoose.Types.ObjectId.isValid(targetBranchId)) return res.status(400).json({ success: false, message: 'Full name and a valid branch are required.' });
     const normalizedPhone = phone ? normalizeIndianPhone(phone) : null;
     if (phone && !normalizedPhone) return res.status(400).json({ success: false, message: 'Enter a valid Indian phone number or leave it blank.' });
     const cleanEmail = email ? String(email).trim().toLowerCase() : '';
@@ -1000,11 +1005,36 @@ const createClient = async (req, res, next) => {
     if (createLoginAccess) {
       if (await User.findOne({ email: cleanEmail })) return res.status(409).json({ success: false, message: 'This email is already linked to an account.' });
       const rawToken = generateSecureToken();
-      user = await User.create({ name: name.trim(), email: cleanEmail, phone: normalizedPhone || '', branchId, role: 'CLIENT', status: 'PENDING_ACTIVATION', activationTokenHash: hashToken(rawToken), activationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), activationSentAt: new Date() });
+      user = await User.create({ name: name.trim(), email: cleanEmail, phone: normalizedPhone || '', branchId: targetBranchId, role: 'CLIENT', status: 'PENDING_ACTIVATION', activationTokenHash: hashToken(rawToken), activationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), activationSentAt: new Date() });
     }
     const parsedAge = age !== undefined && age !== '' && age !== null ? Number(age) : null;
-    const profile = await ClientProfile.create({ userId: user?._id || null, name: name.trim(), email: cleanEmail, phone: normalizedPhone || '', branchId, gender, age: Number.isFinite(parsedAge) ? parsedAge : null, dateOfBirth: dateOfBirth || null, address, emergencyContact, notes, fitnessGoal: fitnessGoal || 'General Fitness', experienceLevel: experienceLevel || 'Beginner', trainerId: trainerId && mongoose.Types.ObjectId.isValid(trainerId) ? trainerId : null, joiningDate: registrationDate ? new Date(registrationDate) : new Date(), registrationSource: 'ADMIN_REGISTERED', accountAccessStatus: user ? 'INVITATION_PENDING' : 'NOT_CREATED' });
-    res.status(201).json({ success: true, message: user ? 'Client profile created. Account invitation is pending.' : 'Walk-in client profile created without login access.', client: { id: profile._id, profileId: profile._id, clientId: profile.clientId, userId: user?._id || null, name: profile.name, email: profile.email, phone: profile.phone, age: profile.age, gender: profile.gender, address: profile.address, accountAccessStatus: profile.accountAccessStatus } });
+    const profile = await ClientProfile.create({ userId: user?._id || null, name: name.trim(), email: cleanEmail, phone: normalizedPhone || '', branchId: targetBranchId, gender, age: Number.isFinite(parsedAge) ? parsedAge : null, dateOfBirth: dateOfBirth || null, address, emergencyContact, notes, fitnessGoal: fitnessGoal || 'General Fitness', experienceLevel: experienceLevel || 'Beginner', trainerId: trainerId && mongoose.Types.ObjectId.isValid(trainerId) ? trainerId : null, joiningDate: registrationDate ? new Date(registrationDate) : new Date(), registrationSource: 'ADMIN_REGISTERED', accountAccessStatus: user ? 'INVITATION_PENDING' : 'NOT_CREATED' });
+
+    let biometricEnrollment = null;
+    let biometricEnrollmentError = null;
+    if (req.body.biometricEnrollment?.enabled && req.body.biometricEnrollment?.deviceId) {
+      try {
+        const biometricEnrollmentService = require('../services/biometricEnrollmentService');
+        biometricEnrollment = await biometricEnrollmentService.initiatePhysicalEnrollment(
+          {
+            clientProfileId: profile._id,
+            deviceId: req.body.biometricEnrollment.deviceId,
+            biometricUserId: req.body.biometricEnrollment.biometricUserId || '',
+          },
+          req.user
+        );
+      } catch (bioErr) {
+        biometricEnrollmentError = bioErr.message || 'Biometric enrollment request could not be queued.';
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      message: user ? 'Client profile created. Account invitation is pending.' : 'Walk-in client profile created without login access.',
+      client: { id: profile._id, profileId: profile._id, clientId: profile.clientId, userId: user?._id || null, name: profile.name, email: profile.email, phone: profile.phone, age: profile.age, gender: profile.gender, address: profile.address, accountAccessStatus: profile.accountAccessStatus },
+      ...(biometricEnrollment ? { biometricEnrollment } : {}),
+      ...(biometricEnrollmentError ? { biometricEnrollmentError } : {}),
+    });
   } catch (err) {
     next(err);
   }
@@ -2882,9 +2912,10 @@ const getAttendanceOverview = async (req, res, next) => {
       query.branchId = branchId;
     }
 
-    const targetDate = date ? new Date(date) : new Date();
-    const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-    const endOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59);
+    const targetDateStr = date
+      ? financeService.getKolkataParts(new Date(date)).dateStr
+      : financeService.getKolkataParts().dateStr;
+    const { start: startOfDay, end: endOfDay } = financeService.getKolkataDayRange(targetDateStr);
 
     query.date = { $gte: startOfDay, $lte: endOfDay };
 
@@ -2902,11 +2933,11 @@ const getAttendanceOverview = async (req, res, next) => {
       return obj;
     });
 
-    // Monthly stats
-    const selYear = year ? parseInt(year, 10) : targetDate.getFullYear();
-    const selMonth = month ? parseInt(month, 10) : targetDate.getMonth();
-    const monthStart = new Date(selYear, selMonth, 1);
-    const monthEnd = new Date(selYear, selMonth + 1, 0, 23, 59, 59);
+    // Monthly stats in IST
+    const targetParts = financeService.getKolkataParts(startOfDay);
+    const selYear = year ? parseInt(year, 10) : targetParts.year;
+    const selMonth = month !== undefined && month !== '' ? parseInt(month, 10) + 1 : targetParts.month;
+    const { start: monthStart, end: monthEnd } = financeService.getKolkataMonthRange(selYear, selMonth);
 
     const monthCount = await Attendance.countDocuments({
       ...(branchId && branchId !== 'ALL' ? { branchId } : {}),
@@ -2915,7 +2946,7 @@ const getAttendanceOverview = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      selectedDate: startOfDay.toISOString().slice(0, 10),
+      selectedDate: targetDateStr,
       count: records.length,
       records,
       monthTotal: monthCount,

@@ -119,6 +119,7 @@ const biometricDeviceSchema = new mongoose.Schema(
           biometricUserId: { type: String, trim: true, required: true },
           name: { type: String, trim: true, default: '' },
           privilege: { type: String, trim: true, default: '0' },
+          firstSeenAt: { type: Date, default: Date.now },
           seenAt: { type: Date, default: Date.now },
         },
       ],

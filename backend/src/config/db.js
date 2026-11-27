@@ -23,10 +23,14 @@ const connectDB = async () => {
   const isLocal = uri.includes('127.0.0.1') || uri.includes('localhost');
 
   try {
-    // Explicitly enforce database name 'man_and_machine' so Atlas doesn't dump data into 'test'
+    const allowInvalidCertsInDev =
+      process.env.NODE_ENV !== 'production' &&
+      process.env.MONGODB_TLS_ALLOW_INVALID_CERTS === 'true';
+
+    // Use MONGODB_DB_NAME when set (e.g., for isolated staging) while keeping 'man_and_machine' as the backward-compatible default
     const conn = await mongoose.connect(uri, {
-      dbName: 'man_and_machine',
-      tlsAllowInvalidCertificates: true, // Prevents cluster creation clock skew (certificate NotBefore)
+      dbName: process.env.MONGODB_DB_NAME || 'man_and_machine',
+      ...(allowInvalidCertsInDev ? { tlsAllowInvalidCertificates: true } : {}),
       serverSelectionTimeoutMS: 10000,
     });
 
