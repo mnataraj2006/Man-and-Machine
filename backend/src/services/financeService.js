@@ -278,6 +278,8 @@ const createInvoiceAndOptionalPayment = async ({
   notes = '',
   createdBy = null,
   existingPayment = null,
+  pendingApproval = false,
+  pendingAmount = 0,
 }) => {
   const config = await FinanceConfig.getOrCreateConfig();
   const safeDate = invoiceDate ? new Date(invoiceDate) : new Date();
@@ -301,9 +303,14 @@ const createInvoiceAndOptionalPayment = async ({
       ? roundMoney(totalAmount)
       : roundMoney(taxableBase + resolvedTaxAmount);
 
+  const normalizedMethod = (existingPayment?.paymentMethod || paymentMethod || 'UPI').toUpperCase().trim();
+  const isCashPendingApproval = Boolean(pendingApproval && normalizedMethod === 'CASH' && !existingPayment);
+
   let initialPaid = 0;
   if (existingPayment) {
     initialPaid = existingPayment.status === 'PAID' ? roundMoney(existingPayment.amount) : 0;
+  } else if (isCashPendingApproval) {
+    initialPaid = 0;
   } else {
     initialPaid = roundMoney(paidAmount);
   }
@@ -313,8 +320,6 @@ const createInvoiceAndOptionalPayment = async ({
     err.statusCode = 400;
     throw err;
   }
-
-  const normalizedMethod = (existingPayment?.paymentMethod || paymentMethod || 'UPI').toUpperCase().trim();
   const invoiceNumber = await generateSequentialNumber({
     kind: 'INVOICE',
     branchId,
@@ -435,6 +440,36 @@ const createInvoiceAndOptionalPayment = async ({
       });
     }
     await existingPayment.save();
+  } else if (isCashPendingApproval && computedTotal > 0) {
+    const submittedCashAmount = pendingAmount > 0 ? Math.min(computedTotal, roundMoney(pendingAmount)) : computedTotal;
+    linkedPayment = await Payment.create({
+      userId: clientId,
+      clientProfileId,
+      branchId,
+      invoiceId: invoice._id,
+      membershipId,
+      transactionId: generateTransactionRef('CSH'),
+      referenceNumber: referenceNumber || '',
+      description: `${invoice.description} (${invoice.invoiceNumber})`,
+      amount: submittedCashAmount,
+      paymentMethod: 'CASH',
+      status: 'PENDING_APPROVAL',
+      date: safeDate,
+      notes: notes || '',
+      createdBy,
+      auditLogs: [
+        {
+          action: 'CASH_PAYMENT_SUBMITTED',
+          oldAmount: 0,
+          newAmount: submittedCashAmount,
+          oldStatus: null,
+          newStatus: 'PENDING_APPROVAL',
+          reason: `Cash payment submitted at desk for ${invoice.invoiceNumber} — awaiting Admin approval`,
+          userId: createdBy,
+          timestamp: new Date(),
+        },
+      ],
+    });
   } else if (initialPaid > 0) {
     const receiptNumber = await generateSequentialNumber({
       kind: 'RECEIPT',
@@ -712,6 +747,9 @@ const computeFinanceSummary = async ({ branchId = 'ALL', startDate = null, endDa
     yearPaidPayments,
     periodPaidPayments,
     periodRefundedPayments,
+    pendingCashPayments,
+    approvedCashPayments,
+    rejectedCashPayments,
     activeInvoices,
     pendingInvoices,
     periodActiveExpenses,
@@ -726,6 +764,9 @@ const computeFinanceSummary = async ({ branchId = 'ALL', startDate = null, endDa
     Payment.find({ ...branchFilter, status: 'PAID', date: { $gte: yearRange.start, $lte: yearRange.end } }).lean(),
     Payment.find({ ...branchFilter, status: 'PAID', ...paymentDateCond }).lean(),
     Payment.find({ ...branchFilter, status: 'REFUNDED', ...paymentDateCond }).lean(),
+    Payment.find({ ...branchFilter, paymentMethod: 'CASH', status: 'PENDING_APPROVAL', ...paymentDateCond }).lean(),
+    Payment.find({ ...branchFilter, paymentMethod: 'CASH', status: 'PAID', ...paymentDateCond }).lean(),
+    Payment.find({ ...branchFilter, paymentMethod: 'CASH', status: 'REJECTED', ...paymentDateCond }).lean(),
     Invoice.find({ ...branchFilter, status: { $nin: ['CANCELLED', 'REFUNDED'] }, ...invoiceDateCond }).lean(),
     Invoice.find({
       ...branchFilter,
@@ -848,6 +889,240 @@ const computeFinanceSummary = async ({ branchId = 'ALL', startDate = null, endDa
     paymentMethodBreakdown,
     branchBreakdown,
     outstandingInvoices: outstandingList,
+    cashApprovalSummary: {
+      pendingCashCount: pendingCashPayments.length,
+      pendingCashAmount: sumAmounts(pendingCashPayments),
+      approvedCashCount: approvedCashPayments.length,
+      approvedCashAmount: sumAmounts(approvedCashPayments),
+      rejectedCashCount: rejectedCashPayments.length,
+      rejectedCashAmount: sumAmounts(rejectedCashPayments),
+    },
+  };
+};
+
+const enforceCashPaymentBranchAccess = (adminUser, paymentBranchId) => {
+  const adminBranchId = adminUser?.branchId?._id || adminUser?.branchId || null;
+  if (adminBranchId && paymentBranchId && String(adminBranchId) !== String(paymentBranchId)) {
+    const err = new Error('Access denied: you are not authorized to approve or reject cash payments for another branch.');
+    err.statusCode = 403;
+    throw err;
+  }
+};
+
+/**
+ * Atomically approves a PENDING_APPROVAL cash payment, generates its official receipt,
+ * finalizes its linked invoice, and activates the linked membership.
+ */
+const approveCashPayment = async (paymentId, adminUser, { notes = '' } = {}) => {
+  if (!mongoose.Types.ObjectId.isValid(paymentId)) {
+    const err = new Error('Invalid payment ID.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const existing = await Payment.findById(paymentId);
+  if (!existing) {
+    const err = new Error('Cash payment record not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if ((existing.paymentMethod || '').toUpperCase() !== 'CASH') {
+    const err = new Error('Only CASH payments can be processed through the cash approval workflow.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  enforceCashPaymentBranchAccess(adminUser, existing.branchId);
+
+  if (existing.status !== 'PENDING_APPROVAL') {
+    const err = new Error(`Cash payment has already been processed (current status: ${existing.status}).`);
+    err.statusCode = 409;
+    throw err;
+  }
+
+  if (Number(existing.amount) <= 0) {
+    const err = new Error('Invalid cash payment amount.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate linked membership eligibility before transitioning
+  let membership = null;
+  if (existing.membershipId) {
+    membership = await Membership.findById(existing.membershipId);
+    if (!membership) {
+      const err = new Error('Associated membership record no longer exists.');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (!['PENDING_PAYMENT', 'PENDING'].includes(membership.status)) {
+      const err = new Error(`Associated membership is not eligible for activation (status: ${membership.status}).`);
+      err.statusCode = 409;
+      throw err;
+    }
+  }
+
+  const now = new Date();
+  const receiptNumber =
+    existing.receiptNumber ||
+    (await generateSequentialNumber({
+      kind: 'RECEIPT',
+      branchId: existing.branchId,
+      date: existing.date || now,
+    }));
+
+  // Atomic state transition: only one concurrent Admin approval can succeed
+  const updatedPayment = await Payment.findOneAndUpdate(
+    {
+      _id: paymentId,
+      status: 'PENDING_APPROVAL',
+      paymentMethod: 'CASH',
+    },
+    {
+      $set: {
+        status: 'PAID',
+        receiptNumber,
+        approvedBy: adminUser?._id || null,
+        approvedAt: now,
+        updatedBy: adminUser?._id || null,
+        ...(notes ? { notes: notes.trim() } : {}),
+      },
+      $push: {
+        auditLogs: {
+          action: 'CASH_PAYMENT_APPROVED',
+          oldAmount: existing.amount,
+          newAmount: existing.amount,
+          oldStatus: 'PENDING_APPROVAL',
+          newStatus: 'PAID',
+          reason: notes?.trim() || 'Cash payment verified and approved by Admin',
+          userId: adminUser?._id || null,
+          timestamp: now,
+        },
+      },
+    },
+    { new: true }
+  );
+
+  if (!updatedPayment) {
+    const err = new Error('Cash payment was already approved or rejected by another administrator.');
+    err.statusCode = 409;
+    throw err;
+  }
+
+  let updatedInvoice = null;
+  if (updatedPayment.invoiceId) {
+    updatedInvoice = await recalculateInvoiceFromPayments(
+      updatedPayment.invoiceId,
+      adminUser?._id || null,
+      `Cash payment ${updatedPayment.transactionId} approved by Admin`
+    );
+  }
+
+  if (membership) {
+    const refreshedMem = await Membership.findById(membership._id);
+    if (refreshedMem && ['PENDING_PAYMENT', 'PENDING'].includes(refreshedMem.status)) {
+      refreshedMem.status = 'ACTIVE';
+      await refreshedMem.save();
+    }
+    const { syncClientProfileMembership } = require('../utils/membershipSync');
+    await syncClientProfileMembership({
+      userId: membership.userId || null,
+      clientProfileId: membership.clientProfileId || null,
+    });
+    membership = await Membership.findById(membership._id);
+  }
+
+  return {
+    payment: updatedPayment,
+    invoice: updatedInvoice,
+    membership,
+  };
+};
+
+/**
+ * Atomically rejects a PENDING_APPROVAL cash payment while preserving the audit trail
+ * and keeping the associated membership inactive.
+ */
+const rejectCashPayment = async (paymentId, adminUser, { reason = '' } = {}) => {
+  if (!mongoose.Types.ObjectId.isValid(paymentId)) {
+    const err = new Error('Invalid payment ID.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const trimmedReason = String(reason || '').trim();
+  if (!trimmedReason) {
+    const err = new Error('A rejection reason is required when rejecting a cash payment.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const existing = await Payment.findById(paymentId);
+  if (!existing) {
+    const err = new Error('Cash payment record not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if ((existing.paymentMethod || '').toUpperCase() !== 'CASH') {
+    const err = new Error('Only CASH payments can be processed through the cash approval workflow.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  enforceCashPaymentBranchAccess(adminUser, existing.branchId);
+
+  if (existing.status !== 'PENDING_APPROVAL') {
+    const err = new Error(`Cash payment has already been processed (current status: ${existing.status}).`);
+    err.statusCode = 409;
+    throw err;
+  }
+
+  const now = new Date();
+  const updatedPayment = await Payment.findOneAndUpdate(
+    {
+      _id: paymentId,
+      status: 'PENDING_APPROVAL',
+      paymentMethod: 'CASH',
+    },
+    {
+      $set: {
+        status: 'REJECTED',
+        rejectedBy: adminUser?._id || null,
+        rejectedAt: now,
+        rejectionReason: trimmedReason,
+        updatedBy: adminUser?._id || null,
+      },
+      $push: {
+        auditLogs: {
+          action: 'CASH_PAYMENT_REJECTED',
+          oldAmount: existing.amount,
+          newAmount: existing.amount,
+          oldStatus: 'PENDING_APPROVAL',
+          newStatus: 'REJECTED',
+          reason: trimmedReason,
+          userId: adminUser?._id || null,
+          timestamp: now,
+        },
+      },
+    },
+    { new: true }
+  );
+
+  if (!updatedPayment) {
+    const err = new Error('Cash payment was already approved or rejected by another administrator.');
+    err.statusCode = 409;
+    throw err;
+  }
+
+  const membership = updatedPayment.membershipId
+    ? await Membership.findById(updatedPayment.membershipId)
+    : null;
+
+  return {
+    payment: updatedPayment,
+    membership,
   };
 };
 
@@ -868,4 +1143,6 @@ module.exports = {
   recordPaymentOnInvoice,
   ensureLegacyInvoicesSynced,
   computeFinanceSummary,
+  approveCashPayment,
+  rejectCashPayment,
 };

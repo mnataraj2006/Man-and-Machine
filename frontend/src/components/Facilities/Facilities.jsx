@@ -1,5 +1,7 @@
 import React, { useRef } from 'react';
 import { Reveal, useScrollProgress } from '../Motion/ScrollMotion.jsx';
+import { useWebsiteContent } from '../../context/WebsiteContentContext.jsx';
+import { resolveMediaUrl } from '../UI/TrainerAvatar.jsx';
 
 const zones = [
   'WEIGHT TRAINING',
@@ -11,6 +13,8 @@ const zones = [
 export default function Facilities() {
   const imageContainerRef = useRef(null);
   const progress = useScrollProgress(imageContainerRef);
+  const { content } = useWebsiteContent();
+  const fac = content?.facilities || {};
 
   // Subtle parallax translation & zoom from scroll progress
   const scale = 1.08 - progress * 0.08; // smoothly settles from 1.08 to 1.00
@@ -25,20 +29,20 @@ export default function Facilities() {
         {/* Header */}
         <div className="flex flex-col items-start gap-5">
           <Reveal delay={0}>
-            <p className="font-editorial-label text-[#EB3E2E]">04 / THE TRAINING GROUND</p>
+            <p className="font-editorial-label text-[#EB3E2E]">{fac.sectionLabel || '04 / THE TRAINING GROUND'}</p>
           </Reveal>
           <Reveal variant="mask" delay={80}>
             <h2
               className="font-editorial-display font-semibold uppercase text-[#F5F5F5]"
               style={{ fontSize: 'clamp(2.75rem, 5vw, 4.5rem)' }}
             >
-              BUILT FOR THE WORK.
+              {fac.headline || 'BUILT FOR THE WORK.'}
             </h2>
           </Reveal>
           <Reveal delay={140} className="max-w-[620px]">
             <p className="font-editorial-body text-[#B8B8B8] text-[15px] md:text-[16px]">
-              Everything you need to train with purpose — serious equipment, focused spaces and an
-              environment built around progress.
+              {fac.subheadline ||
+                'Everything you need to train with purpose — serious equipment, focused spaces and an environment built around progress.'}
             </p>
           </Reveal>
         </div>
@@ -50,7 +54,7 @@ export default function Facilities() {
             className="relative w-full h-[320px] sm:h-[440px] lg:h-[560px] overflow-hidden"
           >
             <img
-              src="/images/framer/training-floor.png"
+              src={resolveMediaUrl(fac.imageUrl) || '/images/framer/training-floor.png'}
               alt="Man & Machine Training Floor — Equipment & Free Weights"
               loading="lazy"
               className="w-full h-full object-cover object-center will-change-transform"

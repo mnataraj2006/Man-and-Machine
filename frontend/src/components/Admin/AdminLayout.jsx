@@ -27,6 +27,8 @@ import {
   PieChart,
   SlidersHorizontal,
   Fingerprint,
+  Globe,
+  Image as ImageIcon,
 } from 'lucide-react';
 import authService from '../../services/auth.js';
 import adminService from '../../services/adminService.js';
@@ -57,6 +59,7 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
   }, [currentPath]);
 
   const financeSubItems = [
+    { label: 'Cash Approvals', path: '/admin/finance/cash-approvals', icon: Wallet },
     { label: 'All Invoices', path: '/admin/finance/invoices', icon: FileText },
     { label: "Today's Invoices", path: '/admin/finance/invoices/today', icon: Calendar },
     { label: 'Day-wise Collections', path: '/admin/finance/collections/daily', icon: TrendingUp },
@@ -84,6 +87,8 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
     },
     { label: 'Reports', path: '/admin/reports', icon: BarChart3 },
     { label: 'Announcements', path: '/admin/notifications', icon: Megaphone },
+    { label: 'Gym Gallery', path: '/admin/website/gallery', icon: ImageIcon },
+    { label: 'Website Content', path: '/admin/website/content', icon: Globe },
     { label: 'WhatsApp', path: '/admin/settings/whatsapp', icon: MessageCircle },
     { label: 'Settings', path: '/admin/settings', icon: Settings },
   ];

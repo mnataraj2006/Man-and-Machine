@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import authService from '../../services/auth.js';
+import { useWebsiteContent } from '../../context/WebsiteContentContext.jsx';
+import { resolveMediaUrl } from '../UI/TrainerAvatar.jsx';
 
 export default function Hero({ onOpenJoinModal, onNavigate }) {
   const [hasScrolled, setHasScrolled] = useState(false);
-  const heroImageSrc = '/images/hero/Man & Machine_ Train Hard, Stay Strong.png';
+  const { content } = useWebsiteContent();
+  const hero = content?.hero || {};
+  const heroImageSrc =
+    resolveMediaUrl(hero.backgroundImageUrl) || '/images/hero/Man & Machine_ Train Hard, Stay Strong.png';
 
   useEffect(() => {
     const handleScroll = () => {
@@ -82,7 +87,7 @@ export default function Hero({ onOpenJoinModal, onNavigate }) {
             />
           </div>
           <p className="font-editorial-label text-[#EB3E2E]">
-            FITNESS COMMUNITY
+            {hero.eyebrow || 'FITNESS COMMUNITY'}
           </p>
         </div>
 

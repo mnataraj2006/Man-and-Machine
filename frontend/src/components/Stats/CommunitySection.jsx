@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import clientService from '../../services/clientService.js';
 import { Reveal, AnimatedCounter } from '../Motion/ScrollMotion.jsx';
+import { useWebsiteContent } from '../../context/WebsiteContentContext.jsx';
+import { resolveMediaUrl } from '../UI/TrainerAvatar.jsx';
 
 export default function CommunitySection() {
+  const { content } = useWebsiteContent();
+  const comm = content?.community || {};
   const [stats, setStats] = useState({
     activeMembersCount: 500,
     workoutSessionsCount: 10000,
@@ -66,14 +70,14 @@ export default function CommunitySection() {
         {/* Header */}
         <div className="flex flex-col items-start gap-5">
           <Reveal delay={0}>
-            <p className="font-editorial-label text-[#EB3E2E]">07 / OUR PEOPLE</p>
+            <p className="font-editorial-label text-[#EB3E2E]">{comm.sectionLabel || '07 / OUR PEOPLE'}</p>
           </Reveal>
           <Reveal variant="mask" delay={80}>
             <h2
               className="font-editorial-display font-semibold uppercase text-[#F5F5F5]"
               style={{ fontSize: 'clamp(2.75rem, 5vw, 4.5rem)' }}
             >
-              STRONGER TOGETHER.
+              {comm.headline || 'STRONGER TOGETHER.'}
             </h2>
           </Reveal>
         </div>
@@ -82,7 +86,7 @@ export default function CommunitySection() {
         <Reveal variant="image" className="w-full border border-[#303030]/60 bg-[#181818]">
           <div className="relative w-full h-[300px] sm:h-[420px] lg:h-[520px] overflow-hidden">
             <img
-              src="/images/framer/community-together.png"
+              src={resolveMediaUrl(comm.imageUrl) || '/images/framer/community-together.png'}
               alt="Man & Machine Training Community"
               loading="lazy"
               className="w-full h-full object-cover object-center"

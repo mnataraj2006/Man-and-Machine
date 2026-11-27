@@ -277,6 +277,47 @@ export default function FinanceSummary({ onNavigate }) {
             </div>
           </div>
 
+          {summary?.cashApprovalSummary && (
+            <div className="bg-[#181818] border border-[#303030] rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-6 text-xs">
+                <div>
+                  <span className="text-[10px] font-mono uppercase text-amber-300 block">Pending Cash</span>
+                  <span className="text-lg font-bold text-white">
+                    {formatINR(summary.cashApprovalSummary.pendingCashAmount)}
+                  </span>
+                  <span className="text-[11px] text-[#858585] ml-1.5">
+                    ({summary.cashApprovalSummary.pendingCashCount})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-mono uppercase text-emerald-300 block">Actual Collected Cash</span>
+                  <span className="text-lg font-bold text-white">
+                    {formatINR(summary.cashApprovalSummary.approvedCashAmount)}
+                  </span>
+                  <span className="text-[11px] text-[#858585] ml-1.5">
+                    ({summary.cashApprovalSummary.approvedCashCount})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-mono uppercase text-rose-300 block">Rejected Cash</span>
+                  <span className="text-lg font-bold text-white">
+                    {formatINR(summary.cashApprovalSummary.rejectedCashAmount)}
+                  </span>
+                  <span className="text-[11px] text-[#858585] ml-1.5">
+                    ({summary.cashApprovalSummary.rejectedCashCount})
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate && onNavigate('/admin/finance/cash-approvals')}
+                className="px-4 py-2 rounded-xl bg-[#EB3E2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase tracking-wider shrink-0 self-start sm:self-center"
+              >
+                Review Cash Approvals
+              </button>
+            </div>
+          )}
+
           {/* Payment Method Breakdown & Branch Finance Breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Payment Method Breakdown */}

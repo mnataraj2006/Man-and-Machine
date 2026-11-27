@@ -1,4 +1,5 @@
 import authService from './auth.js';
+import { clearRequestCache } from '../utils/requestCache.js';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -215,6 +216,30 @@ class FinanceService {
     `;
     const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     this.triggerDownload(blob, filename.endsWith('.xls') ? filename : `${filename}.xls`);
+  }
+
+  // Cash Desk Approval Workflow
+  getCashApprovals(params = {}) {
+    const qs = this.buildQuery(params);
+    return this.request(`/cash-approvals${qs ? `?${qs}` : ''}`);
+  }
+
+  async approveCashPayment(paymentId, payload = {}) {
+    const res = await this.request(`/cash-approvals/${paymentId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    clearRequestCache();
+    return res;
+  }
+
+  async rejectCashPayment(paymentId, payload = {}) {
+    const res = await this.request(`/cash-approvals/${paymentId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    clearRequestCache();
+    return res;
   }
 
   triggerDownload(blob, filename) {

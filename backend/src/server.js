@@ -10,6 +10,7 @@ const authRoutes = require('./routes/authRoutes');
 const branchRoutes = require('./routes/branchRoutes');
 const clientRoutes = require('./routes/clientRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const websiteController = require('./controllers/websiteController');
 const trainerRoutes = require('./routes/trainerRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const whatsappRoutes = require('./routes/whatsappRoutes');
@@ -197,6 +198,10 @@ app.get('/api/public/trainers', async (req, res, next) => {
     next(err);
   }
 });
+
+// Public Gym Gallery & Website Content endpoints
+app.get('/api/public/gallery', websiteController.getPublicGallery);
+app.get('/api/public/website-content', websiteController.getPublicWebsiteContent);
 
 // Public Community Statistics endpoint
 app.get('/api/public/stats', async (req, res, next) => {

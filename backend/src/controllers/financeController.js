@@ -608,6 +608,19 @@ const getPaymentReceipt = async (req, res, next) => {
 
     if (!payment) return res.status(404).json({ success: false, message: 'Payment record not found' });
 
+    if (payment.status === 'PENDING_APPROVAL') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cash payment is pending Admin approval. Finalized receipt will be available after approval.',
+      });
+    }
+    if (payment.status === 'REJECTED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Receipt is not available because this cash payment was rejected.',
+      });
+    }
+
     const inv = payment.invoiceId;
     res.status(200).json({
       success: true,
@@ -1335,6 +1348,173 @@ const updateConfig = async (req, res, next) => {
   }
 };
 
+// ==========================================
+// 6. CASH DESK APPROVAL WORKFLOW
+// ==========================================
+
+const getCashApprovals = async (req, res, next) => {
+  try {
+    const { status = 'PENDING_APPROVAL', branchId = 'ALL', search = '', page = 1, limit = 25 } = req.query;
+
+    const adminBranchId = req.user?.branchId?._id || req.user?.branchId || null;
+    if (
+      adminBranchId &&
+      branchId &&
+      branchId !== 'ALL' &&
+      branchId !== 'all' &&
+      String(adminBranchId) !== String(branchId)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: cannot view cash approvals for another branch.',
+      });
+    }
+
+    const effectiveBranchFilter = adminBranchId
+      ? { branchId: new mongoose.Types.ObjectId(adminBranchId) }
+      : buildBranchQuery(branchId);
+
+    const query = {
+      ...effectiveBranchFilter,
+      paymentMethod: 'CASH',
+    };
+
+    if (status && status !== 'ALL') {
+      query.status = status;
+    } else {
+      query.status = { $in: ['PENDING_APPROVAL', 'PAID', 'REJECTED'] };
+    }
+
+    const parsedPage = Math.max(1, parseInt(page, 10) || 1);
+    const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 25));
+
+    const [rows, pendingAgg, approvedAgg, rejectedAgg] = await Promise.all([
+      Payment.find(query)
+        .sort({ createdAt: -1 })
+        .populate('userId', 'name email phone')
+        .populate('clientProfileId', 'clientId name phone email')
+        .populate('branchId', 'name city code')
+        .populate('membershipId', 'planName status durationDays expiryDate')
+        .populate('invoiceId', 'invoiceNumber totalAmount status')
+        .populate('createdBy', 'name role')
+        .populate('approvedBy', 'name role')
+        .populate('rejectedBy', 'name role')
+        .lean(),
+      Payment.aggregate([
+        { $match: { ...effectiveBranchFilter, paymentMethod: 'CASH', status: 'PENDING_APPROVAL' } },
+        { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$amount' } } },
+      ]),
+      Payment.aggregate([
+        { $match: { ...effectiveBranchFilter, paymentMethod: 'CASH', status: 'PAID' } },
+        { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$amount' } } },
+      ]),
+      Payment.aggregate([
+        { $match: { ...effectiveBranchFilter, paymentMethod: 'CASH', status: 'REJECTED' } },
+        { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$amount' } } },
+      ]),
+    ]);
+
+    const searchLower = String(search || '').trim().toLowerCase();
+    const filtered = searchLower
+      ? rows.filter((r) => {
+          const clientName = (r.clientProfileId?.name || r.userId?.name || '').toLowerCase();
+          const clientId = (r.clientProfileId?.clientId || '').toLowerCase();
+          const planName = (r.membershipId?.planName || r.description || '').toLowerCase();
+          const txId = (r.transactionId || '').toLowerCase();
+          return (
+            clientName.includes(searchLower) ||
+            clientId.includes(searchLower) ||
+            planName.includes(searchLower) ||
+            txId.includes(searchLower)
+          );
+        })
+      : rows;
+
+    const total = filtered.length;
+    const paged = filtered.slice((parsedPage - 1) * parsedLimit, parsedPage * parsedLimit);
+
+    res.status(200).json({
+      success: true,
+      total,
+      page: parsedPage,
+      limit: parsedLimit,
+      totalPages: Math.max(1, Math.ceil(total / parsedLimit)),
+      summary: {
+        pendingCount: pendingAgg[0]?.count || 0,
+        pendingAmount: financeService.roundMoney(pendingAgg[0]?.amount || 0),
+        approvedCount: approvedAgg[0]?.count || 0,
+        approvedAmount: financeService.roundMoney(approvedAgg[0]?.amount || 0),
+        rejectedCount: rejectedAgg[0]?.count || 0,
+        rejectedAmount: financeService.roundMoney(rejectedAgg[0]?.amount || 0),
+      },
+      payments: paged,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const approveCashPayment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { notes = '' } = req.body || {};
+
+    const result = await financeService.approveCashPayment(id, req.user, { notes });
+
+    // Non-blocking notification to client (if they have a User account)
+    setImmediate(async () => {
+      try {
+        if (result.payment?.userId) {
+          await Notification.create({
+            userId: result.payment.userId,
+            title: 'Cash Payment Approved',
+            message: `Your cash payment of ₹${result.payment.amount} has been approved. Your membership is now ACTIVE.`,
+            type: 'PAYMENT',
+          });
+          const clientUser = await User.findById(result.payment.userId).lean();
+          if (clientUser && result.invoice) {
+            await notificationService
+              .queuePaymentConfirmation({
+                client: clientUser,
+                invoice: result.invoice,
+                payment: result.payment,
+                triggeredBy: req.user?._id,
+              })
+              .catch(() => {});
+          }
+        }
+      } catch (_e) {
+        // Notification failure must never break payment approval
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Cash payment approved. Receipt finalized and membership activated.',
+      ...result,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const rejectCashPayment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { reason = '' } = req.body || {};
+
+    const result = await financeService.rejectCashPayment(id, req.user, { reason });
+
+    res.status(200).json({
+      success: true,
+      message: 'Cash payment rejected. Membership remains inactive.',
+      ...result,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getSummary,
   getInvoices,
@@ -1354,4 +1534,7 @@ module.exports = {
   cancelExpense,
   getConfig,
   updateConfig,
+  getCashApprovals,
+  approveCashPayment,
+  rejectCashPayment,
 };

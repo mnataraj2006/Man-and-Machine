@@ -3,6 +3,7 @@ const router = express.Router();
 const { protect, authorize } = require('../middleware/authMiddleware');
 const adminController = require('../controllers/adminController');
 const financeRoutes = require('./financeRoutes');
+const websiteAdminRoutes = require('./websiteAdminRoutes');
 const { handleTrainerPhotoUpload } = require('../services/trainerPhotoService');
 
 // All admin routes require valid token and ADMIN role
@@ -11,6 +12,9 @@ router.use(authorize('ADMIN'));
 
 // Finance Module Routes (/api/admin/finance/*)
 router.use('/finance', financeRoutes);
+
+// Website Content & Gallery CMS Routes (/api/admin/website/*)
+router.use('/website', websiteAdminRoutes);
 
 // 1. Dashboard & KPIs
 router.get('/dashboard', adminController.getDashboardOverview);

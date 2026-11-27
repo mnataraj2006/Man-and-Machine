@@ -2665,15 +2665,36 @@ const createClientMembership = async (req, res, next) => {
     const sDate = startDate ? new Date(startDate) : new Date();
     const expDate = new Date(sDate.getTime() + snapshot.durationDays * 24 * 60 * 60 * 1000);
 
+    const normalizedMethod = String(req.body.paymentMethod || 'CASH').toUpperCase().trim();
+    const isCashPayment = normalizedMethod === 'CASH' && snapshot.finalAmount > 0;
+
+    // Security: never allow frontend to directly force PAID/ACTIVE on a CASH desk purchase
+    if (
+      isCashPayment &&
+      (String(req.body.paymentStatus || '').toUpperCase() === 'PAID' ||
+        String(req.body.membershipStatus || '').toUpperCase() === 'ACTIVE' ||
+        String(req.body.status || '').toUpperCase() === 'ACTIVE')
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cash payments cannot be marked PAID or ACTIVE directly. Cash desk payments require Admin approval.',
+      });
+    }
+
     const isDeferredPayment = req.body.paymentStatus === 'PENDING' || req.body.paymentStatus === 'PENDING_PAYMENT';
-    const initialPaid =
-      req.body.paidAmount !== undefined
-        ? Number(req.body.paidAmount)
-        : isDeferredPayment
-        ? 0
-        : snapshot.finalAmount;
-    const allowAccessWithBalance = req.body.allowAccessWithBalance === true;
-    const memStatus = snapshot.finalAmount === 0 || initialPaid >= snapshot.finalAmount || allowAccessWithBalance ? 'ACTIVE' : 'PENDING_PAYMENT';
+    const initialPaid = isCashPayment
+      ? 0
+      : req.body.paidAmount !== undefined
+      ? Number(req.body.paidAmount)
+      : isDeferredPayment
+      ? 0
+      : snapshot.finalAmount;
+    const allowAccessWithBalance = !isCashPayment && req.body.allowAccessWithBalance === true;
+    const memStatus = isCashPayment
+      ? 'PENDING_PAYMENT'
+      : snapshot.finalAmount === 0 || initialPaid >= snapshot.finalAmount || allowAccessWithBalance
+      ? 'ACTIVE'
+      : 'PENDING_PAYMENT';
 
     const membership = await Membership.create({
       userId: user?._id || null,
@@ -2692,7 +2713,7 @@ const createClientMembership = async (req, res, next) => {
       discountValue: snapshot.discountValue,
       finalAmount: snapshot.finalAmount,
       amount: snapshot.finalAmount,
-      paymentMethod: req.body.paymentMethod || 'CASH',
+      paymentMethod: normalizedMethod,
       assignedBy: req.user ? req.user._id : null,
     });
 
@@ -2704,6 +2725,11 @@ const createClientMembership = async (req, res, next) => {
       else if (snapshot.discountType === 'PERCENTAGE') {
         discountAmt = ((snapshot.basePrice + snapshot.joiningFee) * (snapshot.discountValue || 0)) / 100;
       }
+      const requestedCashAmt =
+        req.body.paidAmount !== undefined && Number(req.body.paidAmount) > 0
+          ? Number(req.body.paidAmount)
+          : snapshot.finalAmount;
+
       // For walk-in clients without a User account, clientId will be null — Invoice.clientId is now optional
       const finRes = await financeService.createInvoiceAndOptionalPayment({
         clientId: user?._id || null,
@@ -2716,10 +2742,12 @@ const createClientMembership = async (req, res, next) => {
         joiningFee: snapshot.joiningFee || 0,
         discount: discountAmt,
         totalAmount: snapshot.finalAmount,
-        paidAmount: Math.min(snapshot.finalAmount, Math.max(0, initialPaid)),
-        paymentMethod: req.body.paymentMethod || 'CASH',
+        paidAmount: isCashPayment ? 0 : Math.min(snapshot.finalAmount, Math.max(0, initialPaid)),
+        paymentMethod: normalizedMethod,
         invoiceDate: sDate,
         createdBy: req.user ? req.user._id : null,
+        pendingApproval: isCashPayment,
+        pendingAmount: isCashPayment ? requestedCashAmt : 0,
       });
       generatedInvoice = finRes.invoice;
       generatedPayment = finRes.payment || null;
@@ -2731,9 +2759,32 @@ const createClientMembership = async (req, res, next) => {
 
     await syncClientProfileMembership({ userId: user?._id || null, clientProfileId: profile?._id || null });
 
+    if (isCashPayment && generatedPayment) {
+      setImmediate(async () => {
+        try {
+          const admins = await User.find({ role: 'ADMIN', status: 'ACTIVE' }).select('_id').lean();
+          if (admins.length > 0) {
+            const clientLabel = profile?.name || user?.name || 'Client';
+            await Notification.insertMany(
+              admins.map((a) => ({
+                userId: a._id,
+                title: 'Cash Payment Pending Approval',
+                message: `₹${generatedPayment.amount} cash payment for ${clientLabel} (${snapshot.planName}) is awaiting Admin approval.`,
+                type: 'PAYMENT',
+              }))
+            );
+          }
+        } catch (_e) {
+          // Non-blocking notification
+        }
+      });
+    }
+
     res.status(201).json({
       success: true,
-      message: 'Membership assigned successfully',
+      message: isCashPayment
+        ? 'Membership created in PENDING_PAYMENT state. Cash payment is awaiting Admin approval.'
+        : 'Membership assigned successfully',
       membership,
       invoice: generatedInvoice,
       payment: generatedPayment,
@@ -3306,6 +3357,13 @@ const updatePaymentStatus = async (req, res, next) => {
 
     const payment = await Payment.findById(id);
     if (!payment) return res.status(404).json({ success: false, message: 'Payment record not found' });
+
+    if (payment.status === 'PENDING_APPROVAL') {
+      return res.status(400).json({
+        success: false,
+        message: 'Pending cash payments must be approved or rejected via the Cash Approval workflow.',
+      });
+    }
 
     const oldStatus = payment.status;
     payment.status = status;

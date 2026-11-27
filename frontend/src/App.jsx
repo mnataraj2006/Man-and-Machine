@@ -8,10 +8,11 @@ import Facilities from './components/Facilities/Facilities.jsx';
 import MembershipPlansPreview from './components/Membership/MembershipPlansPreview.jsx';
 import TrainersSection from './components/Trainer/TrainersSection.jsx';
 import CommunitySection from './components/Stats/CommunitySection.jsx';
-import TransformationSection from './components/Editorial/TransformationSection.jsx';
+import GymGallerySection from './components/Editorial/GymGallerySection.jsx';
 import FinalCTA from './components/CTA/FinalCTA.jsx';
 import Footer from './components/Footer/Footer.jsx';
 import JoinModal from './components/Navbar/JoinModal.jsx';
+import { WebsiteContentProvider } from './context/WebsiteContentContext.jsx';
 
 const Login = lazy(() => import('./pages/Login.jsx'));
 const Signup = lazy(() => import('./pages/Signup.jsx'));
@@ -46,6 +47,9 @@ const AdminNotifications = lazy(() => import('./pages/Admin/Notifications.jsx'))
 const AdminSettings = lazy(() => import('./pages/Admin/Settings.jsx'));
 const WhatsAppSettings = lazy(() => import('./pages/Admin/WhatsApp.jsx'));
 const AdminFinanceSummary = lazy(() => import('./pages/Admin/Finance/FinanceSummary.jsx'));
+const AdminCashApprovals = lazy(() => import('./pages/Admin/Finance/CashApprovals.jsx'));
+const AdminWebsiteGallery = lazy(() => import('./pages/Admin/Website/GalleryManager.jsx'));
+const AdminWebsiteContent = lazy(() => import('./pages/Admin/Website/ContentManager.jsx'));
 const AdminAllInvoices = lazy(() => import('./pages/Admin/Finance/AllInvoices.jsx'));
 const AdminTodayInvoices = lazy(() => import('./pages/Admin/Finance/TodayInvoices.jsx'));
 const AdminDailyCollections = lazy(() => import('./pages/Admin/Finance/DailyCollections.jsx'));
@@ -246,6 +250,8 @@ export default function App() {
       adminContent = <AdminPayments onNavigate={navigate} />;
     } else if (currentPath === '/admin/finance' || currentPath === '/admin/finance/summary') {
       adminContent = <AdminFinanceSummary onNavigate={navigate} />;
+    } else if (currentPath === '/admin/finance/cash-approvals') {
+      adminContent = <AdminCashApprovals onNavigate={navigate} />;
     } else if (currentPath === '/admin/finance/invoices/today') {
       adminContent = <AdminTodayInvoices onNavigate={navigate} />;
     } else if (currentPath === '/admin/finance/invoices') {
@@ -263,6 +269,10 @@ export default function App() {
       adminContent = <AdminReports initialCategory={cat || null} onNavigate={navigate} />;
     } else if (currentPath === '/admin/notifications') {
       adminContent = <AdminNotifications onNavigate={navigate} />;
+    } else if (currentPath === '/admin/website/gallery') {
+      adminContent = <AdminWebsiteGallery onNavigate={navigate} />;
+    } else if (currentPath === '/admin/website/content') {
+      adminContent = <AdminWebsiteContent onNavigate={navigate} />;
     } else if (currentPath === '/admin/settings') {
       adminContent = <AdminSettings onNavigate={navigate} onLogout={() => navigate('/login')} />;
     } else if (currentPath === '/admin/settings/whatsapp') {
@@ -392,57 +402,59 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#090909] text-[#F5F5F5] antialiased selection:bg-[#EB3E2E] selection:text-[#F5F5F5] w-full">
-      {/* 01 — Navigation */}
-      <Header 
-        onOpenJoinModal={handleOpenJoin} 
-        onNavigate={navigate}
-        currentPath={currentPath}
-      />
+    <WebsiteContentProvider>
+      <div className="min-h-screen bg-[#090909] text-[#F5F5F5] antialiased selection:bg-[#EB3E2E] selection:text-[#F5F5F5] w-full">
+        {/* 01 — Navigation */}
+        <Header 
+          onOpenJoinModal={handleOpenJoin} 
+          onNavigate={navigate}
+          currentPath={currentPath}
+        />
 
-      {/* Main Content Sections */}
-      <main className="w-full bg-[#090909] min-h-screen">
-        <div className="flex flex-col w-full text-[#F5F5F5]">
-          {/* 02 — Hero */}
-          <Hero 
-            onOpenJoinModal={handleOpenJoin} 
-            onNavigate={navigate}
-          />
+        {/* Main Content Sections */}
+        <main className="w-full bg-[#090909] min-h-screen">
+          <div className="flex flex-col w-full text-[#F5F5F5]">
+            {/* 02 — Hero */}
+            <Hero 
+              onOpenJoinModal={handleOpenJoin} 
+              onNavigate={navigate}
+            />
 
-          {/* 03 — Brand Statement (01 / THE STANDARD) */}
-          <BrandStatement />
+            {/* 03 — Brand Statement (01 / THE STANDARD) */}
+            <BrandStatement />
 
-          {/* 04 — Why Man & Machine (02 / NO SHORTCUTS) */}
-          <WhyManAndMachine />
+            {/* 04 — Why Man & Machine (02 / NO SHORTCUTS) */}
+            <WhyManAndMachine />
 
-          {/* 05 — Man & Machine Experience (03 / FIND YOUR EDGE) */}
-          <ExperienceSection />
+            {/* 05 — Man & Machine Experience (03 / FIND YOUR EDGE) */}
+            <ExperienceSection />
 
-          {/* 06 — Training Ground (04 / THE TRAINING GROUND) */}
-          <Facilities />
+            {/* 06 — Training Ground (04 / THE TRAINING GROUND) */}
+            <Facilities />
 
-          {/* 07 — Memberships (05 / MAKE THE COMMITMENT) */}
-          <MembershipPlansPreview onNavigate={navigate} onOpenJoinModal={handleOpenJoin} />
+            {/* 07 — Memberships (05 / MAKE THE COMMITMENT) */}
+            <MembershipPlansPreview onNavigate={navigate} onOpenJoinModal={handleOpenJoin} />
 
-          {/* 08 — Trainers (06 / IN YOUR CORNER) */}
-          <TrainersSection onNavigate={navigate} />
+            {/* 08 — Trainers (06 / IN YOUR CORNER) */}
+            <TrainersSection onNavigate={navigate} />
 
-          {/* 09 — Community (07 / OUR PEOPLE) */}
-          <CommunitySection />
+            {/* 09 — Community (07 / OUR PEOPLE) */}
+            <CommunitySection />
 
-          {/* 10 — Transformation (08 / ONE REP AT A TIME) */}
-          <TransformationSection />
+            {/* 10 — Gym Gallery (08 / INSIDE THE GYM) */}
+            <GymGallerySection />
 
-          {/* 11 — Final CTA */}
-          <FinalCTA onOpenJoinModal={handleOpenJoin} onNavigate={navigate} />
-        </div>
-      </main>
+            {/* 11 — Final CTA */}
+            <FinalCTA onOpenJoinModal={handleOpenJoin} onNavigate={navigate} />
+          </div>
+        </main>
 
-      {/* 12 — Footer */}
-      <Footer onOpenJoinModal={handleOpenJoin} onNavigate={navigate} />
+        {/* 12 — Footer */}
+        <Footer onOpenJoinModal={handleOpenJoin} onNavigate={navigate} />
 
-      {/* Interactive Registration / Join Modal */}
-      <JoinModal isOpen={joinModalOpen} onClose={handleCloseJoin} />
-    </div>
+        {/* Interactive Registration / Join Modal */}
+        <JoinModal isOpen={joinModalOpen} onClose={handleCloseJoin} />
+      </div>
+    </WebsiteContentProvider>
   );
 }

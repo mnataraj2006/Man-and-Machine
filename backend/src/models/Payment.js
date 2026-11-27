@@ -77,7 +77,7 @@ const paymentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['PAID', 'PENDING', 'FAILED', 'REFUNDED'],
+      enum: ['PAID', 'PENDING', 'PENDING_APPROVAL', 'REJECTED', 'FAILED', 'REFUNDED'],
       default: 'PAID',
       index: true,
     },
@@ -113,6 +113,29 @@ const paymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null,
+    },
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    approvedAt: {
+      type: Date,
+      default: null,
+    },
+    rejectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    rejectedAt: {
+      type: Date,
+      default: null,
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      default: '',
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

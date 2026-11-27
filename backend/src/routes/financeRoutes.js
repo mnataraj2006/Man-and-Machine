@@ -23,6 +23,11 @@ router.post('/invoices/:id/reminder', financeController.sendInvoiceReminder);
 // Receipts
 router.get('/payments/:id/receipt', financeController.getPaymentReceipt);
 
+// Cash Desk Approval Workflow
+router.get('/cash-approvals', financeController.getCashApprovals);
+router.post('/cash-approvals/:id/approve', financeController.approveCashPayment);
+router.post('/cash-approvals/:id/reject', financeController.rejectCashPayment);
+
 // Collections
 router.get('/collections/daily', financeController.getDailyCollections);
 router.get('/collections/monthly', financeController.getMonthlyCollections);

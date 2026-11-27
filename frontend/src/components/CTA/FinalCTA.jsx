@@ -1,8 +1,12 @@
 import React from 'react';
 import authService from '../../services/auth.js';
 import { Reveal } from '../Motion/ScrollMotion.jsx';
+import { useWebsiteContent } from '../../context/WebsiteContentContext.jsx';
+import { resolveMediaUrl } from '../UI/TrainerAvatar.jsx';
 
 export default function FinalCTA({ onOpenJoinModal, onNavigate }) {
+  const { content } = useWebsiteContent();
+  const cta = content?.cta || {};
   const handleJoinClick = (e) => {
     e.preventDefault();
     if (authService.isAuthenticated()) {
@@ -28,7 +32,7 @@ export default function FinalCTA({ onOpenJoinModal, onNavigate }) {
       {/* Dramatic Full-Width Background Image with Subtle Ambient Movement */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
         <img
-          src="/images/hero/Man & Machine_ Train Hard, Stay Strong.png"
+          src={resolveMediaUrl(cta.backgroundImageUrl) || '/images/hero/Man & Machine_ Train Hard, Stay Strong.png'}
           alt="Train inside Man & Machine"
           loading="lazy"
           className="animate-ambient-drift w-full h-full object-cover object-center opacity-25 mix-blend-multiply"
@@ -46,7 +50,7 @@ export default function FinalCTA({ onOpenJoinModal, onNavigate }) {
       <div className="relative z-10 w-full max-w-[1440px] mx-auto px-6 md:px-14 py-20 sm:py-24 lg:py-[100px] flex flex-col items-start gap-8">
         <Reveal delay={0}>
           <p className="font-editorial-label text-[#F5F5F5]">
-            YOUR FIRST STEP STARTS HERE.
+            {cta.eyebrow || 'YOUR FIRST STEP STARTS HERE.'}
           </p>
         </Reveal>
 
@@ -55,13 +59,13 @@ export default function FinalCTA({ onOpenJoinModal, onNavigate }) {
             className="font-editorial-display font-semibold uppercase text-[#F5F5F5]"
             style={{ fontSize: 'clamp(2.85rem, 6vw, 5rem)', lineHeight: '1.06' }}
           >
-            READY TO BECOME STRONGER?
+            {cta.headline || 'READY TO BECOME STRONGER?'}
           </h2>
         </Reveal>
 
         <Reveal delay={160}>
           <p className="font-editorial-body text-[#F5F5F5]/90 text-[16px]">
-            Your first step starts here.
+            {cta.subheadline || 'Your first step starts here.'}
           </p>
         </Reveal>
 
@@ -71,7 +75,7 @@ export default function FinalCTA({ onOpenJoinModal, onNavigate }) {
             onClick={handleJoinClick}
             className="inline-flex items-center justify-center gap-3 px-[26px] py-[20px] bg-[#090909] hover:bg-[#181818] text-[#F5F5F5] font-editorial-label transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-[1.015] hover:-translate-y-0.5 cursor-pointer"
           >
-            <span>JOIN MAN &amp; MACHINE</span>
+            <span>{cta.ctaText || 'JOIN MAN & MACHINE'}</span>
           </a>
         </Reveal>
       </div>

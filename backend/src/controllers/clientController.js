@@ -1077,9 +1077,11 @@ const purchaseMembership = async (req, res, next) => {
     const now = new Date();
     const expiryDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
-    const isPaid = Boolean(instantConfirm);
-    const paymentStatus = isPaid ? 'PAID' : 'PENDING';
-    const membershipStatus = isPaid ? 'ACTIVE' : 'PENDING';
+    const normalizedMethod = (paymentMethod === 'COUNTER' ? 'CASH' : paymentMethod || 'UPI').toUpperCase().trim();
+    const isCashMethod = normalizedMethod === 'CASH';
+    const isPaid = !isCashMethod && Boolean(instantConfirm);
+    const paymentStatus = isCashMethod ? 'PENDING_APPROVAL' : isPaid ? 'PAID' : 'PENDING';
+    const membershipStatus = isCashMethod ? 'PENDING_PAYMENT' : isPaid ? 'ACTIVE' : 'PENDING';
 
     // 1. Create Payment Record
     const paymentRef = `TXN-MEM-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`;
@@ -1090,7 +1092,7 @@ const purchaseMembership = async (req, res, next) => {
       transactionId: paymentRef,
       description: `Membership Purchase: ${plan.name} (${trainingPreference === 'PERSONAL_TRAINER' ? `With Coach ${trainerUser?.name}` : 'Self-Trained'})`,
       amount: grandTotal,
-      paymentMethod: paymentMethod === 'COUNTER' ? 'CASH' : paymentMethod || 'UPI',
+      paymentMethod: normalizedMethod,
       status: paymentStatus,
       date: now,
     });

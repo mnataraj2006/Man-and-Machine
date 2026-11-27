@@ -1,7 +1,10 @@
 import React from 'react';
 import { Reveal } from '../Motion/ScrollMotion.jsx';
+import { useWebsiteContent } from '../../context/WebsiteContentContext.jsx';
 
 export default function Footer({ onNavigate }) {
+  const { content } = useWebsiteContent();
+  const footer = content?.footer || {};
   const navLinks = [
     { name: 'HOME', href: '#home' },
     { name: 'ABOUT', href: '#about' },
@@ -46,7 +49,7 @@ export default function Footer({ onNavigate }) {
             </h2>
           </div>
           <p className="font-editorial-body text-[#B8B8B8] text-[15px] md:text-[16px]">
-            Train Hard. Stay Consistent.
+            {footer.tagline || 'Train Hard. Stay Consistent.'}
           </p>
         </Reveal>
 
