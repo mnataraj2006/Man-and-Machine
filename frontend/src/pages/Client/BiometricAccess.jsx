@@ -452,17 +452,33 @@ export default function BiometricAccess({ onNavigate }) {
                 </div>
               </div>
 
-              {status === 'CAPTURE_SUBMITTED' || status === 'PENDING_REVIEW' ? (
+              {status === 'NOT_STARTED' || status === 'INVITED' ? (
+                <div className="p-3.5 rounded-xl bg-[#111111] border border-[#252525] text-xs text-[#B8B8B8]">
+                  <strong>Not Enrolled Yet:</strong> Click <em>Start Face Registration</em> to review biometric consent and complete a quick browser liveness pre-check before your physical X2008 terminal scan.
+                </div>
+              ) : status === 'CAPTURE_IN_PROGRESS' ? (
                 <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200">
-                  Your mobile pre-enrollment capture has been submitted and is <strong>Awaiting Admin Review</strong>.
+                  Consent granted. Please complete your browser liveness pre-check to submit your enrollment request.
+                </div>
+              ) : status === 'CAPTURE_SUBMITTED' || status === 'PENDING_REVIEW' ? (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200">
+                  Your enrollment request has been saved and is <strong>Awaiting Admin Approval</strong>. Note: Browser camera liveness does not register your face on the X2008; physical capture at reception completes registration.
                 </div>
               ) : status === 'AWAITING_PHYSICAL_ENROLLMENT' || status === 'APPROVED' ? (
                 <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200">
-                  Approved! Visit your assigned branch ({data.branch?.city}) reception desk to complete your scan on the physical eSSL X2008 terminal (Biometric ID: <strong className="font-mono">{enr.biometricUserId || 'Assigned at desk'}</strong>).
+                  Approved! Visit your assigned branch ({data.branch?.city}) reception desk to complete your face capture on the physical eSSL X2008 terminal (Assigned Biometric ID: <strong className="font-mono">{enr.biometricUserId || 'Assigned at desk'}</strong>).
                 </div>
               ) : status === 'ENROLLED' ? (
                 <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200">
-                  <strong>Your Biometric Registration Is Complete!</strong> Simply look at the {data.assignedDevice?.deviceName || 'branch terminal'} at the entrance to check in automatically.
+                  <strong>Your Biometric Registration Is Complete!</strong> Look at the {data.assignedDevice?.deviceName || 'branch terminal'} at the entrance to check in automatically.
+                </div>
+              ) : status === 'REJECTED' || status === 'FAILED' ? (
+                <div className="p-3.5 rounded-xl bg-[#F03B2E]/10 border border-[#F03B2E]/40 text-xs text-[#FF6A5E]">
+                  <strong>Needs Attention ({status}):</strong> {enr.failureReason || 'Please retry pre-enrollment or visit branch reception for physical enrollment.'}
+                </div>
+              ) : status === 'REVOKED' ? (
+                <div className="p-3.5 rounded-xl bg-[#202020] border border-[#303030] text-xs text-[#B8B8B8]">
+                  <strong>Biometric Consent Withdrawn (Revoked):</strong> Your biometric access is disabled. You can re-enroll anytime or continue checking in with your Client ID at reception.
                 </div>
               ) : null}
 

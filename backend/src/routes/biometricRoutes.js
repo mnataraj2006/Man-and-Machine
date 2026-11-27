@@ -33,11 +33,18 @@ router.get('/enrollments/overview', biometricController.getEnrollmentOverview);
 router.get('/enrollments', biometricController.listEnrollments);
 router.get('/enrollments/:id', biometricController.getEnrollmentDetails);
 router.post('/enrollments/manual', biometricController.completeManualEnrollment);
+router.post('/enrollments/physical-request', biometricController.initiatePhysicalEnrollment);
 router.post('/enrollments/:id/manual-complete', biometricController.completeManualEnrollment);
 router.post('/enrollments/:id/remote-enroll', biometricController.initiateRemoteEnrollment);
 router.post('/enrollments/remote-enroll', biometricController.initiateRemoteEnrollment);
 router.post('/enrollments/:id/approve', biometricController.approveEnrollment);
 router.post('/enrollments/:id/reject', biometricController.rejectEnrollment);
 router.post('/migration/analyze', biometricController.analyzeMigration);
+router.get('/migration/preview', biometricController.getMigrationPreview);
+router.post('/migration/bulk-map', biometricController.bulkMapMigration);
+
+router.get('/devices/:id/commands', biometricController.getDeviceCommands);
+router.post('/devices/:id/commands', biometricController.queueDeviceCommand);
+router.post('/commands/:commandId/cancel', biometricController.cancelDeviceCommand);
 
 module.exports = router;

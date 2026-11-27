@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const BiometricDevice = require('../models/BiometricDevice');
 const BiometricUserMapping = require('../models/BiometricUserMapping');
 const BiometricDeviceLog = require('../models/BiometricDeviceLog');
+const BiometricDeviceCommand = require('../models/BiometricDeviceCommand');
 const Attendance = require('../models/Attendance');
 const ClientProfile = require('../models/ClientProfile');
 const Membership = require('../models/Membership');
@@ -12,6 +13,7 @@ const {
   getKolkataDayRange,
   getKolkataMonthRange,
 } = require('./financeService');
+const { runWithOptionalTransaction } = require('../utils/membershipSync');
 const dashboardCache = require('../utils/dashboardCache');
 
 /**
@@ -202,6 +204,10 @@ const updateDevice = async (id, data, adminUser) => {
     err.statusCode = 404;
     throw err;
   }
+  assertAdminBranchAccess(adminUser, device.branchId);
+  if (data.branchId !== undefined) {
+    assertAdminBranchAccess(adminUser, data.branchId);
+  }
 
   const allowed = [
     'branchId',
@@ -249,6 +255,7 @@ const toggleDeviceStatus = async (id, enable, adminUser) => {
     err.statusCode = 404;
     throw err;
   }
+  assertAdminBranchAccess(adminUser, device.branchId);
 
   device.isActive = Boolean(enable);
   device.status = enable ? computeEffectiveStatus({ ...device.toObject(), isActive: true, status: 'OFFLINE' }) : 'DISABLED';
@@ -275,6 +282,7 @@ const testDeviceConnection = async (id, adminUser) => {
     err.statusCode = 404;
     throw err;
   }
+  assertAdminBranchAccess(adminUser, device.branchId);
 
   if (!device.isActive || device.status === 'DISABLED') {
     return {
@@ -354,6 +362,7 @@ const syncDevice = async (id, adminUser) => {
     err.statusCode = 404;
     throw err;
   }
+  assertAdminBranchAccess(adminUser, device.branchId);
 
   if (!device.isActive || device.status === 'DISABLED') {
     const err = new Error('Cannot sync a disabled device. Enable it first.');
@@ -433,6 +442,15 @@ const mapBiometricUser = async ({ deviceId, biometricUserId, clientProfileId }, 
     throw err;
   }
 
+  assertAdminBranchAccess(adminUser, device.branchId);
+  assertAdminBranchAccess(adminUser, profile.branchId);
+
+  if (String(profile.branchId) !== String(device.branchId)) {
+    const err = new Error('Branch mismatch: client belongs to a different branch than the selected biometric device.');
+    err.statusCode = 409;
+    throw err;
+  }
+
   const cleanBioId = String(biometricUserId).trim();
   if (!cleanBioId) {
     const err = new Error('Biometric User ID is required.');
@@ -447,18 +465,135 @@ const mapBiometricUser = async ({ deviceId, biometricUserId, clientProfileId }, 
     throw err;
   }
 
-  const mapping = await BiometricUserMapping.findOneAndUpdate(
-    { deviceId: device._id, biometricUserId: cleanBioId },
-    {
-      biometricUserId: cleanBioId,
-      clientProfileId: profile._id,
-      userId: profile.userId || null,
+  const BiometricEnrollment = require('../models/BiometricEnrollment');
+  const [clientActiveMapping, pendingPinEnrollment, clientOtherEnrollment] = await Promise.all([
+    BiometricUserMapping.findOne({
       deviceId: device._id,
-      branchId: device.branchId,
+      clientProfileId: profile._id,
       status: 'ACTIVE',
-    },
-    { upsert: true, new: true }
-  );
+    }).lean(),
+    BiometricEnrollment.findOne({
+      assignedDeviceId: device._id,
+      biometricUserId: cleanBioId,
+      status: { $nin: ['REJECTED', 'REVOKED', 'FAILED'] },
+    }).lean(),
+    BiometricEnrollment.findOne({
+      assignedDeviceId: device._id,
+      clientProfileId: profile._id,
+      status: {
+        $in: [
+          'APPROVED',
+          'AWAITING_PHYSICAL_ENROLLMENT',
+          'REMOTE_ENROLLMENT_PENDING',
+          'DEVICE_ENROLLMENT_IN_PROGRESS',
+          'ENROLLED',
+        ],
+      },
+      biometricUserId: { $nin: ['', null, cleanBioId] },
+    }).lean(),
+  ]);
+
+  if (clientActiveMapping && clientActiveMapping.biometricUserId !== cleanBioId) {
+    const err = new Error(
+      `This member already has an active Biometric ID (${clientActiveMapping.biometricUserId}) on this device. Unmap it first.`
+    );
+    err.statusCode = 409;
+    throw err;
+  }
+  if (pendingPinEnrollment && String(pendingPinEnrollment.clientProfileId) !== String(profile._id)) {
+    const err = new Error(
+      `Biometric ID ${cleanBioId} is already reserved for another member's enrollment on this device.`
+    );
+    err.statusCode = 409;
+    throw err;
+  }
+  if (clientOtherEnrollment) {
+    const err = new Error(
+      `This member already has Biometric ID (${clientOtherEnrollment.biometricUserId}) assigned on this device.`
+    );
+    err.statusCode = 409;
+    throw err;
+  }
+
+  const prevMappingSnapshot = await BiometricUserMapping.findOne({
+    deviceId: device._id,
+    biometricUserId: cleanBioId,
+  }).lean();
+
+  const mapping = await runWithOptionalTransaction(async (session) => {
+    const opts = session ? { session } : {};
+    const savedMapping = await BiometricUserMapping.findOneAndUpdate(
+      { deviceId: device._id, biometricUserId: cleanBioId },
+      {
+        biometricUserId: cleanBioId,
+        clientProfileId: profile._id,
+        userId: profile.userId || null,
+        deviceId: device._id,
+        branchId: device.branchId,
+        status: 'ACTIVE',
+      },
+      { upsert: true, new: true, ...opts }
+    );
+
+    try {
+      // Sync BiometricEnrollment so overview KPIs and client status reflect the mapped terminal record
+      let enrollment = await BiometricEnrollment.findOne(
+        { clientProfileId: profile._id, branchId: device.branchId },
+        null,
+        opts
+      );
+      const prevStatus = enrollment?.status || 'NOT_STARTED';
+      if (!enrollment) {
+        enrollment = new BiometricEnrollment({
+          clientProfileId: profile._id,
+          userId: profile.userId || null,
+          branchId: device.branchId,
+          enrollmentMethod: 'MANUAL_PHYSICAL',
+          enrollmentRequestedAt: new Date(),
+        });
+      }
+      enrollment.assignedDeviceId = device._id;
+      enrollment.biometricUserId = cleanBioId;
+      enrollment.status = 'ENROLLED';
+      enrollment.adminApprovalStatus = 'APPROVED';
+      enrollment.deviceEnrollmentStatus = 'ADMIN_CONFIRMED';
+      if (enrollment.faceEnrollmentStatus === 'NOT_ENROLLED') {
+        enrollment.faceEnrollmentStatus = 'ENROLLED';
+      }
+      enrollment.enrolledAt = enrollment.enrolledAt || new Date();
+      enrollment.enrolledBy = enrollment.enrolledBy || adminUser?._id || null;
+      enrollment.failureReason = '';
+      enrollment.history.push({
+        action: 'ADMIN_MAPPED_USER',
+        fromStatus: prevStatus,
+        toStatus: 'ENROLLED',
+        actorUserId: adminUser?._id || null,
+        note: `Mapped Biometric ID ${cleanBioId} on ${device.deviceName} to ${profile.name}`,
+      });
+      await enrollment.save(opts);
+    } catch (enrErr) {
+      // Compensating rollback when running without MongoDB replica-set transactions
+      if (!session) {
+        if (prevMappingSnapshot) {
+          await BiometricUserMapping.updateOne(
+            { _id: prevMappingSnapshot._id },
+            {
+              $set: {
+                clientProfileId: prevMappingSnapshot.clientProfileId,
+                userId: prevMappingSnapshot.userId,
+                status: prevMappingSnapshot.status,
+              },
+            }
+          ).catch(() => {});
+        } else {
+          await BiometricUserMapping.deleteOne({ _id: savedMapping._id }).catch(() => {});
+        }
+      }
+      throw enrErr;
+    }
+
+    return savedMapping;
+  });
 
   await logDeviceEvent({
     deviceId: device._id,
@@ -480,6 +615,7 @@ const unmapBiometricUser = async (mappingId, adminUser) => {
     err.statusCode = 404;
     throw err;
   }
+  assertAdminBranchAccess(adminUser, mapping.branchId);
 
   await BiometricUserMapping.deleteOne({ _id: mapping._id });
 
@@ -799,11 +935,14 @@ const handleAdmsOperLog = async (sn, rawBody) => {
     }
     const nameMatch = line.match(/\bName=([^\t\r\n]*)/i);
     const priMatch = line.match(/\bPri=([^\t\s]*)/i);
+    const prevDiscovered = existingMap.get(pin);
+    const nowSeen = new Date();
     existingMap.set(pin, {
       biometricUserId: pin,
-      name: nameMatch ? nameMatch[1].trim() : '',
-      privilege: priMatch ? priMatch[1].trim() : '0',
-      seenAt: new Date(),
+      name: nameMatch ? nameMatch[1].trim() : (prevDiscovered?.name || ''),
+      privilege: priMatch ? priMatch[1].trim() : (prevDiscovered?.privilege || '0'),
+      firstSeenAt: prevDiscovered?.firstSeenAt || prevDiscovered?.seenAt || nowSeen,
+      seenAt: nowSeen,
     });
     parsedUsersCount += 1;
   }
@@ -1015,6 +1154,303 @@ const getBiometricAttendance = async (query = {}) => {
   };
 };
 
+// ==========================================
+// 6. SAFE ADMS READ-ONLY COMMAND QUEUE
+// ==========================================
+
+const ALLOWED_READ_ONLY_COMMANDS = Object.freeze({
+  INFO: 'INFO',
+  CHECK: 'CHECK',
+  DATA_QUERY_USERINFO: 'DATA QUERY USERINFO',
+});
+
+const FORBIDDEN_COMMAND_PATTERNS = [
+  /CLEAR/i,
+  /DELETE/i,
+  /RESET/i,
+  /REBOOT/i,
+  /SHUTDOWN/i,
+  /DATA[\s_]+UPDATE/i,
+  /ENROLL/i,
+  /SET[\s_]+OPTION/i,
+];
+
+const assertAdminBranchAccess = (adminUser, targetBranchId) => {
+  const adminBranch = adminUser?.branchId?._id || adminUser?.branchId;
+  if (!adminBranch || !targetBranchId) return;
+  if (String(adminBranch) !== String(targetBranchId)) {
+    const err = new Error('Access denied: resource belongs to a different branch.');
+    err.statusCode = 403;
+    throw err;
+  }
+};
+
+let commandSeqCounter = 0;
+const generateUniqueCommandId = () => {
+  commandSeqCounter = (commandSeqCounter + 1) % 1000;
+  return `${Date.now()}${String(commandSeqCounter).padStart(3, '0')}`;
+};
+
+const queueDeviceCommand = async (deviceId, { commandType, rawCommand = '' } = {}, adminUser = null) => {
+  const normalizedType = String(commandType || '').trim().toUpperCase();
+  const rawCheck = `${normalizedType} ${String(rawCommand || '')}`;
+  if (FORBIDDEN_COMMAND_PATTERNS.some((re) => re.test(rawCheck))) {
+    const err = new Error('Command rejected: destructive or mutating device commands are strictly prohibited.');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const commandPayload = ALLOWED_READ_ONLY_COMMANDS[normalizedType];
+  if (!commandPayload) {
+    const err = new Error(
+      `Unsupported commandType "${commandType}". Allowed read-only commands: ${Object.keys(ALLOWED_READ_ONLY_COMMANDS).join(', ')}.`
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const device = await BiometricDevice.findById(deviceId);
+  if (!device) {
+    const err = new Error('Biometric device not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  assertAdminBranchAccess(adminUser, device.branchId);
+
+  if (!device.isActive || device.status === 'DISABLED') {
+    const err = new Error('Cannot queue command for a disabled device.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const cmd = await BiometricDeviceCommand.create({
+    deviceId: device._id,
+    branchId: device.branchId,
+    commandId: generateUniqueCommandId(),
+    commandType: normalizedType,
+    commandPayload,
+    status: 'PENDING',
+    createdBy: adminUser?._id || null,
+  });
+
+  await logDeviceEvent({
+    deviceId: device._id,
+    branchId: device.branchId,
+    category: 'ADMIN_ACTION',
+    status: 'INFO',
+    action: 'QUEUE_COMMAND',
+    message: `Queued read-only ADMS command ${normalizedType} (ID: ${cmd.commandId}) for ${device.serialNumber}`,
+    actorUserId: adminUser?._id || null,
+  });
+
+  return cmd;
+};
+
+const getDeviceCommands = async (deviceId, query = {}, adminUser = null) => {
+  const device = await BiometricDevice.findById(deviceId).select('_id branchId').lean();
+  if (!device) {
+    const err = new Error('Biometric device not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+  assertAdminBranchAccess(adminUser, device.branchId);
+
+  const filter = { deviceId: device._id };
+  if (query.status && query.status !== 'ALL') {
+    filter.status = String(query.status).toUpperCase();
+  }
+
+  const [commands, allStatuses] = await Promise.all([
+    BiometricDeviceCommand.find(filter)
+      .populate('createdBy', 'name')
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean(),
+    BiometricDeviceCommand.find({ deviceId: device._id }).select('status').lean(),
+  ]);
+
+  const counts = { pending: 0, sent: 0, completed: 0, failed: 0, total: allStatuses.length };
+  for (const c of allStatuses) {
+    if (c.status === 'PENDING') counts.pending += 1;
+    else if (c.status === 'SENT' || c.status === 'ACKNOWLEDGED') counts.sent += 1;
+    else if (c.status === 'COMPLETED') counts.completed += 1;
+    else if (c.status === 'FAILED' || c.status === 'EXPIRED') counts.failed += 1;
+  }
+
+  return { counts, commands };
+};
+
+const cancelDeviceCommand = async (commandDocId, adminUser = null) => {
+  const cmd = await BiometricDeviceCommand.findById(commandDocId);
+  if (!cmd) {
+    const err = new Error('Device command not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+  assertAdminBranchAccess(adminUser, cmd.branchId);
+
+  if (['COMPLETED', 'CANCELLED', 'EXPIRED'].includes(cmd.status)) {
+    const err = new Error(`Command is already ${cmd.status} and cannot be cancelled.`);
+    err.statusCode = 409;
+    throw err;
+  }
+
+  cmd.status = 'CANCELLED';
+  cmd.completedAt = new Date();
+  await cmd.save();
+
+  await logDeviceEvent({
+    deviceId: cmd.deviceId,
+    branchId: cmd.branchId,
+    category: 'ADMIN_ACTION',
+    status: 'INFO',
+    action: 'CANCEL_COMMAND',
+    message: `Cancelled ADMS command ${cmd.commandType} (ID: ${cmd.commandId})`,
+    actorUserId: adminUser?._id || null,
+  });
+
+  return cmd;
+};
+
+const dispatchPendingCommandsForDevice = async (snOrDevice) => {
+  const device =
+    snOrDevice && typeof snOrDevice === 'object' && snOrDevice._id
+      ? snOrDevice
+      : await findActiveDeviceBySN(snOrDevice);
+  if (!device || !device.isActive || device.status === 'DISABLED') {
+    return { device, commandLines: [] };
+  }
+
+  // Physical X2008 command dispatch is disabled by default until hardware staging verification passes
+  if (process.env.ADMS_COMMAND_DISPATCH_ENABLED !== 'true') {
+    return { device, commandLines: [] };
+  }
+
+  const now = new Date();
+  // Expire stale commands
+  await BiometricDeviceCommand.updateMany(
+    {
+      deviceId: device._id,
+      status: { $in: ['PENDING', 'SENT'] },
+      expiresAt: { $lt: now },
+    },
+    { $set: { status: 'EXPIRED', error: 'Command expired before completion.' } }
+  );
+
+  // Re-queue timed-out SENT commands (older than 120s) or mark FAILED if retries exhausted
+  const staleThreshold = new Date(now.getTime() - 120 * 1000);
+  const staleSent = await BiometricDeviceCommand.find({
+    deviceId: device._id,
+    status: 'SENT',
+    sentAt: { $lt: staleThreshold },
+  });
+  for (const sc of staleSent) {
+    if (sc.retryCount >= sc.maxRetries) {
+      sc.status = 'FAILED';
+      sc.error = 'Device response timed out after max retries.';
+      sc.completedAt = now;
+      await sc.save();
+    } else {
+      sc.status = 'PENDING';
+      sc.retryCount += 1;
+      await sc.save();
+    }
+  }
+
+  // Dispatch up to 5 PENDING allowlisted commands
+  const pending = await BiometricDeviceCommand.find({
+    deviceId: device._id,
+    status: 'PENDING',
+  })
+    .sort({ createdAt: 1 })
+    .limit(5);
+
+  const commandLines = [];
+  for (const cmd of pending) {
+    if (!ALLOWED_READ_ONLY_COMMANDS[cmd.commandType]) continue;
+    const locked = await BiometricDeviceCommand.findOneAndUpdate(
+      { _id: cmd._id, status: 'PENDING' },
+      { $set: { status: 'SENT', sentAt: now } },
+      { new: true }
+    );
+    if (locked) {
+      commandLines.push(`C:${locked.commandId}:${locked.commandPayload}`);
+    }
+  }
+
+  return { device, commandLines };
+};
+
+const handleAdmsDeviceCmdResponse = async (sn, rawBody) => {
+  const device = await findActiveDeviceBySN(sn);
+  if (!device) return { found: false, processed: 0 };
+
+  const text = String(rawBody || '').trim();
+  if (!text) return { found: true, processed: 0 };
+
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  let processed = 0;
+
+  for (const line of lines) {
+    // ADMS devicecmd response format: ID=12345&Return=0&CMD=INFO
+    const params = new URLSearchParams(line.replace(/\t/g, '&'));
+    const cmdId = (params.get('ID') || params.get('id') || '').trim();
+    const returnCode = (params.get('Return') || params.get('return') || '').trim();
+
+    if (!cmdId || returnCode === '') {
+      await logDeviceEvent({
+        deviceId: device._id,
+        branchId: device.branchId,
+        category: 'ERROR',
+        status: 'WARNING',
+        action: 'ADMS_DEVICECMD_MALFORMED',
+        message: `Received malformed devicecmd response from ${device.serialNumber}`,
+      });
+      continue;
+    }
+
+    const cmd = await BiometricDeviceCommand.findOne({ deviceId: device._id, commandId: cmdId });
+    if (!cmd) {
+      await logDeviceEvent({
+        deviceId: device._id,
+        branchId: device.branchId,
+        category: 'ERROR',
+        status: 'WARNING',
+        action: 'ADMS_DEVICECMD_UNKNOWN',
+        message: `Received devicecmd response for unknown command ID ${cmdId}`,
+      });
+      continue;
+    }
+
+    // Idempotent handling for duplicate acknowledgements
+    if (['COMPLETED', 'FAILED'].includes(cmd.status)) {
+      continue;
+    }
+
+    const now = new Date();
+    const isSuccess = returnCode === '0';
+    cmd.acknowledgedAt = cmd.acknowledgedAt || now;
+    cmd.completedAt = now;
+    cmd.response = line.slice(0, 500);
+    cmd.status = isSuccess ? 'COMPLETED' : 'FAILED';
+    cmd.error = isSuccess ? '' : `Device returned error code ${returnCode}`;
+    await cmd.save();
+
+    await logDeviceEvent({
+      deviceId: device._id,
+      branchId: device.branchId,
+      category: 'ADMIN_ACTION',
+      status: isSuccess ? 'SUCCESS' : 'ERROR',
+      action: 'ADMS_DEVICECMD_RESULT',
+      message: `Command ${cmd.commandType} (ID: ${cmd.commandId}) ${cmd.status} (Return=${returnCode})`,
+    });
+    processed += 1;
+  }
+
+  return { found: true, processed };
+};
+
 module.exports = {
   computeEffectiveStatus,
   computeHealthIndicator,
@@ -1033,4 +1469,11 @@ module.exports = {
   getDevicesOverview,
   getDeviceDetails,
   getBiometricAttendance,
+  ALLOWED_READ_ONLY_COMMANDS,
+  assertAdminBranchAccess,
+  queueDeviceCommand,
+  getDeviceCommands,
+  cancelDeviceCommand,
+  dispatchPendingCommandsForDevice,
+  handleAdmsDeviceCmdResponse,
 };

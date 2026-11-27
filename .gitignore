@@ -33,3 +33,10 @@ Thumbs.db
 
 # Test coverage
 coverage/
+
+# Local ADMS bridge runtime data
+ManAndMachine-ADMS-Bridge/data/
+ManAndMachine-ADMS-Bridge/logs/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

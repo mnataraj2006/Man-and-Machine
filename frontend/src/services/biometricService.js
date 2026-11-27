@@ -108,6 +108,10 @@ class BiometricService {
     return this.request(ep, { method: 'POST', body: JSON.stringify(payload) });
   }
 
+  initiatePhysicalEnrollment(payload) {
+    return this.request('/enrollments/physical-request', { method: 'POST', body: JSON.stringify(payload) });
+  }
+
   initiateRemoteEnrollment(payload) {
     const ep = payload.enrollmentId ? `/enrollments/${payload.enrollmentId}/remote-enroll` : '/enrollments/remote-enroll';
     return this.request(ep, { method: 'POST', body: JSON.stringify(payload) });
@@ -123,6 +127,32 @@ class BiometricService {
 
   analyzeMigration(payload) {
     return this.request('/migration/analyze', { method: 'POST', body: JSON.stringify(payload) });
+  }
+
+  getMigrationPreview(params = {}) {
+    const clean = {};
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') clean[k] = v;
+    });
+    const qs = new URLSearchParams(clean).toString();
+    return this.request(`/migration/preview${qs ? `?${qs}` : ''}`);
+  }
+
+  bulkMapMigration(payload) {
+    return this.request('/migration/bulk-map', { method: 'POST', body: JSON.stringify(payload) });
+  }
+
+  getDeviceCommands(deviceId, params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return this.request(`/devices/${deviceId}/commands${qs ? `?${qs}` : ''}`);
+  }
+
+  queueDeviceCommand(deviceId, payload) {
+    return this.request(`/devices/${deviceId}/commands`, { method: 'POST', body: JSON.stringify(payload) });
+  }
+
+  cancelDeviceCommand(commandId) {
+    return this.request(`/commands/${commandId}/cancel`, { method: 'POST' });
   }
 }
 

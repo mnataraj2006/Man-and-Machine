@@ -4,10 +4,12 @@ const BiometricEnrollment = require('../models/BiometricEnrollment');
 const BiometricConsent = require('../models/BiometricConsent');
 const BiometricUserMapping = require('../models/BiometricUserMapping');
 const BiometricDeviceLog = require('../models/BiometricDeviceLog');
+const BiometricPinSequence = require('../models/BiometricPinSequence');
 const ClientProfile = require('../models/ClientProfile');
 const Membership = require('../models/Membership');
 const Attendance = require('../models/Attendance');
 const Notification = require('../models/Notification');
+const { runWithOptionalTransaction } = require('../utils/membershipSync');
 const biometricDeviceService = require('./biometricDeviceService');
 
 const notifyClient = async (userId, title, message, category = 'SYSTEM') => {
@@ -182,14 +184,129 @@ const getEnrollmentDetails = async (id) => {
 // 2. METHOD A — MANUAL ENROLLMENT AT PHYSICAL DEVICE
 // ==========================================
 
-const generateNextBiometricUserId = async (deviceId) => {
-  const existing = await BiometricUserMapping.find({ deviceId }).select('biometricUserId').lean();
+const getSeedMinForDevice = async (deviceId) => {
+  const [existingMappings, existingEnrollments] = await Promise.all([
+    BiometricUserMapping.find({ deviceId }).select('biometricUserId').lean(),
+    BiometricEnrollment.find({
+      assignedDeviceId: deviceId,
+      biometricUserId: { $nin: ['', null] },
+      status: { $nin: ['REJECTED', 'REVOKED', 'FAILED'] },
+    })
+      .select('biometricUserId')
+      .lean(),
+  ]);
   let maxNum = 1000;
-  for (const m of existing) {
+  for (const m of [...existingMappings, ...existingEnrollments]) {
     const n = parseInt(m.biometricUserId, 10);
     if (!Number.isNaN(n) && n > maxNum) maxNum = n;
   }
+  return maxNum;
+};
+
+/**
+ * Multi-instance safe PIN allocation backed by MongoDB atomic $inc (BiometricPinSequence).
+ * Loops past any PIN that was manually assigned out-of-band.
+ */
+const allocateUniqueBiometricPin = async (deviceId) => {
+  const seedMin = await getSeedMinForDevice(deviceId);
+  for (let i = 0; i < 10; i += 1) {
+    const candidate = await BiometricPinSequence.allocateNextPin(deviceId, seedMin);
+    const [existingMap, existingEnr] = await Promise.all([
+      BiometricUserMapping.findOne({ deviceId, biometricUserId: candidate }).select('_id').lean(),
+      BiometricEnrollment.findOne({
+        assignedDeviceId: deviceId,
+        biometricUserId: candidate,
+        status: { $nin: ['REJECTED', 'REVOKED', 'FAILED'] },
+      })
+        .select('_id')
+        .lean(),
+    ]);
+    if (!existingMap && !existingEnr) {
+      return candidate;
+    }
+  }
+  const err = new Error('Unable to allocate a unique Biometric User ID. Please retry.');
+  err.statusCode = 409;
+  throw err;
+};
+
+const generateNextBiometricUserId = async (deviceId) => {
+  const maxNum = await getSeedMinForDevice(deviceId);
   return String(maxNum + 1);
+};
+
+/**
+ * Enforce 1:1 device PIN <-> clientProfile mapping on a device:
+ * 1) One biometricUserId on a device cannot be assigned to multiple clients.
+ * 2) One client cannot have multiple active/pending biometricUserIds on the same device.
+ */
+const assertNoBiometricIdConflict = async ({
+  deviceId,
+  biometricUserId,
+  clientProfileId,
+  excludeEnrollmentId = null,
+}) => {
+  const cleanBioId = String(biometricUserId || '').trim();
+  if (!deviceId || !cleanBioId || !clientProfileId) return;
+
+  const [pinMappingConflict, pinEnrollmentConflict, clientMappingConflict, clientEnrollmentConflict] =
+    await Promise.all([
+      BiometricUserMapping.findOne({ deviceId, biometricUserId: cleanBioId }).lean(),
+      BiometricEnrollment.findOne({
+        assignedDeviceId: deviceId,
+        biometricUserId: cleanBioId,
+        status: { $nin: ['REJECTED', 'REVOKED', 'FAILED'] },
+        ...(excludeEnrollmentId ? { _id: { $ne: excludeEnrollmentId } } : {}),
+      }).lean(),
+      BiometricUserMapping.findOne({ deviceId, clientProfileId, status: 'ACTIVE' }).lean(),
+      BiometricEnrollment.findOne({
+        assignedDeviceId: deviceId,
+        clientProfileId,
+        status: {
+          $in: [
+            'APPROVED',
+            'AWAITING_PHYSICAL_ENROLLMENT',
+            'REMOTE_ENROLLMENT_PENDING',
+            'DEVICE_ENROLLMENT_IN_PROGRESS',
+            'ENROLLED',
+          ],
+        },
+        biometricUserId: { $nin: ['', null, cleanBioId] },
+        ...(excludeEnrollmentId ? { _id: { $ne: excludeEnrollmentId } } : {}),
+      }).lean(),
+    ]);
+
+  if (pinMappingConflict && String(pinMappingConflict.clientProfileId) !== String(clientProfileId)) {
+    const err = new Error(
+      `Biometric User ID ${cleanBioId} is already assigned to another member on this device.`
+    );
+    err.statusCode = 409;
+    throw err;
+  }
+
+  if (pinEnrollmentConflict && String(pinEnrollmentConflict.clientProfileId) !== String(clientProfileId)) {
+    const err = new Error(
+      `Biometric User ID ${cleanBioId} is already reserved for another member's enrollment on this device.`
+    );
+    err.statusCode = 409;
+    throw err;
+  }
+
+  if (clientMappingConflict && clientMappingConflict.biometricUserId !== cleanBioId) {
+    const err = new Error(
+      `This member already has an active Biometric User ID (${clientMappingConflict.biometricUserId}) on this device.`
+    );
+    err.statusCode = 409;
+    throw err;
+  }
+
+  if (clientEnrollmentConflict) {
+    const err = new Error(
+      `This member already has Biometric User ID (${clientEnrollmentConflict.biometricUserId}) assigned on this device.`
+    );
+    err.statusCode = 409;
+    throw err;
+  }
 };
 
 const completeManualEnrollment = async (
@@ -218,72 +335,124 @@ const completeManualEnrollment = async (
     throw err;
   }
 
-  const finalBioId = biometricUserId?.trim() || (await generateNextBiometricUserId(device._id));
+  biometricDeviceService.assertAdminBranchAccess(adminUser, device.branchId);
+  biometricDeviceService.assertAdminBranchAccess(adminUser, profile.branchId);
 
-  // Ensure biometricUserId isn't mapped to a different member on this device
-  const conflict = await BiometricUserMapping.findOne({
-    deviceId: device._id,
-    biometricUserId: finalBioId,
-  });
-  if (conflict && String(conflict.clientProfileId) !== String(profile._id)) {
-    const err = new Error(`Biometric User ID ${finalBioId} is already assigned to another member on this device.`);
+  if (String(profile.branchId) !== String(device.branchId)) {
+    const err = new Error('Branch mismatch: client belongs to a different branch than the selected biometric device.');
     err.statusCode = 409;
     throw err;
   }
 
-  await BiometricUserMapping.findOneAndUpdate(
-    { deviceId: device._id, biometricUserId: finalBioId },
-    {
-      biometricUserId: finalBioId,
-      clientProfileId: profile._id,
-      userId: profile.userId || null,
-      deviceId: device._id,
-      branchId: device.branchId,
-      status: 'ACTIVE',
-    },
-    { upsert: true, new: true }
-  );
-
-  let enrollment = enrollmentId
+  let preloadedEnrollment = enrollmentId
     ? await BiometricEnrollment.findById(enrollmentId)
     : await BiometricEnrollment.findOne({ clientProfileId: profile._id, branchId: device.branchId });
 
-  const prevStatus = enrollment?.status || 'NOT_STARTED';
-  if (!enrollment) {
-    enrollment = new BiometricEnrollment({
-      clientProfileId: profile._id,
-      userId: profile.userId || null,
-      branchId: device.branchId,
-      enrollmentMethod: 'MANUAL_PHYSICAL',
-      enrollmentRequestedAt: new Date(),
-    });
+  if (preloadedEnrollment) {
+    biometricDeviceService.assertAdminBranchAccess(adminUser, preloadedEnrollment.branchId);
+    if (String(preloadedEnrollment.branchId) !== String(device.branchId)) {
+      const err = new Error('Enrollment record belongs to a different branch than the selected device.');
+      err.statusCode = 409;
+      throw err;
+    }
+    if (preloadedEnrollment.status === 'REVOKED') {
+      const err = new Error('Cannot complete enrollment for a REVOKED record without fresh client consent.');
+      err.statusCode = 409;
+      throw err;
+    }
   }
 
-  enrollment.assignedDeviceId = device._id;
-  enrollment.branchId = device.branchId;
-  enrollment.biometricUserId = finalBioId;
-  enrollment.status = 'ENROLLED';
-  enrollment.adminApprovalStatus = 'APPROVED';
-  enrollment.deviceEnrollmentStatus = verifiedByDevice ? 'DEVICE_VERIFIED' : 'ADMIN_CONFIRMED';
-  if (captureType === 'FINGERPRINT' || captureType === 'BOTH') {
-    enrollment.fingerprintEnrollmentStatus = 'ENROLLED';
-  }
-  if (captureType === 'FACE' || captureType === 'BOTH') {
-    enrollment.faceEnrollmentStatus = 'ENROLLED';
-  }
-  enrollment.enrolledAt = new Date();
-  enrollment.enrolledBy = adminUser?._id || null;
-  enrollment.lastVerifiedAt = verifiedByDevice ? new Date() : enrollment.lastVerifiedAt;
-  enrollment.failureReason = '';
-  enrollment.history.push({
-    action: verifiedByDevice ? 'DEVICE_VERIFIED_ENROLLMENT' : 'ADMIN_CONFIRMED_MANUAL_ENROLLMENT',
-    fromStatus: prevStatus,
-    toStatus: 'ENROLLED',
-    actorUserId: adminUser?._id || null,
-    note: `Mapped Biometric ID ${finalBioId} on ${device.deviceName} (${captureType})`,
+  const finalBioId = biometricUserId?.trim() || (await allocateUniqueBiometricPin(device._id));
+
+  await assertNoBiometricIdConflict({
+    deviceId: device._id,
+    biometricUserId: finalBioId,
+    clientProfileId: profile._id,
+    excludeEnrollmentId: preloadedEnrollment?._id || enrollmentId || null,
   });
 
-  await enrollment.save();
+  const prevMappingSnapshot = await BiometricUserMapping.findOne({
+    deviceId: device._id,
+    biometricUserId: finalBioId,
+  }).lean();
+
+  const enrollment = await runWithOptionalTransaction(async (session) => {
+    const opts = session ? { session } : {};
+    const savedMapping = await BiometricUserMapping.findOneAndUpdate(
+      { deviceId: device._id, biometricUserId: finalBioId },
+      {
+        biometricUserId: finalBioId,
+        clientProfileId: profile._id,
+        userId: profile.userId || null,
+        deviceId: device._id,
+        branchId: device.branchId,
+        status: 'ACTIVE',
+      },
+      { upsert: true, new: true, ...opts }
+    );
+
+    try {
+      let targetEnrollment = preloadedEnrollment
+        ? await BiometricEnrollment.findById(preloadedEnrollment._id, null, opts)
+        : null;
+      const prevStatus = targetEnrollment?.status || 'NOT_STARTED';
+      if (!targetEnrollment) {
+        targetEnrollment = new BiometricEnrollment({
+          clientProfileId: profile._id,
+          userId: profile.userId || null,
+          branchId: device.branchId,
+          enrollmentMethod: 'MANUAL_PHYSICAL',
+          enrollmentRequestedAt: new Date(),
+        });
+      }
+
+      targetEnrollment.assignedDeviceId = device._id;
+      targetEnrollment.branchId = device.branchId;
+      targetEnrollment.biometricUserId = finalBioId;
+      targetEnrollment.status = 'ENROLLED';
+      targetEnrollment.adminApprovalStatus = 'APPROVED';
+      targetEnrollment.deviceEnrollmentStatus = verifiedByDevice ? 'DEVICE_VERIFIED' : 'ADMIN_CONFIRMED';
+      if (captureType === 'FINGERPRINT' || captureType === 'BOTH') {
+        targetEnrollment.fingerprintEnrollmentStatus = 'ENROLLED';
+      }
+      if (captureType === 'FACE' || captureType === 'BOTH') {
+        targetEnrollment.faceEnrollmentStatus = 'ENROLLED';
+      }
+      targetEnrollment.enrolledAt = new Date();
+      targetEnrollment.enrolledBy = adminUser?._id || null;
+      targetEnrollment.lastVerifiedAt = verifiedByDevice ? new Date() : targetEnrollment.lastVerifiedAt;
+      targetEnrollment.failureReason = '';
+      targetEnrollment.history.push({
+        action: verifiedByDevice ? 'DEVICE_VERIFIED_ENROLLMENT' : 'ADMIN_CONFIRMED_MANUAL_ENROLLMENT',
+        fromStatus: prevStatus,
+        toStatus: 'ENROLLED',
+        actorUserId: adminUser?._id || null,
+        note: `Mapped Biometric ID ${finalBioId} on ${device.deviceName} (${captureType})`,
+      });
+
+      await targetEnrollment.save(opts);
+      return targetEnrollment;
+    } catch (enrErr) {
+      // Compensating rollback when running without MongoDB replica-set transactions
+      if (!session) {
+        if (prevMappingSnapshot) {
+          await BiometricUserMapping.updateOne(
+            { _id: prevMappingSnapshot._id },
+            {
+              $set: {
+                clientProfileId: prevMappingSnapshot.clientProfileId,
+                userId: prevMappingSnapshot.userId,
+                status: prevMappingSnapshot.status,
+              },
+            }
+          ).catch(() => {});
+        } else {
+          await BiometricUserMapping.deleteOne({ _id: savedMapping._id }).catch(() => {});
+        }
+      }
+      throw enrErr;
+    }
+  });
 
   await BiometricDeviceLog.create({
     deviceId: device._id,
@@ -316,6 +485,7 @@ const initiateRemoteEnrollment = async ({ enrollmentId, clientProfileId, deviceI
     err.statusCode = 404;
     throw err;
   }
+  biometricDeviceService.assertAdminBranchAccess(adminUser, device.branchId);
 
   const effective = biometricDeviceService.computeEffectiveStatus(device);
   if (effective !== 'ONLINE') {
@@ -382,6 +552,116 @@ const initiateRemoteEnrollment = async ({ enrollmentId, clientProfileId, deviceI
   return enrollment;
 };
 
+const initiatePhysicalEnrollment = async (
+  { clientProfileId, deviceId, biometricUserId = '' },
+  adminUser
+) => {
+  if (!clientProfileId || !mongoose.Types.ObjectId.isValid(clientProfileId)) {
+    const err = new Error('A valid ClientProfile ID is required.');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!deviceId || !mongoose.Types.ObjectId.isValid(deviceId)) {
+    const err = new Error('A valid Biometric Device ID is required.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const [profile, device] = await Promise.all([
+    ClientProfile.findById(clientProfileId),
+    BiometricDevice.findById(deviceId),
+  ]);
+
+  if (!profile) {
+    const err = new Error('ClientProfile not found for the selected member.');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (!device || !device.isActive || device.status === 'DISABLED') {
+    const err = new Error('Selected biometric device is not found or is disabled.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  biometricDeviceService.assertAdminBranchAccess(adminUser, device.branchId);
+  biometricDeviceService.assertAdminBranchAccess(adminUser, profile.branchId);
+
+  if (String(profile.branchId) !== String(device.branchId)) {
+    const err = new Error('Branch mismatch: client belongs to a different branch than the selected biometric device.');
+    err.statusCode = 409;
+    throw err;
+  }
+
+  let enrollment = await BiometricEnrollment.findOne({
+    clientProfileId: profile._id,
+    branchId: device.branchId,
+  });
+  if (enrollment && enrollment.status === 'ENROLLED') {
+    const err = new Error('Biometric enrollment is already completed for this member in this branch.');
+    err.statusCode = 409;
+    throw err;
+  }
+  if (enrollment && enrollment.status === 'REVOKED') {
+    const err = new Error('Cannot initiate physical enrollment for a REVOKED record without fresh client consent.');
+    err.statusCode = 409;
+    throw err;
+  }
+
+  const requestedBioId = String(biometricUserId || '').trim();
+  const prevStatus = enrollment?.status || 'NOT_STARTED';
+  const candidateBioId =
+    requestedBioId || enrollment?.biometricUserId || (await allocateUniqueBiometricPin(device._id));
+
+  await assertNoBiometricIdConflict({
+    deviceId: device._id,
+    biometricUserId: candidateBioId,
+    clientProfileId: profile._id,
+    excludeEnrollmentId: enrollment?._id || null,
+  });
+
+  if (!enrollment) {
+    enrollment = new BiometricEnrollment({
+      clientProfileId: profile._id,
+      userId: profile.userId || null,
+      branchId: device.branchId,
+      enrollmentMethod: 'MANUAL_PHYSICAL',
+      enrollmentRequestedAt: new Date(),
+    });
+  }
+
+  enrollment.assignedDeviceId = device._id;
+  enrollment.branchId = device.branchId;
+  enrollment.biometricUserId = candidateBioId;
+  enrollment.status = 'AWAITING_PHYSICAL_ENROLLMENT';
+  enrollment.adminApprovalStatus = 'APPROVED';
+  enrollment.identityVerificationStatus = 'VERIFIED';
+  enrollment.deviceEnrollmentStatus = 'AWAITING_PHYSICAL';
+  enrollment.approvedAt = new Date();
+  enrollment.approvedBy = adminUser?._id || null;
+  enrollment.failureReason = '';
+  enrollment.history.push({
+    action: 'ADMIN_INITIATED_PHYSICAL_ENROLLMENT',
+    fromStatus: prevStatus,
+    toStatus: 'AWAITING_PHYSICAL_ENROLLMENT',
+    actorUserId: adminUser?._id || null,
+    note: `Physical enrollment queued on ${device.deviceName} with Biometric ID ${candidateBioId}. Capture face on terminal to complete.`,
+  });
+
+  await enrollment.save();
+
+  await BiometricDeviceLog.create({
+    deviceId: device._id,
+    branchId: device.branchId,
+    category: 'ADMIN_ACTION',
+    status: 'INFO',
+    action: 'PHYSICAL_ENROLLMENT_REQUESTED',
+    message: `Queued physical enrollment for ${profile.name} (${profile.clientId || profile._id}) as Biometric ID ${candidateBioId}`,
+    actorUserId: adminUser?._id || null,
+  });
+
+  return enrollment;
+};
+
 // ==========================================
 // 4. ADMIN APPROVAL / REJECTION FOR MOBILE REQUESTS
 // ==========================================
@@ -394,44 +674,103 @@ const approveEnrollment = async (enrollmentId, adminUser, { deviceId = null, bio
     throw err;
   }
 
+  biometricDeviceService.assertAdminBranchAccess(adminUser, enrollment.branchId);
+
+  if (enrollment.status === 'ENROLLED') {
+    const err = new Error('Biometric enrollment is already completed and cannot be re-approved.');
+    err.statusCode = 409;
+    throw err;
+  }
+  if (enrollment.status === 'REVOKED' || enrollment.consentStatus === 'WITHDRAWN') {
+    const err = new Error('Cannot approve a REVOKED enrollment. Client must grant fresh biometric consent first.');
+    err.statusCode = 409;
+    throw err;
+  }
+  if (enrollment.status === 'REJECTED') {
+    const err = new Error('Cannot approve a REJECTED enrollment directly. Client must resubmit capture.');
+    err.statusCode = 409;
+    throw err;
+  }
+
   const prevStatus = enrollment.status;
+  let targetDeviceId = enrollment.assignedDeviceId;
   if (deviceId && mongoose.Types.ObjectId.isValid(deviceId)) {
-    enrollment.assignedDeviceId = deviceId;
-  } else if (!enrollment.assignedDeviceId) {
+    const dev = await BiometricDevice.findById(deviceId).select('_id branchId').lean();
+    if (!dev) {
+      const err = new Error('Selected biometric device not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+    biometricDeviceService.assertAdminBranchAccess(adminUser, dev.branchId);
+    if (String(dev.branchId) !== String(enrollment.branchId)) {
+      const err = new Error('Branch mismatch: selected device belongs to a different branch than the enrollment.');
+      err.statusCode = 409;
+      throw err;
+    }
+    targetDeviceId = dev._id;
+  } else if (!targetDeviceId) {
     const branchDevice = await BiometricDevice.findOne({ branchId: enrollment.branchId, isActive: true });
-    if (branchDevice) enrollment.assignedDeviceId = branchDevice._id;
+    if (branchDevice) targetDeviceId = branchDevice._id;
   }
 
-  if (biometricUserId?.trim()) {
-    enrollment.biometricUserId = biometricUserId.trim();
-  } else if (!enrollment.biometricUserId && enrollment.assignedDeviceId) {
-    enrollment.biometricUserId = await generateNextBiometricUserId(enrollment.assignedDeviceId);
+  const clientProfileId = enrollment.clientProfileId?._id || enrollment.clientProfileId;
+  const requestedBioId = String(biometricUserId || '').trim();
+  const candidateBioId =
+    requestedBioId ||
+    enrollment.biometricUserId ||
+    (targetDeviceId ? await allocateUniqueBiometricPin(targetDeviceId) : '');
+
+  if (targetDeviceId && candidateBioId) {
+    await assertNoBiometricIdConflict({
+      deviceId: targetDeviceId,
+      biometricUserId: candidateBioId,
+      clientProfileId,
+      excludeEnrollmentId: enrollment._id,
+    });
   }
 
-  enrollment.status = 'AWAITING_PHYSICAL_ENROLLMENT';
-  enrollment.adminApprovalStatus = 'APPROVED';
-  enrollment.identityVerificationStatus = 'VERIFIED';
-  enrollment.deviceEnrollmentStatus = 'AWAITING_PHYSICAL';
-  enrollment.approvedAt = new Date();
-  enrollment.approvedBy = adminUser?._id || null;
-  enrollment.history.push({
+  const now = new Date();
+  const historyEntry = {
     action: 'ADMIN_APPROVED',
     fromStatus: prevStatus,
     toStatus: 'AWAITING_PHYSICAL_ENROLLMENT',
     actorUserId: adminUser?._id || null,
-    note: `Approved pre-enrollment. Biometric ID ${enrollment.biometricUserId || 'pending'} ready for physical device capture.`,
-  });
+    note: `Approved pre-enrollment. Biometric ID ${candidateBioId || 'pending'} ready for physical device capture.`,
+    timestamp: now,
+  };
 
-  await enrollment.save();
+  const updated = await BiometricEnrollment.findOneAndUpdate(
+    { _id: enrollment._id, status: { $nin: ['ENROLLED', 'REVOKED', 'REJECTED'] } },
+    {
+      $set: {
+        assignedDeviceId: targetDeviceId || null,
+        biometricUserId: candidateBioId,
+        status: 'AWAITING_PHYSICAL_ENROLLMENT',
+        adminApprovalStatus: 'APPROVED',
+        identityVerificationStatus: 'VERIFIED',
+        deviceEnrollmentStatus: 'AWAITING_PHYSICAL',
+        approvedAt: now,
+        approvedBy: adminUser?._id || null,
+      },
+      $push: { history: historyEntry },
+    },
+    { new: true }
+  );
+
+  if (!updated) {
+    const err = new Error('Biometric enrollment state changed concurrently and cannot be approved.');
+    err.statusCode = 409;
+    throw err;
+  }
 
   await notifyClient(
-    enrollment.userId,
+    updated.userId,
     'Biometric Enrollment Approved',
     'Your mobile pre-enrollment was approved. Please complete your face scan at the gym biometric terminal on your next visit.',
     'ATTENDANCE'
   );
 
-  return enrollment;
+  return updated;
 };
 
 const rejectEnrollment = async (enrollmentId, adminUser, { reason = 'Image quality or identity verification did not pass.' } = {}) => {
@@ -439,6 +778,19 @@ const rejectEnrollment = async (enrollmentId, adminUser, { reason = 'Image quali
   if (!enrollment) {
     const err = new Error('Enrollment request not found.');
     err.statusCode = 404;
+    throw err;
+  }
+
+  biometricDeviceService.assertAdminBranchAccess(adminUser, enrollment.branchId);
+
+  if (enrollment.status === 'ENROLLED') {
+    const err = new Error('Biometric enrollment is already completed and cannot be rejected.');
+    err.statusCode = 409;
+    throw err;
+  }
+  if (enrollment.status === 'REVOKED') {
+    const err = new Error('Biometric enrollment is REVOKED and cannot be rejected.');
+    err.statusCode = 409;
     throw err;
   }
 
@@ -553,20 +905,28 @@ const recordClientConsent = async (userId, { agreed, ipAddress = '', branchId = 
   const targetBranchId =
     branchId && mongoose.Types.ObjectId.isValid(branchId) ? branchId : profile.branchId;
 
+  let enrollment = await BiometricEnrollment.findOne({
+    clientProfileId: profile._id,
+    branchId: targetBranchId,
+  });
+  if (enrollment && enrollment.status === 'ENROLLED') {
+    const err = new Error('Biometric enrollment is already completed for this branch.');
+    err.statusCode = 409;
+    throw err;
+  }
+
   const consent = await BiometricConsent.create({
     clientProfileId: profile._id,
     userId,
     branchId: targetBranchId,
     consentGiven: true,
+    consentVersion: 'v1.0',
     ipAddress,
     status: 'GRANTED',
     consentedAt: new Date(),
   });
 
-  let enrollment = await BiometricEnrollment.findOne({
-    clientProfileId: profile._id,
-    branchId: targetBranchId,
-  });
+  const prevStatus = enrollment?.status || 'NOT_STARTED';
   if (!enrollment) {
     enrollment = new BiometricEnrollment({
       clientProfileId: profile._id,
@@ -578,14 +938,28 @@ const recordClientConsent = async (userId, { agreed, ipAddress = '', branchId = 
   }
   enrollment.consentId = consent._id;
   enrollment.consentStatus = 'GRANTED';
-  if (enrollment.status === 'NOT_STARTED' || enrollment.status === 'INVITED' || enrollment.status === 'REJECTED') {
+  if (['NOT_STARTED', 'INVITED', 'REJECTED', 'REVOKED', 'FAILED'].includes(enrollment.status)) {
     enrollment.status = 'CAPTURE_IN_PROGRESS';
+    if (prevStatus === 'REVOKED') {
+      // Require fresh capture, admin approval, and physical enrollment; never auto-reactivate old mappings
+      enrollment.mobileCaptureStatus = 'NOT_STARTED';
+      enrollment.identityVerificationStatus = 'NOT_VERIFIED';
+      enrollment.adminApprovalStatus = 'PENDING';
+      enrollment.deviceEnrollmentStatus = 'NOT_STARTED';
+      enrollment.faceEnrollmentStatus = 'NOT_ENROLLED';
+      enrollment.biometricUserId = '';
+      enrollment.failureReason = '';
+    }
   }
   enrollment.history.push({
-    action: 'CONSENT_GRANTED',
+    action: prevStatus === 'REVOKED' ? 'CONSENT_RENEWED' : 'CONSENT_GRANTED',
+    fromStatus: prevStatus,
     toStatus: enrollment.status,
     actorUserId: userId,
-    note: 'Member accepted Biometric Data Consent v1.0',
+    note:
+      prevStatus === 'REVOKED'
+        ? 'Member granted fresh Biometric Data Consent v1.0 after previous withdrawal.'
+        : 'Member accepted Biometric Data Consent v1.0',
   });
   await enrollment.save();
 
@@ -686,6 +1060,11 @@ const submitMobileCapture = async (
     clientProfileId: profile._id,
     branchId: targetBranchId,
   });
+  if (enrollment && enrollment.status === 'ENROLLED') {
+    const err = new Error('Biometric enrollment is already completed for this branch.');
+    err.statusCode = 409;
+    throw err;
+  }
   const prevStatus = enrollment?.status || 'NOT_STARTED';
   if (!enrollment) {
     enrollment = new BiometricEnrollment({
@@ -738,13 +1117,14 @@ const submitMobileCapture = async (
 // 6. EXISTING BIOMETRIC USERS MIGRATION
 // ==========================================
 
-const analyzeMigration = async ({ deviceId, biometricUserIds = [] }) => {
+const analyzeMigration = async ({ deviceId, biometricUserIds = [] }, adminUser = null) => {
   const device = await BiometricDevice.findById(deviceId);
   if (!device) {
     const err = new Error('Biometric device not found.');
     err.statusCode = 404;
     throw err;
   }
+  biometricDeviceService.assertAdminBranchAccess(adminUser, device.branchId);
 
   const rawSourceIds =
     biometricUserIds && biometricUserIds.length > 0
@@ -788,6 +1168,349 @@ const analyzeMigration = async ({ deviceId, biometricUserIds = [] }) => {
     invalidIds,
     mapped,
     unmapped,
+  };
+};
+
+const normalizeNameForMatch = (s) =>
+  String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const normalizeDigits = (s) => String(s || '').replace(/\D/g, '').slice(-10);
+
+const getMigrationPreview = async ({ deviceId, filter = 'ALL', search = '' }, adminUser = null) => {
+  if (!deviceId || !mongoose.Types.ObjectId.isValid(deviceId)) {
+    const err = new Error('A valid Biometric Device ID is required.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const device = await BiometricDevice.findById(deviceId).populate('branchId', 'name city code').lean();
+  if (!device) {
+    const err = new Error('Biometric device not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (adminUser?.branchId && String(adminUser.branchId._id || adminUser.branchId) !== String(device.branchId?._id || device.branchId)) {
+    const err = new Error('Access denied for device outside your assigned branch.');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const branchId = device.branchId?._id || device.branchId;
+  const [existingMappings, branchEnrollments, branchClients, activeMemberships] = await Promise.all([
+    BiometricUserMapping.find({ deviceId: device._id })
+      .populate('clientProfileId', 'clientId name phone email branchId')
+      .lean(),
+    BiometricEnrollment.find({ branchId, assignedDeviceId: device._id }).lean(),
+    ClientProfile.find({ branchId }).select('clientId name phone email branchId userId').lean(),
+    Membership.find({ branchId, status: 'ACTIVE' }).select('clientProfileId userId planName status expiryDate').lean(),
+  ]);
+
+  const mapByBioId = new Map(existingMappings.map((m) => [m.biometricUserId, m]));
+  const mapByClientId = new Map();
+  for (const m of existingMappings) {
+    if (m.status === 'ACTIVE' && m.clientProfileId?._id) {
+      mapByClientId.set(String(m.clientProfileId._id), m);
+    }
+  }
+  const enrByBioId = new Map();
+  for (const e of branchEnrollments) {
+    if (e.biometricUserId && !['REJECTED', 'REVOKED', 'FAILED'].includes(e.status)) {
+      enrByBioId.set(e.biometricUserId, e);
+    }
+  }
+
+  const activeMemByProfile = new Map();
+  for (const mem of activeMemberships) {
+    if (mem.clientProfileId) activeMemByProfile.set(String(mem.clientProfileId), mem);
+    if (mem.userId) activeMemByProfile.set(String(mem.userId), mem);
+  }
+
+  // Count duplicate normalized names across discovered users
+  const nameCounts = new Map();
+  for (const u of device.discoveredUsers || []) {
+    const norm = normalizeNameForMatch(u.name);
+    if (norm) nameCounts.set(norm, (nameCounts.get(norm) || 0) + 1);
+  }
+
+  const rows = (device.discoveredUsers || []).map((u) => {
+    const bioId = u.biometricUserId;
+    const mapping = mapByBioId.get(bioId) || null;
+    const enrollment = enrByBioId.get(bioId) || null;
+    const normDevName = normalizeNameForMatch(u.name);
+    const devDigits = normalizeDigits(u.name);
+    const isPotentialDuplicate = Boolean(normDevName && (nameCounts.get(normDevName) || 0) > 1);
+
+    let hasConflict = false;
+    let conflictReason = '';
+    if (mapping && mapping.status === 'INACTIVE') {
+      hasConflict = true;
+      conflictReason = 'Existing mapping is INACTIVE.';
+    } else if (mapping && enrollment && String(mapping.clientProfileId?._id || mapping.clientProfileId) !== String(enrollment.clientProfileId)) {
+      hasConflict = true;
+      conflictReason = 'Mapping and Enrollment point to different clients.';
+    } else if (!mapping && enrollment) {
+      hasConflict = true;
+      conflictReason = `PIN ${bioId} is already reserved by pending enrollment.`;
+    }
+
+    // Matching engine (never auto-maps; produces suggestions for admin confirmation)
+    let confidence = 'NONE';
+    let suggestedClient = null;
+    let candidates = [];
+
+    if (!mapping) {
+      const highMatches = [];
+      const possibleMatches = [];
+
+      for (const c of branchClients) {
+        const cId = String(c.clientId || '').trim().toUpperCase();
+        const bioUpper = String(bioId).trim().toUpperCase();
+        const cPhone = normalizeDigits(c.phone);
+        const cNormName = normalizeNameForMatch(c.name);
+        const hasMem = Boolean(activeMemByProfile.get(String(c._id)) || (c.userId && activeMemByProfile.get(String(c.userId))));
+        const item = {
+          clientProfileId: c._id,
+          clientId: c.clientId || '',
+          name: c.name,
+          phone: c.phone || '',
+          hasActiveMembership: hasMem,
+          alreadyMappedPin: mapByClientId.get(String(c._id))?.biometricUserId || null,
+        };
+
+        if ((cId && cId === bioUpper) || (devDigits && devDigits.length >= 8 && cPhone && devDigits === cPhone)) {
+          highMatches.push(item);
+        } else if (normDevName && cNormName) {
+          if (normDevName === cNormName) {
+            highMatches.push(item);
+          } else if (cNormName.includes(normDevName) || normDevName.includes(cNormName)) {
+            possibleMatches.push(item);
+          }
+        }
+      }
+
+      if (highMatches.length === 1) {
+        confidence = 'HIGH';
+        suggestedClient = highMatches[0];
+        candidates = highMatches;
+      } else if (highMatches.length > 1) {
+        confidence = 'POSSIBLE';
+        candidates = highMatches;
+      } else if (possibleMatches.length > 0) {
+        confidence = 'POSSIBLE';
+        if (possibleMatches.length === 1) suggestedClient = possibleMatches[0];
+        candidates = possibleMatches;
+      }
+    }
+
+    return {
+      biometricUserId: bioId,
+      deviceUserName: u.name || '',
+      privilege: u.privilege || '0',
+      firstSeenAt: u.firstSeenAt || u.seenAt || null,
+      lastSeenAt: u.seenAt || null,
+      deviceId: device._id,
+      deviceName: device.deviceName,
+      branchId,
+      branchName: device.branchId?.city || device.branchId?.name || '—',
+      mappingStatus: mapping ? (mapping.status === 'ACTIVE' ? 'MAPPED' : 'INACTIVE_MAPPING') : 'UNMAPPED',
+      mappedClient: mapping?.clientProfileId
+        ? {
+            clientProfileId: mapping.clientProfileId._id,
+            clientId: mapping.clientProfileId.clientId || '',
+            name: mapping.clientProfileId.name,
+            phone: mapping.clientProfileId.phone || '',
+          }
+        : null,
+      enrollmentSynced: Boolean(enrollment && enrollment.status === 'ENROLLED'),
+      confidence,
+      suggestedClient,
+      candidates,
+      isPotentialDuplicate,
+      hasConflict,
+      conflictReason,
+    };
+  });
+
+  const summary = {
+    totalDiscovered: rows.length,
+    mappedCount: rows.filter((r) => r.mappingStatus === 'MAPPED').length,
+    unmappedCount: rows.filter((r) => r.mappingStatus === 'UNMAPPED').length,
+    potentialDuplicatesCount: rows.filter((r) => r.isPotentialDuplicate).length,
+    conflictsCount: rows.filter((r) => r.hasConflict).length,
+    deviceReportedUserCount: device.userCount || 0,
+    deviceReportedFaceCount: device.faceCount || 0,
+    deviceReportedFingerprintCount: device.fingerprintCount || 0,
+  };
+
+  let filtered = rows;
+  if (filter === 'MAPPED') filtered = rows.filter((r) => r.mappingStatus === 'MAPPED');
+  else if (filter === 'UNMAPPED') filtered = rows.filter((r) => r.mappingStatus === 'UNMAPPED');
+  else if (filter === 'DUPLICATES') filtered = rows.filter((r) => r.isPotentialDuplicate);
+  else if (filter === 'CONFLICTS') filtered = rows.filter((r) => r.hasConflict);
+
+  if (search && search.trim()) {
+    const q = search.trim().toLowerCase();
+    filtered = filtered.filter(
+      (r) =>
+        String(r.biometricUserId).toLowerCase().includes(q) ||
+        r.deviceUserName.toLowerCase().includes(q) ||
+        r.mappedClient?.name?.toLowerCase().includes(q) ||
+        r.mappedClient?.clientId?.toLowerCase().includes(q) ||
+        r.suggestedClient?.name?.toLowerCase().includes(q)
+    );
+  }
+
+  return {
+    device: {
+      _id: device._id,
+      deviceName: device.deviceName,
+      model: device.model,
+      serialNumber: device.serialNumber,
+      branchId,
+      branchName: device.branchId?.city || device.branchId?.name || '—',
+    },
+    summary,
+    users: filtered,
+  };
+};
+
+const bulkMapDiscoveredUsers = async ({ deviceId, mappings = [], dryRun = false }, adminUser = null) => {
+  if (!deviceId || !mongoose.Types.ObjectId.isValid(deviceId)) {
+    const err = new Error('A valid Biometric Device ID is required.');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!Array.isArray(mappings) || mappings.length === 0) {
+    const err = new Error('At least one mapping selection is required.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const device = await BiometricDevice.findById(deviceId).lean();
+  if (!device) {
+    const err = new Error('Biometric device not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (adminUser?.branchId && String(adminUser.branchId._id || adminUser.branchId) !== String(device.branchId)) {
+    const err = new Error('Access denied for device outside your assigned branch.');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const [beforeMappings, beforeEnrolled] = await Promise.all([
+    BiometricUserMapping.countDocuments({ deviceId: device._id, status: 'ACTIVE' }),
+    BiometricEnrollment.countDocuments({ branchId: device.branchId, status: 'ENROLLED' }),
+  ]);
+
+  const seenPins = new Set();
+  const seenClients = new Set();
+  const results = [];
+  let succeededCount = 0;
+  let failedCount = 0;
+
+  for (const item of mappings) {
+    const bioId = String(item.biometricUserId || '').trim();
+    const clientProfileId = String(item.clientProfileId || '').trim();
+
+    if (!bioId || !/^[A-Za-z0-9_-]{1,32}$/.test(bioId)) {
+      failedCount += 1;
+      results.push({ biometricUserId: bioId, clientProfileId, status: 'FAILED', error: 'Invalid biometric user ID format.' });
+      continue;
+    }
+    if (!clientProfileId || !mongoose.Types.ObjectId.isValid(clientProfileId)) {
+      failedCount += 1;
+      results.push({ biometricUserId: bioId, clientProfileId, status: 'FAILED', error: 'Invalid client profile ID.' });
+      continue;
+    }
+    if (seenPins.has(bioId)) {
+      failedCount += 1;
+      results.push({ biometricUserId: bioId, clientProfileId, status: 'FAILED', error: `Duplicate PIN ${bioId} in batch selection.` });
+      continue;
+    }
+    if (seenClients.has(clientProfileId)) {
+      failedCount += 1;
+      results.push({ biometricUserId: bioId, clientProfileId, status: 'FAILED', error: 'Duplicate client selected in batch.' });
+      continue;
+    }
+    seenPins.add(bioId);
+    seenClients.add(clientProfileId);
+
+    try {
+      const profile = await ClientProfile.findById(clientProfileId).lean();
+      if (!profile) {
+        throw Object.assign(new Error('ClientProfile not found.'), { statusCode: 404 });
+      }
+      if (String(profile.branchId) !== String(device.branchId)) {
+        throw Object.assign(new Error('Branch mismatch: client belongs to a different branch than this device.'), { statusCode: 409 });
+      }
+
+      await assertNoBiometricIdConflict({
+        deviceId: device._id,
+        biometricUserId: bioId,
+        clientProfileId: profile._id,
+      });
+
+      if (dryRun) {
+        succeededCount += 1;
+        results.push({
+          biometricUserId: bioId,
+          clientProfileId,
+          clientName: profile.name,
+          clientId: profile.clientId || '',
+          status: 'VALID_DRY_RUN',
+        });
+      } else {
+        const mapping = await biometricDeviceService.mapBiometricUser(
+          { deviceId: device._id, biometricUserId: bioId, clientProfileId: profile._id },
+          adminUser
+        );
+        succeededCount += 1;
+        results.push({
+          biometricUserId: bioId,
+          clientProfileId,
+          clientName: profile.name,
+          clientId: profile.clientId || '',
+          status: 'MAPPED',
+          mappingId: mapping._id,
+        });
+      }
+    } catch (err) {
+      failedCount += 1;
+      results.push({
+        biometricUserId: bioId,
+        clientProfileId,
+        status: 'FAILED',
+        error: err.message || 'Mapping conflict',
+      });
+    }
+  }
+
+  const [afterMappings, afterEnrolled] = dryRun
+    ? [beforeMappings + succeededCount, beforeEnrolled + succeededCount]
+    : await Promise.all([
+        BiometricUserMapping.countDocuments({ deviceId: device._id, status: 'ACTIVE' }),
+        BiometricEnrollment.countDocuments({ branchId: device.branchId, status: 'ENROLLED' }),
+      ]);
+
+  return {
+    dryRun: Boolean(dryRun),
+    totalRequested: mappings.length,
+    succeededCount,
+    failedCount,
+    beforeCounts: { activeMappings: beforeMappings, enrolledCount: beforeEnrolled },
+    afterCounts: { activeMappings: afterMappings, enrolledCount: afterEnrolled },
+    reconciliation: {
+      discoveredUsersOnDevice: (device.discoveredUsers || []).length,
+      activeMappingsAfter: afterMappings,
+      enrolledRecordsAfter: afterEnrolled,
+    },
+    results,
   };
 };
 
@@ -837,7 +1560,7 @@ const getClientBiometricSummary = async ({
       .populate('deviceId', 'deviceName serialNumber status isActive lastSyncAt lastSeenAt branchId')
       .populate('branchId', 'name city')
       .lean(),
-    Attendance.findOne({ $or: attOr, source: 'BIOMETRIC' })
+    Attendance.findOne({ $or: attOr, source: 'BIOMETRIC_ADMS' })
       .sort({ checkInTime: -1, date: -1 })
       .select('date checkInTime attendanceStatus biometricUserId')
       .lean(),
@@ -956,7 +1679,7 @@ const getClientBiometricLogs = async (clientId, { branchId = null } = {}) => {
       .lean(),
     Attendance.find({
       $or: [{ clientProfileId: profile._id }, ...(profile.userId ? [{ userId: profile.userId }] : [])],
-      source: 'BIOMETRIC',
+      source: 'BIOMETRIC_ADMS',
     })
       .select('date checkInTime attendanceStatus biometricUserId branchId')
       .populate('branchId', 'city name')
@@ -1012,7 +1735,9 @@ module.exports = {
   getClientBiometricSummary,
   getClientBiometricLogs,
   generateNextBiometricUserId,
+  assertNoBiometricIdConflict,
   completeManualEnrollment,
+  initiatePhysicalEnrollment,
   initiateRemoteEnrollment,
   approveEnrollment,
   rejectEnrollment,
@@ -1021,4 +1746,6 @@ module.exports = {
   withdrawClientConsent,
   submitMobileCapture,
   analyzeMigration,
+  getMigrationPreview,
+  bulkMapDiscoveredUsers,
 };

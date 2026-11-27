@@ -158,12 +158,20 @@ export default function BiometricDevices() {
   });
   const [manualBusy, setManualBusy] = useState(false);
 
-  // Migration state
+  // Migration state (auto-loads discoveredUsers + bulk mapping + dry-run)
   const [migDeviceId, setMigDeviceId] = useState('');
-  const [migRawIds, setMigRawIds] = useState('');
-  const [migAnalysis, setMigAnalysis] = useState(null);
+  const [migFilter, setMigFilter] = useState('ALL');
+  const [migSearch, setMigSearch] = useState('');
+  const [migPreview, setMigPreview] = useState(null);
   const [migBusy, setMigBusy] = useState(false);
   const [migAssignMap, setMigAssignMap] = useState({});
+  const [migSelectedPins, setMigSelectedPins] = useState({});
+  const [migBulkReport, setMigBulkReport] = useState(null);
+
+  // Device Commands state
+  const [deviceCommandsData, setDeviceCommandsData] = useState({ counts: { pending: 0, sent: 0, completed: 0, failed: 0 }, commands: [] });
+  const [commandsLoading, setCommandsLoading] = useState(false);
+  const [queueCmdBusy, setQueueCmdBusy] = useState(false);
 
   const showToast = (type, message) => {
     setFeedback({ type, message });
@@ -272,9 +280,14 @@ export default function BiometricDevices() {
   useEffect(() => {
     if (['enrollments', 'manual', 'migration'].includes(activeTab)) {
       fetchEnrollmentsData();
+    }
+  }, [activeTab, fetchEnrollmentsData]);
+
+  useEffect(() => {
+    if (['enrollments', 'manual', 'migration'].includes(activeTab)) {
       fetchClientsForSelector(clientSearch);
     }
-  }, [activeTab, fetchEnrollmentsData, fetchClientsForSelector, clientSearch]);
+  }, [activeTab, fetchClientsForSelector, clientSearch]);
 
   // Near real-time polling (every 10 seconds)
   useEffect(() => {
@@ -522,35 +535,133 @@ export default function BiometricDevices() {
     }
   };
 
-  const handleAnalyzeMigration = async (e) => {
-    e.preventDefault();
-    if (!migDeviceId || !migRawIds.trim()) {
-      showToast('error', 'Select a device and enter biometric user IDs.');
+  const fetchDeviceCommands = useCallback(async (id) => {
+    if (!id) return;
+    setCommandsLoading(true);
+    try {
+      const res = await biometricService.getDeviceCommands(id);
+      setDeviceCommandsData({ counts: res.counts || { pending: 0, sent: 0, completed: 0, failed: 0 }, commands: res.commands || [] });
+    } catch (err) {
+      showToast('error', err.message || 'Failed to load device commands');
+    } finally {
+      setCommandsLoading(false);
+    }
+  }, []);
+
+  const handleQueueCommand = async (commandType) => {
+    if (!selectedDeviceId) return;
+    setQueueCmdBusy(true);
+    try {
+      await biometricService.queueDeviceCommand(selectedDeviceId, { commandType });
+      showToast('success', `Queued read-only command ${commandType}.`);
+      fetchDeviceCommands(selectedDeviceId);
+    } catch (err) {
+      showToast('error', err.message || 'Failed to queue command');
+    } finally {
+      setQueueCmdBusy(false);
+    }
+  };
+
+  const handleCancelCommand = async (cmdId) => {
+    try {
+      await biometricService.cancelDeviceCommand(cmdId);
+      showToast('success', 'Command cancelled.');
+      if (selectedDeviceId) fetchDeviceCommands(selectedDeviceId);
+    } catch (err) {
+      showToast('error', err.message || 'Failed to cancel command');
+    }
+  };
+
+  const loadMigrationPreview = useCallback(async (targetDeviceId = migDeviceId, filterVal = migFilter, searchVal = migSearch) => {
+    if (!targetDeviceId) {
+      setMigPreview(null);
       return;
     }
     setMigBusy(true);
     try {
-      const ids = migRawIds.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
-      const res = await biometricService.analyzeMigration({ deviceId: migDeviceId, biometricUserIds: ids });
-      setMigAnalysis(res);
+      const res = await biometricService.getMigrationPreview({
+        deviceId: targetDeviceId,
+        filter: filterVal,
+        search: searchVal,
+      });
+      setMigPreview(res);
+      setMigAssignMap((prev) => {
+        const next = { ...prev };
+        for (const u of res.users || []) {
+          if (u.mappingStatus === 'UNMAPPED' && !next[u.biometricUserId] && u.suggestedClient?.clientProfileId) {
+            next[u.biometricUserId] = u.suggestedClient.clientProfileId;
+          }
+        }
+        return next;
+      });
     } catch (err) {
-      showToast('error', err.message);
+      showToast('error', err.message || 'Failed to load discovered device users');
     } finally {
       setMigBusy(false);
     }
-  };
+  }, [migDeviceId, migFilter, migSearch]);
+
+  const defaultMigDeviceId = devices[0]?._id || '';
+  useEffect(() => {
+    if (activeTab === 'migration') {
+      const targetId = migDeviceId || defaultMigDeviceId;
+      if (!migDeviceId && targetId) setMigDeviceId(targetId);
+      if (targetId) loadMigrationPreview(targetId, migFilter, migSearch);
+    }
+  }, [activeTab, migDeviceId, migFilter, migSearch, defaultMigDeviceId, loadMigrationPreview]);
 
   const handleMapMigrationRow = async (bioId) => {
     const clientProfileId = migAssignMap[bioId];
-    if (!clientProfileId || !migDeviceId) return;
+    if (!clientProfileId || !migDeviceId) {
+      showToast('error', 'Select a matching member before mapping.');
+      return;
+    }
     try {
       await biometricService.mapUser({ deviceId: migDeviceId, biometricUserId: bioId, clientProfileId });
       showToast('success', `Mapped Biometric ID ${bioId}.`);
-      const ids = migRawIds.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
-      const res = await biometricService.analyzeMigration({ deviceId: migDeviceId, biometricUserIds: ids });
-      setMigAnalysis(res);
+      await loadMigrationPreview(migDeviceId, migFilter, migSearch);
     } catch (err) {
       showToast('error', err.message);
+    }
+  };
+
+  const handleBulkMapMigration = async (dryRun = false) => {
+    if (!migDeviceId) return;
+    const selectedMappings = Object.entries(migSelectedPins)
+      .filter(([, checked]) => checked)
+      .map(([bioId]) => ({
+        biometricUserId: bioId,
+        clientProfileId: migAssignMap[bioId] || '',
+      }))
+      .filter((m) => m.clientProfileId);
+
+    if (selectedMappings.length === 0) {
+      showToast('error', 'Select at least one unmapped user with a chosen member.');
+      return;
+    }
+
+    setMigBusy(true);
+    try {
+      const res = await biometricService.bulkMapMigration({
+        deviceId: migDeviceId,
+        mappings: selectedMappings,
+        dryRun,
+      });
+      setMigBulkReport(res);
+      showToast(
+        res.failedCount === 0 ? 'success' : 'error',
+        dryRun
+          ? `Dry run complete: ${res.succeededCount} valid, ${res.failedCount} conflict(s).`
+          : `Bulk mapping complete: ${res.succeededCount} mapped, ${res.failedCount} failed.`
+      );
+      if (!dryRun) {
+        setMigSelectedPins({});
+        await loadMigrationPreview(migDeviceId, migFilter, migSearch);
+      }
+    } catch (err) {
+      showToast('error', err.message || 'Bulk mapping failed');
+    } finally {
+      setMigBusy(false);
     }
   };
 
@@ -1298,20 +1409,34 @@ export default function BiometricDevices() {
       {/* ── EXISTING BIOMETRIC USERS MIGRATION TAB ── */}
       {activeTab === 'migration' && (
         <div className="space-y-4">
-          <form onSubmit={handleAnalyzeMigration} className="bg-[#181818] border border-[#303030] rounded-2xl p-5 space-y-4 text-xs">
-            <div>
-              <span className="text-[10px] font-mono uppercase text-[#F03B2E] font-bold block">NON-DESTRUCTIVE MIGRATION</span>
-              <h3 className="mm-page-title text-lg">MAP EXISTING X2008 FACE RECORDS</h3>
-              <p className="text-[#B8B8B8] mt-1">
-                Paste comma- or newline-separated Biometric User IDs exported/read from your eSSL X2008 (e.g. 248 existing face users) to detect unmapped IDs and link them to Man &amp; Machine members without deleting or overwriting device records.
-              </p>
+          <div className="bg-[#181818] border border-[#303030] rounded-2xl p-5 space-y-4 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-mono uppercase text-[#F03B2E] font-bold block">NON-DESTRUCTIVE MIGRATION</span>
+                <h3 className="mm-page-title text-lg">EXISTING DEVICE USERS MIGRATION</h3>
+                <p className="text-[#B8B8B8] mt-1">
+                  Automatically loads users discovered from the device&apos;s ADMS OPERLOG. Review match suggestions, run a dry-run check, and confirm mappings in MongoDB without modifying X2008 templates.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={migBusy || !migDeviceId}
+                onClick={() => loadMigrationPreview(migDeviceId, migFilter, migSearch)}
+                className="min-h-[40px] px-4 py-2 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-[#F5F5F5] font-bold uppercase inline-flex items-center gap-2 cursor-pointer shrink-0"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${migBusy ? 'animate-spin' : ''}`} />
+                <span>Refresh Discovered</span>
+              </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <select
-                required
                 value={migDeviceId}
-                onChange={(e) => setMigDeviceId(e.target.value)}
+                onChange={(e) => {
+                  setMigDeviceId(e.target.value);
+                  setMigSelectedPins({});
+                  setMigBulkReport(null);
+                }}
                 className="min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5]"
               >
                 <option value="">Select Target Device</option>
@@ -1319,77 +1444,204 @@ export default function BiometricDevices() {
                   <option key={d._id} value={d._id}>{d.branchId?.city} — {d.deviceName}</option>
                 ))}
               </select>
+
+              <select
+                value={migFilter}
+                onChange={(e) => setMigFilter(e.target.value)}
+                className="min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5]"
+              >
+                <option value="ALL">All Discovered Users</option>
+                <option value="UNMAPPED">Unmapped Only</option>
+                <option value="MAPPED">Mapped Only</option>
+                <option value="DUPLICATES">Potential Duplicates</option>
+                <option value="CONFLICTS">Conflicts</option>
+              </select>
+
               <input
                 type="text"
-                required
-                value={migRawIds}
-                onChange={(e) => setMigRawIds(e.target.value)}
-                placeholder="Paste Biometric User IDs: 1, 2, 3, 101, 102..."
-                className="sm:col-span-2 min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5] font-mono"
+                value={migSearch}
+                onChange={(e) => setMigSearch(e.target.value)}
+                placeholder="Search PIN, device name, or member..."
+                className="min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5]"
               />
             </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={migBusy}
-              className="min-h-[44px] px-5 py-2 rounded-xl bg-[#F03B2E] text-white font-bold uppercase cursor-pointer"
-            >
-              {migBusy ? 'Analyzing...' : 'Analyze Device User IDs'}
-            </button>
-          </form>
-
-          {migAnalysis && (
+          {migPreview && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
                 <div className="bg-[#181818] border border-[#303030] rounded-xl p-3.5">
-                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Total Device Users</span>
-                  <span className="text-xl font-bold font-mono text-[#F5F5F5]">{migAnalysis.totalDeviceUsers}</span>
+                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Discovered</span>
+                  <span className="text-xl font-bold font-mono text-[#F5F5F5]">{migPreview.summary.totalDiscovered}</span>
                 </div>
                 <div className="bg-[#181818] border border-[#303030] rounded-xl p-3.5">
-                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Successfully Mapped</span>
-                  <span className="text-xl font-bold font-mono text-emerald-400">{migAnalysis.successfullyMapped}</span>
+                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Mapped</span>
+                  <span className="text-xl font-bold font-mono text-emerald-400">{migPreview.summary.mappedCount}</span>
                 </div>
                 <div className="bg-[#181818] border border-[#303030] rounded-xl p-3.5">
                   <span className="text-[10px] font-mono uppercase text-[#858585] block">Unmapped</span>
-                  <span className="text-xl font-bold font-mono text-amber-400">{migAnalysis.unmappedCount}</span>
+                  <span className="text-xl font-bold font-mono text-amber-400">{migPreview.summary.unmappedCount}</span>
                 </div>
                 <div className="bg-[#181818] border border-[#303030] rounded-xl p-3.5">
-                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Duplicate IDs</span>
-                  <span className="text-xl font-bold font-mono text-[#FF493B]">{migAnalysis.duplicateIds?.length || 0}</span>
+                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Duplicates</span>
+                  <span className="text-xl font-bold font-mono text-amber-300">{migPreview.summary.potentialDuplicatesCount}</span>
+                </div>
+                <div className="bg-[#181818] border border-[#303030] rounded-xl p-3.5">
+                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Conflicts</span>
+                  <span className="text-xl font-bold font-mono text-[#FF493B]">{migPreview.summary.conflictsCount}</span>
                 </div>
               </div>
 
-              {migAnalysis.unmapped.length > 0 && (
-                <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 space-y-2.5">
-                  <h4 className="text-xs font-mono uppercase text-[#F03B2E] font-bold">Unmapped Device User IDs</h4>
-                  {migAnalysis.unmapped.map((bioId) => (
-                    <div key={bioId} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-[#111111] border border-[#252525] text-xs">
-                      <span className="font-mono font-bold text-[#F5F5F5]">Device Bio ID: {bioId}</span>
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={migAssignMap[bioId] || ''}
-                          onChange={(e) => setMigAssignMap({ ...migAssignMap, [bioId]: e.target.value })}
-                          className="min-h-[38px] bg-[#181818] border border-[#303030] rounded-lg px-2.5 text-xs text-[#F5F5F5]"
-                        >
-                          <option value="">Select Member</option>
-                          {clientsList.map((c) => (
-                            <option key={c.profileId || c.id} value={c.profileId || ''} disabled={!c.profileId}>
-                              {c.clientId || '—'} — {c.name} {!c.profileId ? '[No ClientProfile]' : ''}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => handleMapMigrationRow(bioId)}
-                          className="min-h-[38px] px-3 py-1.5 rounded-lg bg-[#F03B2E] text-white text-[11px] font-bold uppercase cursor-pointer"
-                        >
-                          Map
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+              {Object.values(migSelectedPins).some(Boolean) && (
+                <div className="bg-[#181818] border border-[#F03B2E]/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <span className="font-mono text-[#F5F5F5]">
+                    <strong>{Object.values(migSelectedPins).filter(Boolean).length}</strong> user(s) selected for bulk mapping
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={migBusy}
+                      onClick={() => handleBulkMapMigration(true)}
+                      className="min-h-[38px] px-4 py-1.5 rounded-xl bg-[#202020] hover:bg-[#303030] border border-[#303030] text-[#F5F5F5] font-bold uppercase cursor-pointer"
+                    >
+                      Dry Run Validation
+                    </button>
+                    <button
+                      type="button"
+                      disabled={migBusy}
+                      onClick={() => handleBulkMapMigration(false)}
+                      className="min-h-[38px] px-4 py-1.5 rounded-xl bg-[#F03B2E] hover:bg-[#FF493B] text-white font-bold uppercase cursor-pointer"
+                    >
+                      Confirm Bulk Mapping
+                    </button>
+                  </div>
                 </div>
               )}
+
+              {migBulkReport && (
+                <div className="bg-[#181818] border border-[#303030] rounded-2xl p-4 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-bold text-[#F03B2E] uppercase">
+                      {migBulkReport.dryRun ? 'Dry-Run Reconciliation Report' : 'Bulk Migration Report'}
+                    </span>
+                    <button type="button" onClick={() => setMigBulkReport(null)} className="text-[#858585] hover:text-white">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="text-[#B8B8B8]">
+                    Succeeded: <strong className="text-emerald-400">{migBulkReport.succeededCount}</strong> • Failed:{' '}
+                    <strong className="text-[#FF493B]">{migBulkReport.failedCount}</strong> • Active Mappings:{' '}
+                    <strong className="font-mono">{migBulkReport.beforeCounts.activeMappings} → {migBulkReport.afterCounts.activeMappings}</strong>
+                  </p>
+                  {migBulkReport.results.some((r) => r.status === 'FAILED') && (
+                    <div className="space-y-1 pt-1">
+                      {migBulkReport.results.filter((r) => r.status === 'FAILED').map((r, i) => (
+                        <div key={i} className="text-[#FF6A5E] font-mono text-[11px]">
+                          PIN {r.biometricUserId}: {r.error}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="bg-[#181818] border border-[#303030] rounded-2xl overflow-hidden">
+                {migPreview.users.length === 0 ? (
+                  <div className="py-10 text-center text-xs text-[#858585] italic">
+                    No discovered device users match the current filter. When the X2008 pushes OPERLOG user records, they appear here automatically.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[#252525]">
+                    {migPreview.users.map((u) => (
+                      <div key={u.biometricUserId} className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
+                        <div className="flex items-start gap-3">
+                          {u.mappingStatus === 'UNMAPPED' && (
+                            <input
+                              type="checkbox"
+                              checked={Boolean(migSelectedPins[u.biometricUserId])}
+                              onChange={(e) =>
+                                setMigSelectedPins((prev) => ({ ...prev, [u.biometricUserId]: e.target.checked }))
+                              }
+                              className="mt-1"
+                            />
+                          )}
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono font-bold text-[#F03B2E]">PIN: {u.biometricUserId}</span>
+                              <span className="font-bold text-[#F5F5F5]">{u.deviceUserName || '(No Device Name)'}</span>
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                                  u.mappingStatus === 'MAPPED'
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                    : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                                }`}
+                              >
+                                {u.mappingStatus}
+                              </span>
+                              {u.mappingStatus === 'UNMAPPED' && (
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-mono border ${
+                                    u.confidence === 'HIGH'
+                                      ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                                      : u.confidence === 'POSSIBLE'
+                                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                                        : 'bg-[#202020] text-[#858585] border-[#303030]'
+                                  }`}
+                                >
+                                  Match: {u.confidence}
+                                </span>
+                              )}
+                              {u.hasConflict && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#F03B2E]/15 text-[#FF493B] border border-[#F03B2E]/35">
+                                  CONFLICT: {u.conflictReason}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-[#B8B8B8]">
+                              {u.branchName} • {u.deviceName}
+                              {u.mappedClient && (
+                                <> → Mapped to <strong className="text-[#F5F5F5]">{u.mappedClient.clientId} {u.mappedClient.name}</strong></>
+                              )}
+                              {!u.mappedClient && u.suggestedClient && (
+                                <> • Suggested: <strong className="text-emerald-300">{u.suggestedClient.clientId} {u.suggestedClient.name}</strong></>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        {u.mappingStatus === 'UNMAPPED' && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <select
+                              value={migAssignMap[u.biometricUserId] || ''}
+                              onChange={(e) => setMigAssignMap({ ...migAssignMap, [u.biometricUserId]: e.target.value })}
+                              className="min-h-[38px] max-w-[260px] bg-[#111111] border border-[#303030] rounded-lg px-2.5 text-xs text-[#F5F5F5]"
+                            >
+                              <option value="">Select Member to Confirm</option>
+                              {(u.candidates?.length > 0 ? u.candidates : []).map((cand) => (
+                                <option key={`cand-${cand.clientProfileId}`} value={cand.clientProfileId}>
+                                  [Suggested] {cand.clientId || '—'} — {cand.name}
+                                </option>
+                              ))}
+                              {clientsList.map((c) => (
+                                <option key={c.profileId || c.id} value={c.profileId || ''} disabled={!c.profileId}>
+                                  {c.clientId || '—'} — {c.name} {!c.profileId ? '[No ClientProfile]' : ''}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => handleMapMigrationRow(u.biometricUserId)}
+                              className="min-h-[38px] px-3 py-1.5 rounded-lg bg-[#F03B2E] hover:bg-[#FF493B] text-white text-[11px] font-bold uppercase cursor-pointer"
+                            >
+                              Confirm Map
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -1597,16 +1849,20 @@ export default function BiometricDevices() {
             ) : (
               <div className="flex-1 overflow-y-auto p-5 space-y-5">
                 {/* Drawer Tabs */}
-                <div className="flex gap-2 border-b border-[#252525] pb-3">
+                <div className="flex flex-wrap gap-2 border-b border-[#252525] pb-3">
                   {[
                     { key: 'overview', label: 'Overview & Health' },
                     { key: 'mappings', label: `User Mappings (${deviceDetail.mappings.length})` },
+                    { key: 'commands', label: 'Commands' },
                     { key: 'logs', label: `Connection Logs (${deviceDetail.logs.length})` },
                   ].map((t) => (
                     <button
                       key={t.key}
                       type="button"
-                      onClick={() => setDetailTab(t.key)}
+                      onClick={() => {
+                        setDetailTab(t.key);
+                        if (t.key === 'commands') fetchDeviceCommands(deviceDetail.device._id);
+                      }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase cursor-pointer ${
                         detailTab === t.key ? 'bg-[#F03B2E] text-white' : 'bg-[#181818] text-[#B8B8B8]'
                       }`}
@@ -1783,6 +2039,85 @@ export default function BiometricDevices() {
                         ))
                       )}
                     </div>
+                  </div>
+                )}
+
+                {detailTab === 'commands' && (
+                  <div className="space-y-4 text-xs">
+                    <div className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-3">
+                      <span className="font-mono uppercase text-[#F03B2E] font-bold block">
+                        Safe Read-Only ADMS Commands
+                      </span>
+                      <p className="text-[#B8B8B8] text-[11px]">
+                        Only allowlisted read-only commands are permitted. Destructive commands (CLEAR, DELETE, RESET) are permanently blocked.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { type: 'INFO', label: 'Query Device INFO' },
+                          { type: 'CHECK', label: 'Trigger CHECK' },
+                          { type: 'DATA_QUERY_USERINFO', label: 'Query USERINFO' },
+                        ].map((c) => (
+                          <button
+                            key={c.type}
+                            type="button"
+                            disabled={queueCmdBusy}
+                            onClick={() => handleQueueCommand(c.type)}
+                            className="min-h-[38px] px-3 py-1.5 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-[#F5F5F5] font-bold uppercase cursor-pointer disabled:opacity-50"
+                          >
+                            {c.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <div className="p-2.5 rounded-xl bg-[#181818] border border-[#303030]">
+                        <span className="text-[10px] text-[#858585] block">Pending</span>
+                        <span className="font-mono font-bold text-amber-400">{deviceCommandsData.counts.pending}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-[#181818] border border-[#303030]">
+                        <span className="text-[10px] text-[#858585] block">Sent</span>
+                        <span className="font-mono font-bold text-sky-400">{deviceCommandsData.counts.sent}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-[#181818] border border-[#303030]">
+                        <span className="text-[10px] text-[#858585] block">Completed</span>
+                        <span className="font-mono font-bold text-emerald-400">{deviceCommandsData.counts.completed}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-[#181818] border border-[#303030]">
+                        <span className="text-[10px] text-[#858585] block">Failed</span>
+                        <span className="font-mono font-bold text-[#FF493B]">{deviceCommandsData.counts.failed}</span>
+                      </div>
+                    </div>
+
+                    {commandsLoading ? (
+                      <p className="text-[#858585] font-mono">Loading command queue...</p>
+                    ) : deviceCommandsData.commands.length === 0 ? (
+                      <p className="text-[#858585] italic">No ADMS commands queued yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {deviceCommandsData.commands.map((cmd) => (
+                          <div key={cmd._id} className="p-3 rounded-xl bg-[#181818] border border-[#303030] flex items-center justify-between gap-2">
+                            <div>
+                              <span className="font-mono font-bold text-[#F5F5F5]">{cmd.commandType}</span>
+                              <span className="mx-2 font-mono text-[10px] text-[#858585]">ID: {cmd.commandId}</span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#202020] text-amber-300 border border-[#303030]">
+                                {cmd.status}
+                              </span>
+                              {cmd.error && <p className="text-[#FF6A5E] text-[11px] mt-1">{cmd.error}</p>}
+                            </div>
+                            {['PENDING', 'SENT'].includes(cmd.status) && (
+                              <button
+                                type="button"
+                                onClick={() => handleCancelCommand(cmd._id)}
+                                className="px-2.5 py-1 rounded bg-[#202020] text-[#FF493B] text-[11px] font-bold uppercase cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
