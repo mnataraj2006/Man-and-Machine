@@ -214,15 +214,15 @@ export default function BiometricAccessModal({
           {/* Physical Face Enrollment Instructions */}
           {showFaceInstructions && (
             <section className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-4 space-y-2.5">
-              <h4 className="font-display text-sm font-bold uppercase text-sky-300">
+              <h4 className="font-display text-sm font-bold uppercase text-sky-600">
                 Ready for Face Enrollment
               </h4>
-              <p className="text-[11px] text-[#D4D4D4] leading-relaxed">
+              <p className="text-[11px] text-[#F5F5F5] leading-relaxed">
                 The user account has been created on the biometric device. Face registration must still be completed physically on the device.
               </p>
-              <ol className="space-y-1.5 list-decimal list-inside text-[11px] text-[#E5E5E5] leading-relaxed">
+              <ol className="space-y-1.5 list-decimal list-inside text-[11px] text-[#F5F5F5] leading-relaxed">
                 <li>Visit the biometric machine ({deviceName || 'branch terminal'}).</li>
-                <li>Enter the assigned biometric PIN: <strong className="font-mono text-white">{assignedPin || '—'}</strong>.</li>
+                <li>Enter the assigned biometric PIN: <strong className="font-mono text-[#F5F5F5]">{assignedPin || '—'}</strong>.</li>
                 <li>Select the existing user and choose <strong>Edit</strong>.</li>
                 <li>Confirm the displayed user details.</li>
                 <li>Complete physical face enrollment.</li>
