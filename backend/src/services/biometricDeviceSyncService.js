@@ -417,6 +417,13 @@ const syncEnrollmentDeviceUser = async ({
     job.status = 'FAILED';
     job.responseStatus = 'ERROR';
     job.failureReason = syncErr.message || 'Remote device user sync failed.';
+    const maxAttempts = job.maxAttempts || 5;
+    if (job.attemptCount < maxAttempts) {
+      const backoffMs = Math.min(30 * 60 * 1000, 30 * 1000 * Math.pow(2, Math.max(0, job.attemptCount - 1)));
+      job.nextRetryAt = new Date(Date.now() + backoffMs);
+    } else {
+      job.nextRetryAt = null;
+    }
     await job.save();
 
     const prevStatus = enrollment.status;
@@ -494,10 +501,91 @@ const retryDeviceUserSync = async (enrollmentId, adminUser = null, { remoteAdapt
   });
 };
 
+const computeBackoffDelayMs = (attemptCount) =>
+  Math.min(30 * 60 * 1000, 30 * 1000 * Math.pow(2, Math.max(0, Number(attemptCount || 1) - 1)));
+
+/**
+ * Bounded exponential backoff retry processor for transient FAILED sync jobs.
+ * Never retries FEATURE_DISABLED, FIRMWARE_UNSUPPORTED, or IDENTITY_CONFLICT jobs.
+ */
+const processRetryableSyncJobs = async ({ limit = 10, remoteAdapter = null } = {}) => {
+  if (!isRemoteUserSyncEnabled()) return { processed: 0, retried: 0, skipped: 0 };
+  const now = new Date();
+  const candidates = await BiometricDeviceSyncJob.find({
+    status: 'FAILED',
+    operation: 'CREATE_DEVICE_USER',
+    responseStatus: { $nin: ['FEATURE_DISABLED', 'FIRMWARE_UNSUPPORTED', 'IDENTITY_CONFLICT'] },
+    $or: [{ nextRetryAt: null }, { nextRetryAt: { $lte: now } }],
+  })
+    .sort({ nextRetryAt: 1, updatedAt: 1 })
+    .limit(limit);
+
+  let retried = 0;
+  let skipped = 0;
+
+  for (const job of candidates) {
+    const maxAttempts = job.maxAttempts || 5;
+    if (job.attemptCount >= maxAttempts) {
+      if (job.nextRetryAt !== null) {
+        job.nextRetryAt = null;
+        await job.save();
+      }
+      skipped += 1;
+      continue;
+    }
+
+    const [enrollment, device] = await Promise.all([
+      BiometricEnrollment.findById(job.enrollmentId).populate('clientProfileId'),
+      BiometricDevice.findById(job.deviceId),
+    ]);
+
+    if (
+      !enrollment ||
+      !device ||
+      !device.isActive ||
+      device.status === 'DISABLED' ||
+      !device.supportsRemoteEnrollment ||
+      ['ENROLLED', 'REVOKED', 'REJECTED'].includes(enrollment.status) ||
+      enrollment.consentStatus === 'WITHDRAWN'
+    ) {
+      skipped += 1;
+      continue;
+    }
+
+    await syncEnrollmentDeviceUser({
+      enrollment,
+      device,
+      clientProfile: enrollment.clientProfileId,
+      forceRetry: true,
+      remoteAdapter,
+    });
+    retried += 1;
+  }
+
+  return { processed: candidates.length, retried, skipped };
+};
+
+let biometricRetryTimer = null;
+const startBiometricRetryScheduler = () => {
+  if (process.env.NODE_ENV === 'test' || biometricRetryTimer) return;
+  biometricRetryTimer = setInterval(() => {
+    if (mongoose.connection.readyState !== 1) return;
+    processRetryableSyncJobs({ limit: 5 }).catch((err) => {
+      console.error('Biometric retry scheduler error:', err.message);
+    });
+  }, 60 * 1000);
+  if (typeof biometricRetryTimer.unref === 'function') {
+    biometricRetryTimer.unref();
+  }
+};
+
 module.exports = {
   REMOTE_UNSUPPORTED_REASON,
   isRemoteUserSyncEnabled,
+  computeBackoffDelayMs,
   admsRemoteAdapter,
   syncEnrollmentDeviceUser,
   retryDeviceUserSync,
+  processRetryableSyncJobs,
+  startBiometricRetryScheduler,
 };

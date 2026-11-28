@@ -1012,17 +1012,44 @@ const createClient = async (req, res, next) => {
 
     let biometricEnrollment = null;
     let biometricEnrollmentError = null;
-    if (req.body.biometricEnrollment?.enabled && req.body.biometricEnrollment?.deviceId) {
+    if (req.body.biometricEnrollment?.enabled) {
       try {
-        const biometricEnrollmentService = require('../services/biometricEnrollmentService');
-        biometricEnrollment = await biometricEnrollmentService.initiatePhysicalEnrollment(
-          {
-            clientProfileId: profile._id,
-            deviceId: req.body.biometricEnrollment.deviceId,
-            biometricUserId: req.body.biometricEnrollment.biometricUserId || '',
-          },
-          req.user
+        const BiometricConsent = require('../models/BiometricConsent');
+        const consentAgreed = Boolean(
+          req.body.biometricEnrollment.consentAgreed ?? req.body.biometricConsentAgreed ?? true
         );
+        if (consentAgreed) {
+          const existingConsent = await BiometricConsent.findOne({
+            clientProfileId: profile._id,
+            branchId: targetBranchId,
+            status: 'GRANTED',
+          }).lean();
+          if (!existingConsent) {
+            await BiometricConsent.create({
+              clientProfileId: profile._id,
+              userId: user?._id || null,
+              branchId: targetBranchId,
+              consentGiven: true,
+              consentVersion: 'v1.0',
+              ipAddress: req.ip || '',
+              status: 'GRANTED',
+              consentedAt: new Date(),
+            });
+          }
+        }
+        const biometricEnrollmentService = require('../services/biometricEnrollmentService');
+        const autoRes = await biometricEnrollmentService.autoInitiateBiometricEnrollment({
+          clientProfileId: profile._id,
+          userId: user?._id || null,
+          branchId: targetBranchId,
+          deviceId: req.body.biometricEnrollment.deviceId || null,
+          biometricUserId: req.body.biometricEnrollment.biometricUserId || '',
+          consentAgreed,
+          ipAddress: req.ip || '',
+          source: 'WALK_IN',
+          actorUser: req.user,
+        });
+        biometricEnrollment = autoRes?.enrollment || null;
       } catch (bioErr) {
         biometricEnrollmentError = bioErr.message || 'Biometric enrollment request could not be queued.';
       }
@@ -2855,6 +2882,27 @@ const createClientMembership = async (req, res, next) => {
     }
 
     await syncClientProfileMembership({ userId: user?._id || null, clientProfileId: profile?._id || null });
+
+    let biometricEnrollment = null;
+    if (membership.status === 'ACTIVE' && profile?._id) {
+      try {
+        const biometricEnrollmentService = require('../services/biometricEnrollmentService');
+        const autoBio = await biometricEnrollmentService.autoInitiateBiometricEnrollment({
+          clientProfileId: profile._id,
+          userId: user?._id || null,
+          branchId: targetBranchId,
+          deviceId: req.body.biometricDeviceId || null,
+          biometricUserId: req.body.biometricUserId || '',
+          consentAgreed: Boolean(req.body.biometricConsentAgreed),
+          ipAddress: req.ip || '',
+          source: 'WALK_IN',
+          actorUser: req.user,
+        });
+        biometricEnrollment = autoBio?.enrollment || null;
+      } catch (_bioErr) {
+        // Non-blocking: membership assignment succeeds even if biometric device is unavailable
+      }
+    }
 
     if (isCashPayment && generatedPayment) {
       setImmediate(async () => {

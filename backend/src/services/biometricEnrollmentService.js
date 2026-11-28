@@ -862,6 +862,192 @@ const confirmPhysicalFaceEnrollment = async (enrollmentId, adminUser, { note = '
   return { enrollment: savedEnrollment, idempotentReused: false };
 };
 
+/**
+ * Shared automated biometric enrollment initiator for both Web and Walk-in clients.
+ * Validates active membership, explicit biometric consent, branch device selection,
+ * unique PIN allocation, idempotent enrollment creation/reuse, and ADMS user sync.
+ * Never marks faceEnrollmentStatus=ENROLLED or bypasses physical face confirmation.
+ */
+const autoInitiateBiometricEnrollment = async ({
+  clientProfileId = null,
+  userId = null,
+  branchId = null,
+  deviceId = null,
+  biometricUserId = '',
+  consentAgreed = false,
+  ipAddress = '',
+  source = 'AUTO',
+  actorUser = null,
+} = {}) => {
+  let profile = null;
+  if (clientProfileId && mongoose.Types.ObjectId.isValid(clientProfileId)) {
+    profile = await ClientProfile.findById(clientProfileId);
+  } else if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+    profile = await ClientProfile.findOne({ userId });
+  }
+  if (!profile) {
+    return { initiated: false, reason: 'CLIENT_PROFILE_NOT_FOUND', enrollment: null };
+  }
+
+  const targetBranchId =
+    branchId && mongoose.Types.ObjectId.isValid(branchId) ? branchId : profile.branchId;
+  if (!targetBranchId) {
+    return { initiated: false, reason: 'BRANCH_REQUIRED', enrollment: null };
+  }
+
+  if (actorUser) {
+    biometricDeviceService.assertAdminBranchAccess(actorUser, targetBranchId);
+    biometricDeviceService.assertAdminBranchAccess(actorUser, profile.branchId);
+  }
+
+  if (String(profile.branchId) !== String(targetBranchId)) {
+    const err = new Error('Branch mismatch: client belongs to a different branch than the enrollment target.');
+    err.statusCode = 409;
+    throw err;
+  }
+
+  let explicitDevice = null;
+  if (deviceId && mongoose.Types.ObjectId.isValid(deviceId)) {
+    explicitDevice = await BiometricDevice.findById(deviceId);
+    if (!explicitDevice || !explicitDevice.isActive || explicitDevice.status === 'DISABLED') {
+      const err = new Error('Selected biometric device is not found or is disabled.');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (String(explicitDevice.branchId) !== String(targetBranchId)) {
+      const err = new Error('Branch mismatch: selected device belongs to a different branch.');
+      err.statusCode = 409;
+      throw err;
+    }
+  }
+
+  if (!(await hasActiveMembershipForClient(profile))) {
+    return { initiated: false, reason: 'INACTIVE_MEMBERSHIP', enrollment: null };
+  }
+
+  let enrollment = await BiometricEnrollment.findOne({
+    clientProfileId: profile._id,
+    branchId: targetBranchId,
+  });
+
+  if (enrollment && enrollment.status === 'ENROLLED') {
+    return { initiated: false, idempotentReused: true, reason: 'ALREADY_ENROLLED', enrollment };
+  }
+  if (enrollment && enrollment.status === 'DEVICE_USER_READY') {
+    return { initiated: false, idempotentReused: true, reason: 'ALREADY_DEVICE_READY', enrollment };
+  }
+
+  const existingConsent = await BiometricConsent.findOne({
+    clientProfileId: profile._id,
+    branchId: targetBranchId,
+    status: 'GRANTED',
+  }).sort({ consentedAt: -1 });
+
+  let consent = existingConsent;
+  const hasGrantedConsent =
+    Boolean(consent) ||
+    (enrollment && enrollment.consentStatus === 'GRANTED' && enrollment.status !== 'REVOKED');
+
+  if (!hasGrantedConsent) {
+    if (!consentAgreed) {
+      return { initiated: false, reason: 'CONSENT_REQUIRED', enrollment: enrollment || null };
+    }
+    consent = await BiometricConsent.create({
+      clientProfileId: profile._id,
+      userId: profile.userId || userId || null,
+      branchId: targetBranchId,
+      consentGiven: true,
+      consentVersion: 'v1.0',
+      ipAddress: String(ipAddress || ''),
+      status: 'GRANTED',
+      consentedAt: new Date(),
+    });
+  }
+
+  let device = explicitDevice;
+  if (!device) {
+    const branchDevices = await BiometricDevice.find({
+      branchId: targetBranchId,
+      isActive: true,
+      status: { $ne: 'DISABLED' },
+    }).sort({ supportsRemoteEnrollment: -1, status: -1, createdAt: 1 });
+    device =
+      branchDevices.find((d) => d.supportsRemoteEnrollment && d.status === 'ONLINE') ||
+      branchDevices.find((d) => d.supportsRemoteEnrollment) ||
+      branchDevices[0] ||
+      null;
+  }
+
+  if (!device) {
+    return { initiated: false, reason: 'NO_ACTIVE_DEVICE', enrollment: enrollment || null };
+  }
+
+  const requestedPin = String(biometricUserId || '').trim();
+  const prevStatus = enrollment?.status || 'NOT_STARTED';
+  const candidateBioId =
+    requestedPin || enrollment?.biometricUserId || (await allocateUniqueBiometricPin(device._id));
+
+  await assertNoBiometricIdConflict({
+    deviceId: device._id,
+    biometricUserId: candidateBioId,
+    clientProfileId: profile._id,
+    excludeEnrollmentId: enrollment?._id || null,
+  });
+
+  const now = new Date();
+  if (!enrollment) {
+    enrollment = new BiometricEnrollment({
+      clientProfileId: profile._id,
+      userId: profile.userId || userId || null,
+      branchId: targetBranchId,
+      enrollmentMethod: source === 'WEB' ? 'CLIENT_MOBILE' : 'REMOTE_ADMIN',
+      enrollmentRequestedAt: now,
+    });
+  }
+
+  enrollment.assignedDeviceId = device._id;
+  enrollment.branchId = targetBranchId;
+  enrollment.biometricUserId = candidateBioId;
+  if (consent) enrollment.consentId = consent._id;
+  enrollment.consentStatus = 'GRANTED';
+  enrollment.adminApprovalStatus = 'APPROVED';
+  enrollment.identityVerificationStatus = 'VERIFIED';
+  enrollment.approvedAt = enrollment.approvedAt || now;
+  enrollment.approvedBy = enrollment.approvedBy || actorUser?._id || null;
+  enrollment.deviceEnrollmentStatus =
+    enrollment.deviceEnrollmentStatus === 'DEVICE_VERIFIED' ? 'DEVICE_VERIFIED' : 'AWAITING_PHYSICAL';
+  if (enrollment.faceEnrollmentStatus !== 'ENROLLED') {
+    enrollment.faceEnrollmentStatus = 'PENDING';
+  }
+  enrollment.status = 'DEVICE_USER_SYNCING';
+  enrollment.failureReason = '';
+  enrollment.history.push({
+    action: 'AUTO_BIOMETRIC_ENROLLMENT_INITIATED',
+    fromStatus: prevStatus,
+    toStatus: 'DEVICE_USER_SYNCING',
+    actorUserId: actorUser?._id || userId || null,
+    timestamp: now,
+    note: `Automatically initiated biometric setup (${source}) with PIN ${candidateBioId} on ${device.deviceName}.`,
+  });
+  await enrollment.save();
+
+  const biometricDeviceSyncService = require('./biometricDeviceSyncService');
+  const syncRes = await biometricDeviceSyncService.syncEnrollmentDeviceUser({
+    enrollment,
+    device,
+    clientProfile: profile,
+    adminUser: actorUser || null,
+  });
+
+  return {
+    initiated: true,
+    idempotentReused: Boolean(syncRes?.idempotentReused),
+    enrollment: syncRes?.enrollment || enrollment,
+    syncJob: syncRes?.job || null,
+    device,
+  };
+};
+
 const approveEnrollment = async (enrollmentId, adminUser, { deviceId = null, biometricUserId = '' } = {}) => {
   const enrollment = await BiometricEnrollment.findById(enrollmentId).populate('clientProfileId');
   if (!enrollment) {
@@ -1178,6 +1364,24 @@ const recordClientConsent = async (userId, { agreed, ipAddress = '', branchId = 
   });
   await enrollment.save();
 
+  if (mongoose.connection.readyState === 1) {
+    try {
+      const autoRes = await autoInitiateBiometricEnrollment({
+        clientProfileId: profile._id,
+        userId,
+        branchId: targetBranchId,
+        consentAgreed: true,
+        ipAddress,
+        source: 'WEB',
+      });
+      if (autoRes?.enrollment) {
+        enrollment = autoRes.enrollment;
+      }
+    } catch (_autoErr) {
+      // Non-blocking: consent is already recorded
+    }
+  }
+
   return { consent, enrollment };
 };
 
@@ -1314,10 +1518,28 @@ const submitMobileCapture = async (
 
   await enrollment.save();
 
+  if (mongoose.connection.readyState === 1) {
+    try {
+      const autoRes = await autoInitiateBiometricEnrollment({
+        clientProfileId: profile._id,
+        userId,
+        branchId: targetBranchId,
+        consentAgreed: true,
+        ipAddress,
+        source: 'WEB',
+      });
+      if (autoRes?.enrollment) {
+        enrollment = autoRes.enrollment;
+      }
+    } catch (_autoErr) {
+      // Non-blocking: request is saved
+    }
+  }
+
   await notifyClient(
     userId,
-    'Biometric Enrollment Request Submitted',
-    'Your biometric enrollment request has been submitted for Admin review. Once approved, please complete your face enrollment at your branch biometric terminal.',
+    'Biometric Setup Initiated',
+    'Your biometric PIN is being prepared on your branch terminal. Once ready, please complete your face scan at the terminal.',
     'ATTENDANCE'
   );
 
@@ -2020,6 +2242,7 @@ module.exports = {
   assertNoBiometricIdConflict,
   completeManualEnrollment,
   confirmPhysicalFaceEnrollment,
+  autoInitiateBiometricEnrollment,
   initiatePhysicalEnrollment,
   initiateRemoteEnrollment,
   approveEnrollment,

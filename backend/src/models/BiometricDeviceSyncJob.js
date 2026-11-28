@@ -56,6 +56,15 @@ const biometricDeviceSyncJobSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    nextRetryAt: {
+      type: Date,
+      default: null,
+    },
+    maxAttempts: {
+      type: Number,
+      default: 5,
+      min: 1,
+    },
     responseStatus: {
       type: String,
       trim: true,

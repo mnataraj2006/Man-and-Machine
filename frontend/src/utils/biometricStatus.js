@@ -11,7 +11,7 @@ export function mapBiometricUiState(bio = {}) {
   if (!hasEnrollment && displayStatus === 'NOT_ENROLLED') {
     return {
       key: 'NOT_SET_UP',
-      label: 'Not Set Up',
+      label: 'Consent Required',
       actionLabel: 'Set Up Biometric Access',
       actionType: 'SETUP',
       badgeClass: 'bg-[#202020] text-[#B8B8B8] border-[#303030]',
@@ -88,7 +88,7 @@ export function mapBiometricUiState(bio = {}) {
   ) {
     return {
       key: 'DEVICE_USER_SYNCING',
-      label: 'Sending to Device',
+      label: 'Setting Up',
       actionLabel: 'View Progress',
       actionType: 'PROGRESS',
       badgeClass: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
@@ -99,7 +99,7 @@ export function mapBiometricUiState(bio = {}) {
     const notSyncedYet = syncStatus === 'NOT_STARTED';
     return {
       key: 'AWAITING_PHYSICAL_ENROLLMENT',
-      label: notSyncedYet ? 'Waiting to Send to Device' : 'Waiting for Device',
+      label: 'Setting Up',
       actionLabel: notSyncedYet ? 'Send User to Device' : 'View Progress',
       actionType: notSyncedYet ? 'RETRY' : 'PROGRESS',
       badgeClass: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
@@ -108,7 +108,7 @@ export function mapBiometricUiState(bio = {}) {
 
   return {
     key: 'ADMIN_CONFIRMED',
-    label: 'Registration Approved',
+    label: 'Setting Up',
     actionLabel: 'View Progress',
     actionType: 'PROGRESS',
     badgeClass: 'bg-amber-500/15 text-amber-400 border-amber-500/30',

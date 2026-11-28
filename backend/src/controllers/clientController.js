@@ -1231,6 +1231,24 @@ const purchaseMembership = async (req, res, next) => {
     await clientProfile.save();
     await syncClientProfileMembership({ userId, clientProfileId: clientProfile._id });
 
+    let biometricEnrollment = null;
+    if (isPaid) {
+      try {
+        const biometricEnrollmentService = require('../services/biometricEnrollmentService');
+        const autoBio = await biometricEnrollmentService.autoInitiateBiometricEnrollment({
+          clientProfileId: clientProfile._id,
+          userId,
+          branchId,
+          consentAgreed: Boolean(req.body.biometricConsentAgreed),
+          ipAddress: req.ip || '',
+          source: 'WEB',
+        });
+        biometricEnrollment = autoBio?.enrollment || null;
+      } catch (_bioErr) {
+        // Non-blocking: membership purchase succeeds even if biometric device is unavailable
+      }
+    }
+
     res.status(201).json({
       success: true,
       message: isPaid
@@ -1239,6 +1257,7 @@ const purchaseMembership = async (req, res, next) => {
       membership,
       trainerAssigned: Boolean(trainingPreference === 'PERSONAL_TRAINER' && isPaid),
       paymentStatus,
+      ...(biometricEnrollment ? { biometricEnrollment } : {}),
     });
   } catch (err) {
     next(err);

@@ -53,7 +53,7 @@ export default function ClientBiometricAccess({ onNavigate }) {
       setFeedback({
         type: 'success',
         message:
-          'Biometric enrollment request submitted! An admin will review, assign your Biometric ID, and prepare your branch terminal.',
+          'Biometric setup initiated automatically! Your Biometric PIN is being prepared on your branch terminal.',
       });
       setStep('status');
       await loadStatus();
