@@ -278,6 +278,16 @@ const biometricDeviceService = require('./src/services/biometricDeviceService');
       );
       const reloadedJob = await BiometricDeviceSyncJob.findById(job3._id);
       assert.strictEqual(reloadedJob.status, 'VERIFIED');
+
+      // I. ATTLOG attendance punch does NOT falsely mark face enrollment as complete
+      const attRes = await biometricDeviceService.handleAdmsAttLog(
+        deviceA.serialNumber,
+        '1007\t2026-11-28 15:00:00\t0\t15\t0\t0\n'
+      );
+      assert.strictEqual(attRes.processed, 1);
+      const enr3AfterAtt = await BiometricEnrollment.findById(enr3._id);
+      assert.strictEqual(enr3AfterAtt.status, 'DEVICE_USER_READY');
+      assert.strictEqual(enr3AfterAtt.faceEnrollmentStatus, 'PENDING');
     });
 
     console.log(`\nALL ${passed} BIOMETRIC STATUS CORRECTION REGRESSION CHECKS PASSED!`);
