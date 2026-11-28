@@ -167,7 +167,9 @@ html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
   background-color: var(--bg-header);
 }
 
-[data-theme="light"] .mm-dashboard-theme .bg-\[\#111111\] {
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#111111\],
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#0D0D0D\],
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#0F0F0F\] {
   background-color: var(--bg-secondary);
 }
 
@@ -176,7 +178,9 @@ html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
 }
 
 [data-theme="light"] .mm-dashboard-theme .bg-\[\#181818\],
-[data-theme="light"] .mm-dashboard-theme .bg-\[\#181818\]\/60 {
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#181818\]\/60,
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#141414\],
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#161616\] {
   background-color: var(--bg-card);
   box-shadow: var(--shadow-card);
 }
@@ -184,11 +188,16 @@ html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
 [data-theme="light"] .mm-dashboard-theme .bg-\[\#202020\],
 [data-theme="light"] .mm-dashboard-theme .bg-\[\#202020\]\/40,
 [data-theme="light"] .mm-dashboard-theme .bg-\[\#202020\]\/50,
-[data-theme="light"] .mm-dashboard-theme .bg-\[\#202020\]\/60 {
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#202020\]\/60,
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#191919\],
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#1A1A1A\],
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#1D1D1D\],
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#1E1E1E\] {
   background-color: var(--bg-elevated);
 }
 
 [data-theme="light"] .mm-dashboard-theme .bg-\[\#252525\],
+[data-theme="light"] .mm-dashboard-theme .bg-\[\#262626\],
 [data-theme="light"] .mm-dashboard-theme .bg-\[\#2c2c2c\],
 [data-theme="light"] .mm-dashboard-theme .bg-\[\#2F2F2F\],
 [data-theme="light"] .mm-dashboard-theme .bg-\[\#303030\] {
@@ -205,8 +214,11 @@ html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
 
 /* Hover Backgrounds */
 [data-theme="light"] .mm-dashboard-theme .hover\:bg-\[\#181818\]:hover,
+[data-theme="light"] .mm-dashboard-theme .hover\:bg-\[\#191919\]:hover,
 [data-theme="light"] .mm-dashboard-theme .hover\:bg-\[\#202020\]:hover,
 [data-theme="light"] .mm-dashboard-theme .hover\:bg-\[\#252525\]:hover,
+[data-theme="light"] .mm-dashboard-theme .hover\:bg-\[\#282828\]:hover,
+[data-theme="light"] .mm-dashboard-theme .hover\:bg-\[\#2A2A2A\]:hover,
 [data-theme="light"] .mm-dashboard-theme .hover\:bg-\[\#303030\]:hover {
   background-color: var(--bg-hover);
 }
@@ -225,17 +237,25 @@ html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
 }
 
 /* Borders & Dividers */
+[data-theme="light"] .mm-dashboard-theme .border-\[\#1E1E1E\],
 [data-theme="light"] .mm-dashboard-theme .border-\[\#202020\],
+[data-theme="light"] .mm-dashboard-theme .border-\[\#222222\],
+[data-theme="light"] .mm-dashboard-theme .border-\[\#242424\],
 [data-theme="light"] .mm-dashboard-theme .border-\[\#252525\],
 [data-theme="light"] .mm-dashboard-theme .border-\[\#262626\],
+[data-theme="light"] .mm-dashboard-theme .border-\[\#2A2A2A\],
+[data-theme="light"] .mm-dashboard-theme .border-\[\#2C2C2C\],
+[data-theme="light"] .mm-dashboard-theme .border-\[\#2F2F2F\],
 [data-theme="light"] .mm-dashboard-theme .border-\[\#303030\],
 [data-theme="light"] .mm-dashboard-theme .border-\[\#303030\]\/50,
 [data-theme="light"] .mm-dashboard-theme .border-\[\#303030\]\/60,
+[data-theme="light"] .mm-dashboard-theme .border-\[\#333333\],
 [data-theme="light"] .mm-dashboard-theme .border-\[\#383838\],
 [data-theme="light"] .mm-dashboard-theme .border-\[\#444\] {
   border-color: var(--border-primary);
 }
 
+[data-theme="light"] .mm-dashboard-theme .divide-\[\#1E1E1E\] > :not([hidden]) ~ :not([hidden]),
 [data-theme="light"] .mm-dashboard-theme .divide-\[\#202020\] > :not([hidden]) ~ :not([hidden]),
 [data-theme="light"] .mm-dashboard-theme .divide-\[\#252525\] > :not([hidden]) ~ :not([hidden]),
 [data-theme="light"] .mm-dashboard-theme .divide-\[\#303030\] > :not([hidden]) ~ :not([hidden]) {
@@ -254,11 +274,17 @@ html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
 
 [data-theme="light"] .mm-dashboard-theme .text-\[\#B8B8B8\],
 [data-theme="light"] .mm-dashboard-theme .text-\[\#B8B8B8\]\/70,
-[data-theme="light"] .mm-dashboard-theme .text-\[\#B8B8B8\]\/80 {
+[data-theme="light"] .mm-dashboard-theme .text-\[\#B8B8B8\]\/80,
+[data-theme="light"] .mm-dashboard-theme .text-\[\#B3B3B3\],
+[data-theme="light"] .mm-dashboard-theme .text-\[\#AAAAAA\],
+[data-theme="light"] .mm-dashboard-theme .text-\[\#999999\] {
   color: var(--text-secondary);
 }
 
 [data-theme="light"] .mm-dashboard-theme .text-\[\#858585\],
+[data-theme="light"] .mm-dashboard-theme .text-\[\#888888\],
+[data-theme="light"] .mm-dashboard-theme .text-\[\#777777\],
+[data-theme="light"] .mm-dashboard-theme .text-\[\#666666\],
 [data-theme="light"] .mm-dashboard-theme .text-\[\#555\],
 [data-theme="light"] .mm-dashboard-theme .text-\[\#525252\],
 [data-theme="light"] .mm-dashboard-theme .text-\[\#303030\] {
@@ -266,7 +292,7 @@ html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
 }
 
 /* Text-white on dark panels switches to dark charcoal, except on solid colored pills/buttons */
-[data-theme="light"] .mm-dashboard-theme .text-white:not(.bg-\[\#EB3E2E\]):not(.bg-\[\#F03B2E\]):not(.bg-\[\#FF493B\]):not(.bg-emerald-500):not(.bg-emerald-600):not(.bg-green-500):not(.bg-green-600):not(.bg-red-500):not(.bg-red-600):not(.bg-amber-500):not(.bg-amber-600):not(.bg-blue-500):not(.bg-blue-600):not(.bg-black) {
+[data-theme="light"] .mm-dashboard-theme .text-white:not(.bg-\[\#EB3E2E\]):not(.bg-\[\#F03B2E\]):not(.bg-\[\#FF493B\]):not(.bg-emerald-500):not(.bg-emerald-600):not(.bg-green-500):not(.bg-green-600):not(.bg-red-500):not(.bg-red-600):not(.bg-amber-500):not(.bg-amber-600):not(.bg-blue-500):not(.bg-blue-600):not(.bg-sky-500):not(.bg-sky-600):not(.bg-black) {
   color: var(--text-primary);
 }
 
@@ -300,8 +326,15 @@ html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
   color: var(--danger);
 }
 
-[data-theme="light"] .mm-dashboard-theme .text-blue-400 {
+[data-theme="light"] .mm-dashboard-theme .text-blue-400,
+[data-theme="light"] .mm-dashboard-theme .text-sky-400,
+[data-theme="light"] .mm-dashboard-theme .text-sky-300 {
   color: var(--info);
+}
+
+[data-theme="light"] .mm-dashboard-theme .text-amber-300,
+[data-theme="light"] .mm-dashboard-theme .text-amber-300\/90 {
+  color: var(--warning);
 }
 
 /* Form Elements & Placeholders */
