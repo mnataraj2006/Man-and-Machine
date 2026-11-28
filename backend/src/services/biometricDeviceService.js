@@ -716,10 +716,25 @@ const processAttendanceEvent = async ({
 
   const dedupKey = rawEventReference || `${device._id}:${cleanBioId}:${eventTime.toISOString()}`;
 
-  // Idempotency check
+  // Idempotency check (exact timestamp)
   const existing = await Attendance.findOne({ deviceId: device._id, rawEventReference: dedupKey }).lean();
   if (existing) {
     return { duplicate: true, record: existing };
+  }
+
+  // Camera/sensor bounce deduplication: ignore repeat punches of the same eventType within 30 seconds
+  const bounceWindowMs = 30 * 1000;
+  const recentBounce = await Attendance.findOne({
+    deviceId: device._id,
+    biometricUserId: cleanBioId,
+    eventType,
+    checkInTime: {
+      $gte: new Date(eventTime.getTime() - bounceWindowMs),
+      $lte: new Date(eventTime.getTime() + bounceWindowMs),
+    },
+  }).lean();
+  if (recentBounce) {
+    return { duplicate: true, record: recentBounce };
   }
 
   // Lookup BiometricUserMapping (supports both Clients and Employees)

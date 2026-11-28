@@ -154,6 +154,18 @@ const postText = (server, path, body) =>
       assert.strictEqual(count, 2);
     });
 
+    await check('4b. Rapid camera bounce ATTLOG within 30s (2s later) does NOT create duplicate attendance', async () => {
+      const res = await postText(
+        server,
+        '/iclock/cdata?SN=TDBD242100623&table=ATTLOG',
+        '1001\t2026-11-28 09:10:02\t0\t15\t0\t0\n'
+      );
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body, 'OK: 1');
+      const count = await Attendance.countDocuments({ clientProfileId: client._id });
+      assert.strictEqual(count, 2);
+    });
+
     await check('5. Consent restriction remains enforced when consent is not GRANTED', async () => {
       await BiometricEnrollment.updateOne({ _id: enrollment._id }, { $set: { consentStatus: 'WITHDRAWN' } });
       const res = await postText(
