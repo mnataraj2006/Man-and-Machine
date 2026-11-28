@@ -24,9 +24,12 @@ import biometricService from '../../services/biometricService.js';
 import adminService from '../../services/adminService.js';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
 
-const formatLastSeen = (lastSeenAt) => {
+const formatLastSeen = (lastSeenAt, lastSeenSecondsAgo = null) => {
   if (!lastSeenAt) return 'Not Connected (Never seen)';
-  const diffSec = Math.max(0, Math.floor((Date.now() - new Date(lastSeenAt).getTime()) / 1000));
+  const diffSec =
+    typeof lastSeenSecondsAgo === 'number' && Number.isFinite(lastSeenSecondsAgo)
+      ? Math.max(0, Math.floor(lastSeenSecondsAgo))
+      : Math.max(0, Math.floor((Date.now() - new Date(lastSeenAt).getTime()) / 1000));
   if (diffSec < 60) return `Last seen ${diffSec}s ago`;
   const diffMin = Math.floor(diffSec / 60);
   if (diffMin < 60) return `Last seen ${diffMin}m ago`;
@@ -849,7 +852,7 @@ export default function BiometricDevices() {
                     <div className="p-3 rounded-xl bg-[#111111] border border-[#252525] text-xs space-y-1">
                       <div className="flex justify-between">
                         <span className="text-[#858585]">Last Seen</span>
-                        <span className="font-mono text-[#F5F5F5]">{formatLastSeen(d.lastSeenAt)}</span>
+                        <span className="font-mono text-[#F5F5F5]">{formatLastSeen(d.lastSeenAt, d.lastSeenSecondsAgo)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[#858585]">Today Check-ins</span>
@@ -1975,7 +1978,7 @@ export default function BiometricDevices() {
                         </div>
                         <div>
                           <span className="text-[10px] text-[#858585] block">Last Seen</span>
-                          <span className="font-mono text-[#F5F5F5]">{formatLastSeen(deviceDetail.device.lastSeenAt)}</span>
+                          <span className="font-mono text-[#F5F5F5]">{formatLastSeen(deviceDetail.device.lastSeenAt, deviceDetail.device.lastSeenSecondsAgo)}</span>
                         </div>
                         <div>
                           <span className="text-[10px] text-[#858585] block">Last Sync</span>

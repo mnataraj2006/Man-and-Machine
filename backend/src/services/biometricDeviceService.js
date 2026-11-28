@@ -21,15 +21,15 @@ const dashboardCache = require('../utils/dashboardCache');
  * Compute real device status from isActive + lastSeenAt heartbeat window.
  * Never returns ONLINE unless device actually communicated within heartbeatTimeoutSeconds.
  */
-const computeEffectiveStatus = (device) => {
+const computeEffectiveStatus = (device, nowMs = Date.now()) => {
   if (!device) return 'OFFLINE';
   if (!device.isActive || device.status === 'DISABLED') return 'DISABLED';
   if (device.status === 'SYNCING') return 'SYNCING';
 
-  const timeoutMs = (device.heartbeatTimeoutSeconds || 180) * 1000;
+  const timeoutMs = Math.max(device.heartbeatTimeoutSeconds || 180, 300) * 1000;
   if (device.lastSeenAt) {
-    const elapsed = Date.now() - new Date(device.lastSeenAt).getTime();
-    if (elapsed <= timeoutMs) return 'ONLINE';
+    const elapsed = nowMs - new Date(device.lastSeenAt).getTime();
+    if (elapsed >= -60000 && elapsed <= timeoutMs) return 'ONLINE';
   }
 
   if (device.status === 'ERROR' && device.errorMessage) return 'ERROR';
@@ -1165,16 +1165,22 @@ const getDevicesOverview = async (query = {}) => {
   let offline = 0;
   let syncing = 0;
 
+  const nowMs = Date.now();
   const enrichedDevices = devices.map((d) => {
-    const effectiveStatus = computeEffectiveStatus(d);
+    const effectiveStatus = computeEffectiveStatus(d, nowMs);
     const health = computeHealthIndicator(effectiveStatus);
     if (effectiveStatus === 'ONLINE') online += 1;
     else if (effectiveStatus === 'SYNCING') syncing += 1;
     else if (effectiveStatus === 'OFFLINE' || effectiveStatus === 'ERROR') offline += 1;
 
+    const lastSeenSecondsAgo = d.lastSeenAt
+      ? Math.max(0, Math.floor((nowMs - new Date(d.lastSeenAt).getTime()) / 1000))
+      : null;
+
     return {
       ...d,
       effectiveStatus,
+      lastSeenSecondsAgo,
       health,
       todayAttendanceCount: countByDevice[String(d._id)] || 0,
     };
@@ -1224,13 +1230,18 @@ const getDeviceDetails = async (id) => {
       .lean(),
   ]);
 
-  const effectiveStatus = computeEffectiveStatus(device);
+  const nowMs = Date.now();
+  const effectiveStatus = computeEffectiveStatus(device, nowMs);
   const health = computeHealthIndicator(effectiveStatus);
+  const lastSeenSecondsAgo = device.lastSeenAt
+    ? Math.max(0, Math.floor((nowMs - new Date(device.lastSeenAt).getTime()) / 1000))
+    : null;
 
   return {
     device: {
       ...device,
       effectiveStatus,
+      lastSeenSecondsAgo,
       health,
       attendanceToday: todayCount,
       attendanceThisMonth: monthCount,
