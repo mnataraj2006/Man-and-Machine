@@ -23,6 +23,7 @@ import {
 import biometricService from '../../services/biometricService.js';
 import adminService from '../../services/adminService.js';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
+import AccessControllersPanel from '../../components/Admin/AccessControllersPanel.jsx';
 
 const formatLastSeen = (lastSeenAt, lastSeenSecondsAgo = null) => {
   if (!lastSeenAt) return 'Not Connected (Never seen)';
@@ -761,6 +762,7 @@ export default function BiometricDevices() {
         <div className="flex items-center gap-2 flex-wrap">
           {[
             { key: 'devices', label: `Branch Devices (${devices.length})` },
+            { key: 'controllers', label: 'Access Controllers' },
             { key: 'enrollments', label: 'Enrollment Requests' },
             { key: 'manual', label: 'Member Enrollment' },
             { key: 'migration', label: 'Existing Users Migration' },
@@ -800,6 +802,10 @@ export default function BiometricDevices() {
       </div>
 
       {/* ── DEVICES GRID ── */}
+      {activeTab === 'controllers' && (
+        <AccessControllersPanel branches={branches} branchFilter={branchFilter} />
+      )}
+
       {activeTab === 'devices' && (
         loading ? (
           <div className="bg-[#181818] border border-[#303030] rounded-2xl py-12 text-center text-xs text-[#B8B8B8]">

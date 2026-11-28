@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const biometricController = require('../controllers/biometricController');
+const accessControllerController = require('../controllers/accessControllerController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 const { createRateLimiter } = require('../middleware/rateLimitMiddleware');
 
@@ -48,5 +49,14 @@ router.post('/migration/bulk-map', biometricController.bulkMapMigration);
 router.get('/devices/:id/commands', biometricController.getDeviceCommands);
 router.post('/devices/:id/commands', biometricController.queueDeviceCommand);
 router.post('/commands/:commandId/cancel', biometricController.cancelDeviceCommand);
+
+// Universal Physical Access Controllers
+router.get('/access-controllers', accessControllerController.listControllers);
+router.post('/access-controllers', accessControllerController.registerController);
+router.put('/access-controllers/:id', accessControllerController.updateController);
+router.patch('/access-controllers/:id/toggle', accessControllerController.toggleController);
+router.post('/access-controllers/:id/test-connection', accessControllerController.testControllerConnection);
+router.post('/access-controllers/:id/authorize', accessControllerController.authorizeControllerAccess);
+router.get('/access-controllers/:id/events', accessControllerController.listControllerEvents);
 
 module.exports = router;

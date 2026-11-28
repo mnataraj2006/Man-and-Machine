@@ -162,6 +162,35 @@ class BiometricService {
   cancelDeviceCommand(commandId) {
     return this.request(`/commands/${commandId}/cancel`, { method: 'POST' });
   }
+
+  getAccessControllers(params = {}) {
+    const clean = {};
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '' && v !== 'ALL') clean[k] = v;
+    });
+    const qs = new URLSearchParams(clean).toString();
+    return this.request(`/access-controllers${qs ? `?${qs}` : ''}`);
+  }
+
+  registerAccessController(payload) {
+    return this.request('/access-controllers', { method: 'POST', body: JSON.stringify(payload) });
+  }
+
+  toggleAccessController(id, isEnabled) {
+    return this.request(`/access-controllers/${id}/toggle`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isEnabled }),
+    });
+  }
+
+  testAccessControllerConnection(id) {
+    return this.request(`/access-controllers/${id}/test-connection`, { method: 'POST' });
+  }
+
+  getAccessControllerEvents(id, params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return this.request(`/access-controllers/${id}/events${qs ? `?${qs}` : ''}`);
+  }
 }
 
 export default new BiometricService();
