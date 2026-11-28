@@ -321,69 +321,6 @@ export default function Attendance() {
         </button>
       </div>
 
-      {/* ── DAILY WORK SESSIONS & SEQUENCE SUMMARY ── */}
-      {dailySummaries.length > 0 && (
-        <div className="bg-[#181818] border border-[#303030] rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 bg-[#141414] border-b border-[#2A2A2A] flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#EB3E2E]" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#F5F5F5]">
-                Daily Work Sessions &amp; Entry/Exit Summary ({date})
-              </h3>
-            </div>
-            <span className="text-[11px] text-[#858585]">Calculated from valid IN / OUT pairs</span>
-          </div>
-
-          <div className="divide-y divide-[#252525]">
-            {dailySummaries.map((s) => (
-              <div key={s.subjectKey} className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-[#F5F5F5]">{s.subjectName}</span>
-                    <span className="font-mono text-[11px] text-[#EB3E2E]">{s.subjectCode}</span>
-                    <span className="px-2 py-0.5 rounded bg-[#202020] text-[#B8B8B8] text-[10px] font-bold uppercase">
-                      {s.subjectType}
-                    </span>
-                    <span className="text-[#858585]">• {s.branchName}</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#B8B8B8]">
-                    <span>Entries: <strong className="text-emerald-400">{s.entriesCount}</strong></span>
-                    <span>• Exits: <strong className="text-amber-300">{s.exitsCount}</strong></span>
-                    <span>• Worked: <strong className="text-[#F5F5F5]">{s.formattedTotalWorked}</strong></span>
-                    {s.flags.map((f) => (
-                      <span
-                        key={f}
-                        className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-bold uppercase"
-                      >
-                        {f.replace(/_/g, ' ')}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {s.sessions.length > 0 ? (
-                    s.sessions.map((sess, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#111111] border border-[#2A2A2A] font-mono text-[11px] text-[#D4D4D4]"
-                      >
-                        {formatTimeIST(sess.checkInTime)}
-                        <ArrowRight className="w-3 h-3 text-[#EB3E2E]" />
-                        {formatTimeIST(sess.checkOutTime)}
-                        <span className="text-emerald-400">({sess.formattedDuration})</span>
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-[11px] text-[#858585] italic">No complete IN/OUT pair yet</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* ── CHRONOLOGICAL ATTENDANCE LOG TABLE ── */}
       <div className="bg-[#181818] border border-[#303030] rounded-2xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
