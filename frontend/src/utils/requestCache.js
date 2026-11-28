@@ -20,6 +20,20 @@ export function clearRequestCache() {
   inflightStore.clear();
 }
 
+export function invalidateRequestCachePrefix(prefix) {
+  const scopePrefix = `${getScopePrefix()}:${prefix}`;
+  for (const key of cacheStore.keys()) {
+    if (key.startsWith(scopePrefix)) {
+      cacheStore.delete(key);
+    }
+  }
+  for (const key of inflightStore.keys()) {
+    if (key.startsWith(scopePrefix)) {
+      inflightStore.delete(key);
+    }
+  }
+}
+
 export async function cachedFetch(key, fetcher, ttlMs = 15000) {
   const scopedKey = `${getScopePrefix()}:${key}`;
   const existing = cacheStore.get(scopedKey);

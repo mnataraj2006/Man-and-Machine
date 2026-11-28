@@ -1,7 +1,14 @@
 import authService from './auth.js';
-import { cachedFetch, clearRequestCache } from '../utils/requestCache.js';
+import { cachedFetch, clearRequestCache, invalidateRequestCachePrefix } from '../utils/requestCache.js';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('mm:attendance-updated', () => {
+    invalidateRequestCachePrefix('admin:/attendance');
+    invalidateRequestCachePrefix('admin:/dashboard');
+  });
+}
 
 class AdminService {
   getAuthHeaders() {
@@ -20,7 +27,17 @@ class AdminService {
     const isCacheableGet =
       method === 'GET' &&
       !options.skipCache &&
-      (endpoint.startsWith('/dashboard') || endpoint === '/branches' || endpoint.startsWith('/membership-plans'));
+      (endpoint.startsWith('/dashboard') ||
+        endpoint === '/branches' ||
+        endpoint.startsWith('/clients') ||
+        endpoint.startsWith('/trainers') ||
+        endpoint.startsWith('/membership-plans') ||
+        endpoint.startsWith('/memberships') ||
+        endpoint.startsWith('/attendance') ||
+        endpoint.startsWith('/payments') ||
+        endpoint.startsWith('/notifications') ||
+        endpoint.startsWith('/settings') ||
+        endpoint.startsWith('/reports'));
 
     const execute = async () => {
       const url = `${API_BASE_URL}/admin${endpoint}`;
@@ -70,7 +87,7 @@ class AdminService {
     };
 
     if (isCacheableGet) {
-      return cachedFetch(`admin:${endpoint}`, execute, 15000);
+      return cachedFetch(`admin:${endpoint}`, execute, 30000);
     }
     return execute();
   }

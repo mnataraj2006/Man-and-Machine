@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy, startTransition } from 'react';
 import Header from './components/Navbar/Header.jsx';
 import Hero from './components/Hero/Hero.jsx';
 import BrandStatement from './components/Editorial/BrandStatement.jsx';
@@ -92,6 +92,12 @@ const RouteFallback = () => (
   </div>
 );
 
+const AdminContentFallback = () => (
+  <div className="py-12 flex items-center justify-center">
+    <div className="w-6 h-6 border-2 border-[#303030] border-t-[#EB3E2E] rounded-full animate-spin" />
+  </div>
+);
+
 export default function App() {
   const [joinModalOpen, setJoinModalOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -145,10 +151,10 @@ export default function App() {
       const validPath = checkRoutePermission(path);
       if (validPath !== path) {
         window.history.replaceState({}, '', validPath);
-        setCurrentPath(validPath);
-      } else {
-        setCurrentPath(path);
       }
+      startTransition(() => {
+        setCurrentPath(validPath);
+      });
     };
 
     // Check initial path on load
@@ -167,7 +173,9 @@ export default function App() {
     const validPath = checkRoutePermission(path);
     if (window.location.pathname !== validPath) {
       window.history.pushState({}, '', validPath);
-      setCurrentPath(validPath);
+      startTransition(() => {
+        setCurrentPath(validPath);
+      });
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -307,7 +315,9 @@ export default function App() {
             navigate('/login');
           }}
         >
-          {adminContent}
+          <Suspense fallback={<AdminContentFallback />}>
+            {adminContent}
+          </Suspense>
         </AdminLayout>
       </Suspense>
     );
