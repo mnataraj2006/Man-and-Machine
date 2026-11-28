@@ -33,7 +33,10 @@ async function runWithOptionalTransaction(fn) {
     const msg = String(err?.message || '');
     if (
       msg.includes('Transaction numbers are only allowed on a replica set') ||
-      msg.includes('sessions are not supported')
+      msg.includes('sessions are not supported') ||
+      msg.includes('does not support retryable writes') ||
+      msg.includes('Transactions are not supported') ||
+      msg.includes('transaction') && msg.includes('standalone')
     ) {
       return fn(null);
     }

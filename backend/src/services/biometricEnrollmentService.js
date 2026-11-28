@@ -748,7 +748,7 @@ const confirmPhysicalFaceEnrollment = async (enrollmentId, adminUser, { note = '
     throw err;
   }
 
-  const enrollment = await BiometricEnrollment.findById(enrollmentId).populate('clientProfileId', 'name clientId userId branchId');
+  const enrollment = await BiometricEnrollment.findById(enrollmentId).populate('clientProfileId', 'name clientId userId branchId registrationSource');
   if (!enrollment) {
     const err = new Error('Biometric enrollment record not found.');
     err.statusCode = 404;
@@ -756,6 +756,14 @@ const confirmPhysicalFaceEnrollment = async (enrollmentId, adminUser, { note = '
   }
 
   biometricDeviceService.assertAdminBranchAccess(adminUser, enrollment.branchId);
+
+  if (enrollment.clientProfileId?.registrationSource === 'SELF_REGISTERED') {
+    const err = new Error(
+      'Manual physical face confirmation is only for walk-in registrations. Web-registered clients complete physical face enrollment directly at the branch device.'
+    );
+    err.statusCode = 403;
+    throw err;
+  }
 
   if (enrollment.status === 'REVOKED' || enrollment.consentStatus === 'WITHDRAWN') {
     const err = new Error('Cannot confirm face enrollment for a REVOKED record without fresh client consent.');
@@ -1026,6 +1034,22 @@ const autoInitiateBiometricEnrollment = async ({
     note: `Automatically initiated biometric setup (${source}) with PIN ${candidateBioId} on ${device.deviceName}.`,
   });
   await enrollment.save();
+
+  // Persist BiometricUserMapping immediately so attendance resolves to this client
+  // even while physical faceEnrollmentStatus is still PENDING.
+  await BiometricUserMapping.findOneAndUpdate(
+    { deviceId: device._id, biometricUserId: candidateBioId },
+    {
+      biometricUserId: candidateBioId,
+      subjectType: 'CLIENT',
+      clientProfileId: profile._id,
+      userId: profile.userId || userId || null,
+      deviceId: device._id,
+      branchId: targetBranchId,
+      status: 'ACTIVE',
+    },
+    { upsert: true, new: true }
+  );
 
   const biometricDeviceSyncService = require('./biometricDeviceSyncService');
   const syncRes = await biometricDeviceSyncService.syncEnrollmentDeviceUser({
@@ -1977,7 +2001,7 @@ const getClientBiometricSummary = async ({
   const attOr = [{ clientProfileId }];
   if (userId) attOr.push({ userId });
 
-  const [latestEnrollment, mapping, lastBioPunch, branchDevice] = await Promise.all([
+  const [latestEnrollment, mapping, lastBioPunch, branchDevice, clientDoc] = await Promise.all([
     BiometricEnrollment.findOne({ clientProfileId })
       .select('-faceCapture -captureFrames -history')
       .sort({ updatedAt: -1, createdAt: -1 })
@@ -1999,6 +2023,7 @@ const getClientBiometricSummary = async ({
           .select('deviceName serialNumber status isActive lastSyncAt lastSeenAt branchId discoveredUsers')
           .lean()
       : Promise.resolve(null),
+    ClientProfile.findById(clientProfileId).select('registrationSource').lean(),
   ]);
 
   const device = mapping?.deviceId || latestEnrollment?.assignedDeviceId || branchDevice || null;
@@ -2101,9 +2126,13 @@ const getClientBiometricSummary = async ({
   const perUserVerifiedAt =
     syncJob?.verifiedAt || (hasReliableDeviceEvidence ? latestEnrollment?.lastVerifiedAt : null) || null;
 
+  const trustedRegistrationSource = clientDoc?.registrationSource || 'SELF_REGISTERED';
+
   return {
     enrollmentId: latestEnrollment?._id || null,
     mappingId: mapping?._id || null,
+    registrationSource: trustedRegistrationSource,
+    requiresAdminFaceConfirmation: trustedRegistrationSource === 'ADMIN_REGISTERED',
     rawEnrollmentStatus: rawStatus,
     displayStatus,
     biometricUserId: bioPin,

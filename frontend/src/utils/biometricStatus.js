@@ -62,21 +62,25 @@ export function mapBiometricUiState(bio = {}) {
   }
 
   if (rawStatus === 'FACE_ENROLLMENT_PENDING') {
+    const isWalkIn = bio?.registrationSource === 'ADMIN_REGISTERED';
     return {
       key: 'FACE_ENROLLMENT_PENDING',
       label: 'Face Enrollment Pending',
-      actionLabel: 'View Instructions',
-      actionType: 'INSTRUCTIONS',
+      actionLabel: isWalkIn ? 'Confirm Physical Face Enrollment' : 'View Enrollment Instructions',
+      actionType: isWalkIn ? 'CONFIRM_FACE' : 'INSTRUCTIONS',
       badgeClass: 'bg-sky-500/15 text-sky-400 border-sky-500/30',
     };
   }
 
   if (displayStatus === 'DEVICE_USER_READY' || rawStatus === 'DEVICE_USER_READY') {
+    const isWalkIn = bio?.registrationSource === 'ADMIN_REGISTERED';
     return {
       key: 'DEVICE_USER_READY',
-      label: 'Device User Ready — Face Enrollment Required',
-      actionLabel: 'Confirm Physical Face Enrollment',
-      actionType: 'CONFIRM_FACE',
+      label: isWalkIn
+        ? 'Device User Ready — Face Enrollment Required'
+        : 'Device User Ready — Enroll Face at Branch Device',
+      actionLabel: isWalkIn ? 'Confirm Physical Face Enrollment' : 'View Enrollment Instructions',
+      actionType: isWalkIn ? 'CONFIRM_FACE' : 'INSTRUCTIONS',
       badgeClass: 'bg-sky-500/15 text-sky-600 border-sky-500/30',
     };
   }

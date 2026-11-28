@@ -147,6 +147,7 @@ const biometricDeviceSyncService = require('./src/services/biometricDeviceSyncSe
         name: 'Walkin Athlete',
         phone: '9876500002',
         branchId: branchA._id,
+        registrationSource: 'ADMIN_REGISTERED',
         status: 'ACTIVE',
       });
       await Membership.create({
@@ -280,13 +281,12 @@ const biometricDeviceSyncService = require('./src/services/biometricDeviceSyncSe
       assert.strictEqual(updated.faceEnrollmentStatus, 'PENDING');
 
       // ATTLOG never marks face enrolled
-      await BiometricUserMapping.create({
-        deviceId: deviceA._id,
-        branchId: branchA._id,
-        biometricUserId: pin,
-        clientProfileId: walkinEnr.clientProfileId,
-        status: 'ACTIVE',
-      });
+      // Mapping already created by autoInitiateBiometricEnrollment — ensure it exists idempotently
+      await BiometricUserMapping.findOneAndUpdate(
+        { deviceId: deviceA._id, biometricUserId: pin },
+        { deviceId: deviceA._id, branchId: branchA._id, biometricUserId: pin, clientProfileId: walkinEnr.clientProfileId, status: 'ACTIVE' },
+        { upsert: true }
+      );
       await biometricDeviceService.handleAdmsAttLog(deviceA.serialNumber, `${pin}\t2026-11-28 22:00:00\t0\t15\t0\t0\n`);
       updated = await BiometricEnrollment.findById(walkinEnr._id);
       assert.strictEqual(updated.status, 'DEVICE_USER_READY');

@@ -58,6 +58,7 @@ export default function BiometricAccessModal({
   const bio = biometricSummary || {};
   const uiState = mapBiometricUiState(bio);
   const steps = computeBiometricSetupSteps(bio, enrollmentDetails);
+  const isWalkIn = (bio.registrationSource || client?.registrationSource) === 'ADMIN_REGISTERED';
 
   const enr = enrollmentDetails?.enrollment || {};
   const syncJob = enr.deviceUserSyncJobId || null;
@@ -216,10 +217,18 @@ export default function BiometricAccessModal({
           {showFaceInstructions && (
             <section className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-4 space-y-2.5">
               <h4 className="font-display text-sm font-bold uppercase text-sky-600">
-                Device User Ready — Face Enrollment Required
+                {isWalkIn
+                  ? 'Device User Ready — Face Enrollment Required'
+                  : 'Device User Ready — Client Must Enroll Face at Branch Device'}
               </h4>
               <p className="text-[11px] text-[#F5F5F5] leading-relaxed">
-                The user account has been created on the biometric device. Face registration must still be completed physically on the device. Because the eSSL X2008 does not push a standalone face-template confirmation event, an administrator must physically inspect the device and click <strong>Confirm Physical Face Enrollment</strong> below.
+                {isWalkIn
+                  ? (
+                    <>
+                      The user account has been created on the biometric device. Face registration must still be completed physically on the device. Because the eSSL X2008 does not push a standalone face-template confirmation event, an administrator must physically inspect the device and click <strong>Confirm Physical Face Enrollment</strong> below.
+                    </>
+                  )
+                  : 'Device user details and Biometric PIN are synced to the branch X2008. This Web-registered client must physically enroll their face at the branch device when visiting the gym. Attendance will automatically resolve to this client via their Biometric PIN mapping.'}
               </p>
               <ol className="space-y-1.5 list-decimal list-inside text-[11px] text-[#F5F5F5] leading-relaxed">
                 <li>Visit the biometric machine ({deviceName || 'branch terminal'}).</li>
@@ -227,7 +236,9 @@ export default function BiometricAccessModal({
                 <li>Select the existing user and choose <strong>Edit</strong>.</li>
                 <li>Confirm the displayed user details.</li>
                 <li>Complete physical face enrollment.</li>
-                <li>Physically verify on the device that face registration succeeded, then click <strong>Confirm Physical Face Enrollment</strong>.</li>
+                {isWalkIn && (
+                  <li>Physically verify on the device that face registration succeeded, then click <strong>Confirm Physical Face Enrollment</strong>.</li>
+                )}
               </ol>
             </section>
           )}
@@ -277,7 +288,8 @@ export default function BiometricAccessModal({
                 {busy ? 'Sending...' : uiState.actionLabel || 'Retry Setup'}
               </button>
             )}
-            {['DEVICE_USER_READY', 'FACE_ENROLLMENT_PENDING', 'AWAITING_PHYSICAL_ENROLLMENT'].includes(uiState.key) &&
+            {isWalkIn &&
+              ['DEVICE_USER_READY', 'FACE_ENROLLMENT_PENDING', 'AWAITING_PHYSICAL_ENROLLMENT'].includes(uiState.key) &&
               bio.enrollmentId &&
               onConfirmFace && (
                 <button
