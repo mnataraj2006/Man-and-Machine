@@ -139,17 +139,30 @@ const sendSms = async ({
   }
 };
 
-const processDeliveryReceipt = async ({ providerMessageId, status, failureReason = '' }) => {
-  if (!providerMessageId) return null;
-  const upper = String(status || '').toUpperCase();
-  const nextStatus = upper === 'DELIVERED' ? 'DELIVERED' : upper === 'FAILED' ? 'FAILED' : 'SENT';
-  const update = { status: nextStatus };
-  if (nextStatus === 'DELIVERED') update.deliveredAt = new Date();
-  if (nextStatus === 'FAILED') {
+const processDeliveryReceipt = async ({
+  providerMessageId,
+  status,
+  providerResponse = '',
+  failureReason = '',
+}) => {
+  if (typeof providerMessageId !== 'string' || !providerMessageId.trim()) return null;
+  const upper = String(status || '').trim().toUpperCase();
+  if (!['DELIVERED', 'FAILED'].includes(upper)) return null;
+
+  const update = {
+    status: upper,
+    providerResponse: String(providerResponse || upper).slice(0, 500),
+  };
+  if (upper === 'DELIVERED') update.deliveredAt = new Date();
+  if (upper === 'FAILED') {
     update.failedAt = new Date();
     update.failureReason = String(failureReason || 'Delivery failed at carrier').slice(0, 300);
   }
-  return SmsLog.findOneAndUpdate({ providerMessageId }, { $set: update }, { new: true }).lean();
+  return SmsLog.findOneAndUpdate(
+    { providerMessageId: providerMessageId.trim() },
+    { $set: update },
+    { returnDocument: 'after' }
+  ).lean();
 };
 
 module.exports = {

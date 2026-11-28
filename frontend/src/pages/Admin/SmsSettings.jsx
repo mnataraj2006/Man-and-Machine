@@ -106,11 +106,14 @@ export default function SmsSettings() {
     },
   });
 
-  // SMTP Test
+  // SMTP & SMS Test
   const [testingConn, setTestingConn] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
   const [testEmailTo, setTestEmailTo] = useState('');
   const [smtpNotice, setSmtpNotice] = useState(null);
+  const [testSmsPhone, setTestSmsPhone] = useState('');
+  const [sendingTestSms, setSendingTestSms] = useState(false);
+  const [smsTestNotice, setSmsTestNotice] = useState(null);
 
   // SMS Templates
   const [smsTemplates, setSmsTemplates] = useState([]);
@@ -309,6 +312,19 @@ export default function SmsSettings() {
     }
   };
 
+  const handleSendTestSms = async () => {
+    setSendingTestSms(true);
+    setSmsTestNotice(null);
+    try {
+      const res = await smsService.sendTestSms(testSmsPhone || form.ownerPhone);
+      setSmsTestNotice({ ok: true, text: res.message || 'Test SMS accepted.' });
+    } catch (err) {
+      setSmsTestNotice({ ok: false, text: err.message || 'Failed to send test SMS.' });
+    } finally {
+      setSendingTestSms(false);
+    }
+  };
+
   const handleSaveSmsTemplate = async (e) => {
     e.preventDefault();
     if (!editingSmsTpl) return;
@@ -397,8 +413,18 @@ export default function SmsSettings() {
             className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-2 rounded-lg hover:bg-[#191919] transition-colors"
           >
             <div>
-              <div className="text-sm font-medium text-white">
-                {idx + 1}. {item.label}
+              <div className="text-sm font-medium text-white flex flex-wrap items-center gap-2">
+                <span>
+                  {idx + 1}. {item.label}
+                </span>
+                {item.supported === false && (
+                  <span
+                    title={item.unsupportedReason || 'Module not yet implemented'}
+                    className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400"
+                  >
+                    Unavailable ({item.unsupportedReason || 'Module pending'})
+                  </span>
+                )}
               </div>
               <div className="text-[11px] text-[#777777] font-mono">
                 {item.key}
@@ -718,6 +744,32 @@ export default function SmsSettings() {
                       className="w-full px-3 py-2 rounded-xl bg-[#0D0D0D] border border-[#2C2C2C] text-white text-sm"
                     />
                   </div>
+                </div>
+
+                <div className="pt-3 border-t border-[#222222] flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex items-center gap-2 flex-1 max-w-md">
+                    <input
+                      type="text"
+                      placeholder="10-digit mobile for Test SMS..."
+                      value={testSmsPhone}
+                      onChange={(e) => setTestSmsPhone(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-xl bg-[#0D0D0D] border border-[#2C2C2C] text-white text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSendTestSms}
+                      disabled={sendingTestSms}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-sm font-semibold disabled:opacity-50"
+                    >
+                      <Send className="w-4 h-4" />
+                      {sendingTestSms ? 'Sending...' : 'Send Test SMS'}
+                    </button>
+                  </div>
+                  {smsTestNotice && (
+                    <span className={`text-xs ${smsTestNotice.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {smsTestNotice.text}
+                    </span>
+                  )}
                 </div>
               </div>
 

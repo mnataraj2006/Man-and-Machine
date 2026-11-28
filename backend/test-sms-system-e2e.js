@@ -199,10 +199,10 @@ const request = (server, method, path, body = null, token = null) =>
     await check('9. Unresolved template placeholder blocks sending and logs FAILED', async () => {
       const before = sentCalls.length;
       const res = await smsService.sendNotification({
-        notificationKey: 'MEMBER_LOCKER_EXPIRY',
+        notificationKey: 'MEMBER_MEMBERSHIP_PAYMENT',
         recipientPhone: '9876543210',
         recipientName: 'Karthik',
-        variables: { memberName: 'Karthik' }, // missing lockerNumber, branchName, expiryDate
+        variables: { memberName: 'Karthik' }, // missing paymentAmount, membershipName, branchName
         eventKey: 'test-unresolved-1',
       });
       assert.strictEqual(res.ok, false);

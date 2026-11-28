@@ -21,7 +21,7 @@ const normalizeNameTokens = (name) =>
 const namesRoughlyMatch = (a, b) => {
   const ta = normalizeNameTokens(a);
   const tb = normalizeNameTokens(b);
-  if (ta.length === 0 || tb.length === 0) return true; // No device name to conflict with
+  if (ta.length === 0 || tb.length === 0) return false; // Missing device name must not count as a confirmed match
   return ta.some((t) => tb.includes(t));
 };
 
@@ -94,9 +94,50 @@ const syncEnrollmentDeviceUser = async ({
   if (discovered) {
     const alreadyMappedToThisClient =
       existingMapping && String(existingMapping.clientProfileId) === String(clientProfile._id);
+    const hasDeviceName = Boolean(discovered.name && String(discovered.name).trim());
 
-    if (!alreadyMappedToThisClient && discovered.name && !namesRoughlyMatch(discovered.name, clientProfile.name)) {
+    if (!alreadyMappedToThisClient && !hasDeviceName) {
+      const unverifiedReason = `Device user PIN ${cleanBioId} exists on ${device.deviceName} without a user name. Admin verification is required before marking DEVICE_USER_READY.`;
+      const pendingJob = await BiometricDeviceSyncJob.create({
+        enrollmentId: enrollment._id,
+        clientProfileId: clientProfile._id,
+        deviceId: device._id,
+        branchId: device.branchId,
+        biometricUserId: cleanBioId,
+        clientName: clientProfile.name || '',
+        operation: 'VERIFY_DEVICE_USER',
+        status: 'PENDING',
+        attemptCount: 1,
+        lastAttemptAt: now,
+        responseStatus: 'IDENTITY_UNVERIFIED',
+        failureReason: unverifiedReason,
+        alreadyPresentOnDevice: true,
+        createdBy: adminUser?._id || null,
+      });
+
+      const prevStatus = enrollment.status;
+      enrollment.deviceUserSyncJobId = pendingJob._id;
+      enrollment.deviceUserSyncStatus = 'PENDING';
+      enrollment.deviceUserSyncError = unverifiedReason;
+      if (!['ENROLLED', 'REVOKED'].includes(enrollment.status)) {
+        enrollment.status = 'AWAITING_PHYSICAL_ENROLLMENT';
+        enrollment.faceEnrollmentStatus = 'PENDING';
+      }
+      enrollment.history.push({
+        action: 'DEVICE_USER_IDENTITY_UNVERIFIED',
+        fromStatus: prevStatus,
+        toStatus: enrollment.status,
+        actorUserId: adminUser?._id || null,
+        note: unverifiedReason,
+      });
+      await enrollment.save();
+
+      return { job: pendingJob, enrollment, idempotentReused: false };
+    }
+
+    if (!alreadyMappedToThisClient && hasDeviceName && !namesRoughlyMatch(discovered.name, clientProfile.name)) {
       const conflictReason = `Existing device user "${discovered.name}" for PIN ${cleanBioId} on ${device.deviceName} does not match ${clientProfile.name}.`;
+      const prevStatus = enrollment.status;
       const failedJob = await BiometricDeviceSyncJob.create({
         enrollmentId: enrollment._id,
         clientProfileId: clientProfile._id,
@@ -120,7 +161,7 @@ const syncEnrollmentDeviceUser = async ({
       enrollment.failureReason = conflictReason;
       enrollment.history.push({
         action: 'DEVICE_USER_SYNC_CONFLICT',
-        fromStatus: enrollment.status,
+        fromStatus: prevStatus,
         toStatus: 'FAILED',
         actorUserId: adminUser?._id || null,
         note: conflictReason,
@@ -257,25 +298,38 @@ const syncEnrollmentDeviceUser = async ({
       throw new Error(adapterRes?.error || 'Device rejected remote user creation.');
     }
 
-    job.status = adapterRes.verified ? 'VERIFIED' : 'ACKNOWLEDGED';
+    const isVerifiedOnDevice = Boolean(adapterRes.verified);
+    job.status = isVerifiedOnDevice ? 'VERIFIED' : 'ACKNOWLEDGED';
     job.responseStatus = adapterRes.responseStatus || 'OK';
     job.failureReason = '';
-    if (adapterRes.verified) job.verifiedAt = new Date();
+    if (isVerifiedOnDevice) job.verifiedAt = new Date();
     await job.save();
 
     const prevStatus = enrollment.status;
     enrollment.deviceUserSyncJobId = job._id;
     enrollment.deviceUserSyncStatus = job.status;
     enrollment.deviceUserSyncError = '';
-    enrollment.status = 'DEVICE_USER_READY';
     enrollment.faceEnrollmentStatus = 'PENDING'; // Never falsely mark face enrolled after user creation
-    enrollment.history.push({
-      action: 'DEVICE_USER_SYNCED',
-      fromStatus: prevStatus,
-      toStatus: 'DEVICE_USER_READY',
-      actorUserId: adminUser?._id || null,
-      note: `Device user ${cleanBioId} synced to ${device.deviceName}. Awaiting physical face enrollment.`,
-    });
+
+    if (isVerifiedOnDevice) {
+      enrollment.status = 'DEVICE_USER_READY';
+      enrollment.history.push({
+        action: 'DEVICE_USER_SYNCED',
+        fromStatus: prevStatus,
+        toStatus: 'DEVICE_USER_READY',
+        actorUserId: adminUser?._id || null,
+        note: `Device user ${cleanBioId} verified on ${device.deviceName}. Awaiting physical face enrollment.`,
+      });
+    } else {
+      enrollment.status = 'AWAITING_PHYSICAL_ENROLLMENT';
+      enrollment.history.push({
+        action: 'DEVICE_USER_SYNC_ACKNOWLEDGED',
+        fromStatus: prevStatus,
+        toStatus: 'AWAITING_PHYSICAL_ENROLLMENT',
+        actorUserId: adminUser?._id || null,
+        note: `Device user ${cleanBioId} command acknowledged by ${device.deviceName}. Awaiting device confirmation before marking READY.`,
+      });
+    }
     await enrollment.save();
 
     await BiometricDeviceLog.create({

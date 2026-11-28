@@ -1085,6 +1085,13 @@ const updateClient = async (req, res, next) => {
       await profile.save();
     }
 
+    if (profile) {
+      setImmediate(() => {
+        const communicationService = require('../services/communicationService');
+        communicationService.triggerClientUpdated({ client: profile, branch: { _id: profile.branchId } });
+      });
+    }
+
     res.status(200).json({ success: true, message: 'Client updated successfully', client: user ? user.toSafeObject() : { id: profile._id, name: profile.name, email: profile.email, phone: profile.phone, status: 'NOT_CREATED' } });
   } catch (err) {
     next(err);
@@ -2870,6 +2877,28 @@ const createClientMembership = async (req, res, next) => {
       });
     }
 
+    setImmediate(() => {
+      const communicationService = require('../services/communicationService');
+      const targetClient = profile || (user ? { _id: user._id, name: user.name, phone: user.phone, email: user.email, branchId: targetBranchId } : null);
+      if (targetClient && membership.status === 'ACTIVE') {
+        communicationService.triggerMembershipStatusChange({
+          client: targetClient,
+          membership,
+          branch: { _id: targetBranchId },
+          status: 'ACTIVE',
+          actionRef: `create:${membership._id}`,
+        });
+      }
+      if (targetClient && generatedPayment && generatedPayment.status === 'PAID') {
+        communicationService.triggerMembershipPayment({
+          client: targetClient,
+          payment: generatedPayment,
+          membership,
+          branch: { _id: targetBranchId },
+        });
+      }
+    });
+
     res.status(201).json({
       success: true,
       message: isCashPayment
@@ -3979,6 +4008,22 @@ const recordInvoicePayment = async (req, res, next) => {
         await syncClientProfileMembership({ userId: mem.userId, clientProfileId: mem.clientProfileId });
       }
     }
+
+    setImmediate(async () => {
+      const communicationService = require('../services/communicationService');
+      const cp = updatedInvoice.clientProfileId
+        ? await ClientProfile.findById(updatedInvoice.clientProfileId).lean()
+        : updatedInvoice.clientId
+          ? await ClientProfile.findOne({ userId: updatedInvoice.clientId }).lean()
+          : null;
+      if (cp && payment && payment.status === 'PAID') {
+        communicationService.triggerMembershipPayment({
+          client: cp,
+          payment,
+          branch: { _id: updatedInvoice.branchId },
+        });
+      }
+    });
 
     res.status(201).json({
       success: true,

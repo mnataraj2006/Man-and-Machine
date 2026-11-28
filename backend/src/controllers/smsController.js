@@ -181,6 +181,39 @@ const handleEmailDeliveryReceipt = async (req, res, next) => {
   }
 };
 
+const sendTestSms = async (req, res, next) => {
+  try {
+    const { normalizeIndianPhone } = require('../utils/phone');
+    const normalizedPhone = normalizeIndianPhone(req.body?.toPhone);
+    if (!normalizedPhone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid 10-digit Indian mobile number.',
+      });
+    }
+    const { settings } = await smsService.getOrCreateSettings();
+    const result = await smsProviderService.sendSms({
+      to: normalizedPhone,
+      message: 'Man & Machine HRMS: Test SMS from Communication Settings.',
+      senderId: settings.dltConfig?.senderId || '',
+      dltEntityId: settings.dltConfig?.entityId || '',
+      classification: 'SERVICE_IMPLICIT',
+    });
+    return res.status(result.ok ? 200 : 400).json({
+      success: Boolean(result.ok),
+      status: result.ok ? result.status || 'SENT' : 'FAILED',
+      providerMessageId: result.providerMessageId || '',
+      providerResponse: result.providerResponse || '',
+      failureReason: result.error || '',
+      message: result.ok
+        ? `Test SMS accepted for ${normalizedPhone} (Status: ${result.status || 'SENT'}). Delivery depends on carrier DLR.`
+        : result.error || 'Test SMS failed.',
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 module.exports = {
   getSmsSettings,
   updateSmsSettings,
@@ -189,6 +222,7 @@ module.exports = {
   listSmsLogs,
   runScheduledPassNow,
   handleDeliveryReceipt,
+  sendTestSms,
   listEmailTemplates,
   updateEmailTemplate,
   previewEmailTemplate,

@@ -105,6 +105,13 @@ class SmsService {
       body: JSON.stringify({ toEmail }),
     });
   }
+
+  sendTestSms(toPhone) {
+    return this.request('/test', {
+      method: 'POST',
+      body: JSON.stringify({ toPhone }),
+    });
+  }
 }
 
 export default new SmsService();

@@ -1081,6 +1081,45 @@ const handleAdmsOperLog = async (sn, rawBody) => {
   if (device.isActive && device.status !== 'DISABLED') device.status = 'ONLINE';
   await device.save();
 
+  // Promote ACKNOWLEDGED device-user sync jobs to VERIFIED only when OPERLOG confirms the user with a non-empty matching name
+  if (parsedUsersCount > 0 && mongoose.connection.readyState === 1) {
+    const BiometricEnrollment = require('../models/BiometricEnrollment');
+    const BiometricDeviceSyncJob = require('../models/BiometricDeviceSyncJob');
+    const pendingJobs = await BiometricDeviceSyncJob.find({
+      deviceId: device._id,
+      status: 'ACKNOWLEDGED',
+    });
+    for (const job of pendingJobs) {
+      const discovered = existingMap.get(job.biometricUserId);
+      if (!discovered || !discovered.name || !String(discovered.name).trim()) continue;
+      const enrollment = await BiometricEnrollment.findById(job.enrollmentId).populate('clientProfileId', 'name');
+      if (!enrollment) continue;
+      const clientName = enrollment.clientProfileId?.name || job.clientName || '';
+      const normA = String(discovered.name).toLowerCase().split(/\s+/).filter((t) => t.length >= 2);
+      const normB = String(clientName).toLowerCase().split(/\s+/).filter((t) => t.length >= 2);
+      if (normA.length === 0 || normB.length === 0 || !normA.some((t) => normB.includes(t))) continue;
+
+      job.status = 'VERIFIED';
+      job.verifiedAt = new Date();
+      job.responseStatus = 'OPERLOG_CONFIRMED';
+      await job.save();
+
+      const prevStatus = enrollment.status;
+      enrollment.deviceUserSyncStatus = 'VERIFIED';
+      if (!['ENROLLED', 'REVOKED'].includes(enrollment.status)) {
+        enrollment.status = 'DEVICE_USER_READY';
+        enrollment.faceEnrollmentStatus = 'PENDING';
+      }
+      enrollment.history.push({
+        action: 'DEVICE_USER_VERIFIED',
+        fromStatus: prevStatus,
+        toStatus: enrollment.status,
+        note: `Confirmed device user ${job.biometricUserId} (${discovered.name}) via OPERLOG from ${device.serialNumber}.`,
+      });
+      await enrollment.save();
+    }
+  }
+
   await logDeviceEvent({
     deviceId: device._id,
     branchId: device.branchId,

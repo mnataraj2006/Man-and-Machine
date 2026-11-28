@@ -1066,22 +1066,6 @@ const submitMobileCapture = async (
     });
   }
 
-  if (!livenessPassed || frameCount < 2) {
-    const err = new Error('Multi-frame liveness check failed. Please retake using a live front camera.');
-    err.statusCode = 400;
-    throw err;
-  }
-  if (brightnessScore < 35) {
-    const err = new Error('Lighting is too dim. Please move to a well-lit area and retake.');
-    err.statusCode = 400;
-    throw err;
-  }
-  if (sharpnessScore < 10) {
-    const err = new Error('Captured image is too blurry. Hold steady and retake.');
-    err.statusCode = 400;
-    throw err;
-  }
-
   const branchDevice = await BiometricDevice.findOne({ branchId: targetBranchId, isActive: true });
 
   let enrollment = await BiometricEnrollment.findOne({
@@ -1106,8 +1090,8 @@ const submitMobileCapture = async (
   enrollment.assignedDeviceId = enrollment.assignedDeviceId || branchDevice?._id || null;
   enrollment.consentId = consent._id;
   enrollment.consentStatus = 'GRANTED';
-  enrollment.status = 'CAPTURE_SUBMITTED';
-  enrollment.mobileCaptureStatus = 'CAPTURED';
+  enrollment.status = 'PENDING_REVIEW';
+  enrollment.mobileCaptureStatus = livenessPassed ? 'CAPTURED' : 'NOT_STARTED';
   enrollment.identityVerificationStatus = 'PENDING_REVIEW';
   enrollment.adminApprovalStatus = 'PENDING';
   enrollment.deviceEnrollmentStatus = 'NOT_STARTED';
@@ -1115,26 +1099,26 @@ const submitMobileCapture = async (
   enrollment.enrollmentRequestedAt = new Date();
   enrollment.failureReason = '';
   enrollment.captureQuality = {
-    brightnessScore,
-    sharpnessScore,
-    livenessPassed: true,
-    frameCount,
+    brightnessScore: Number(brightnessScore) || 0,
+    sharpnessScore: Number(sharpnessScore) || 0,
+    livenessPassed: Boolean(livenessPassed),
+    frameCount: Number(frameCount) || 0,
     capturedAt: new Date(),
   };
   enrollment.history.push({
-    action: 'MOBILE_CAPTURE_SUBMITTED',
+    action: 'ENROLLMENT_REQUEST_SUBMITTED',
     fromStatus: prevStatus,
-    toStatus: 'CAPTURE_SUBMITTED',
+    toStatus: 'PENDING_REVIEW',
     actorUserId: userId,
-    note: `Pre-enrollment capture submitted (${frameCount} frames, brightness ${brightnessScore}, sharpness ${sharpnessScore}). Awaiting Admin review & physical X2008 enrollment.`,
+    note: 'Biometric enrollment request submitted with member authorization. Awaiting Admin approval and physical X2008 terminal face enrollment.',
   });
 
   await enrollment.save();
 
   await notifyClient(
     userId,
-    'Biometric Pre-Enrollment Submitted',
-    'Your mobile face capture has been submitted for Admin review. Physical device enrollment at your branch will complete your registration.',
+    'Biometric Enrollment Request Submitted',
+    'Your biometric enrollment request has been submitted for Admin review. Once approved, please complete your face enrollment at your branch biometric terminal.',
     'ATTENDANCE'
   );
 

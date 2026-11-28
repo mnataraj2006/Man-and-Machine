@@ -1,93 +1,21 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Fingerprint,
-  Camera,
   CheckCircle2,
   AlertTriangle,
   ShieldCheck,
-  RefreshCw,
-  Clock,
-  Building2,
-  Cpu,
-  RotateCcw,
   X,
 } from 'lucide-react';
-import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
 import clientService from '../../services/clientService.js';
 
-const analyzeFrame = (videoEl) => {
-  const canvas = document.createElement('canvas');
-  const w = 160;
-  const h = 120;
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(videoEl, 0, 0, w, h);
-  const img = ctx.getImageData(0, 0, w, h).data;
-
-  // Brightness & grayscale buffer
-  let sumLum = 0;
-  const gray = new Float32Array(w * h);
-  for (let i = 0; i < w * h; i++) {
-    const idx = i * 4;
-    const lum = 0.299 * img[idx] + 0.587 * img[idx + 1] + 0.114 * img[idx + 2];
-    gray[i] = lum;
-    sumLum += lum;
-  }
-  const brightnessScore = Math.round((sumLum / (w * h) / 255) * 100);
-
-  // Sharpness via simple Laplacian variance on center region
-  let lapSum = 0;
-  let lapCount = 0;
-  for (let y = 15; y < h - 15; y++) {
-    for (let x = 25; x < w - 25; x++) {
-      const c = gray[y * w + x];
-      const lap = Math.abs(
-        4 * c - gray[(y - 1) * w + x] - gray[(y + 1) * w + x] - gray[y * w + (x - 1)] - gray[y * w + (x + 1)]
-      );
-      lapSum += lap;
-      lapCount++;
-    }
-  }
-  const sharpnessScore = Math.round((lapSum / Math.max(1, lapCount)) * 2);
-
-  return {
-    brightnessScore,
-    sharpnessScore,
-    gray,
-    previewUrl: canvas.toDataURL('image/jpeg', 0.8),
-  };
-};
-
-const computeMotionDelta = (g1, g2) => {
-  let diff = 0;
-  for (let i = 0; i < g1.length; i++) {
-    diff += Math.abs(g1[i] - g2[i]);
-  }
-  return diff / g1.length;
-};
-
-export default function BiometricAccess({ onNavigate }) {
-  const [data, setData] = useState(null);
+export default function ClientBiometricAccess({ onNavigate }) {
   const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [feedback, setFeedback] = useState(null);
 
-  // Consent & Capture Flow
-  const [step, setStep] = useState('status'); // 'status' | 'consent' | 'camera'
+  const [step, setStep] = useState('status'); // 'status' | 'request'
   const [consentChecked, setConsentChecked] = useState(false);
-  const [consentBusy, setConsentBusy] = useState(false);
-
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const landmarkerRef = useRef(null);
-  const [cameraError, setCameraError] = useState(null);
-  const [cameraReady, setCameraReady] = useState(false);
-  const [modelReady, setModelReady] = useState(false);
-  const [challengeType, setChallengeType] = useState('BLINK'); // 'BLINK' | 'TURN_HEAD'
-  const [capturing, setCapturing] = useState(false);
-  const [capturedPreview, setCapturedPreview] = useState(null);
-  const [captureMetrics, setCaptureMetrics] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   const loadStatus = useCallback(async () => {
@@ -97,7 +25,7 @@ export default function BiometricAccess({ onNavigate }) {
       const res = await clientService.getBiometricStatus();
       setData(res);
     } catch (err) {
-      setError(err.message || 'Failed to load biometric access status');
+      setError(err.message || 'Unable to load biometric access status.');
     } finally {
       setLoading(false);
     }
@@ -105,217 +33,32 @@ export default function BiometricAccess({ onNavigate }) {
 
   useEffect(() => {
     loadStatus();
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-      }
-      if (landmarkerRef.current) {
-        landmarkerRef.current.close();
-        landmarkerRef.current = null;
-      }
-    };
   }, [loadStatus]);
 
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    setCameraReady(false);
-  };
-
-  const initFaceLandmarker = async () => {
-    if (landmarkerRef.current) {
-      setModelReady(true);
-      return landmarkerRef.current;
-    }
-    const vision = await FilesetResolver.forVisionTasks(
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
-    );
-    const landmarker = await FaceLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath:
-          'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-        delegate: 'GPU',
-      },
-      outputFaceBlendshapes: true,
-      runningMode: 'VIDEO',
-      numFaces: 2,
-    });
-    landmarkerRef.current = landmarker;
-    setModelReady(true);
-    return landmarker;
-  };
-
-  const startCamera = async () => {
-    setCameraError(null);
-    setCapturedPreview(null);
-    setCaptureMetrics(null);
-    setChallengeType(Math.random() > 0.5 ? 'BLINK' : 'TURN_HEAD');
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setCameraError('Your browser does not support camera access. Please use a modern mobile browser or enroll at reception.');
+  const handleSubmitRequest = async (e) => {
+    e.preventDefault();
+    if (!isConsentGranted && !consentChecked) {
+      setFeedback({
+        type: 'error',
+        message: 'Please accept the biometric attendance authorization notice before submitting.',
+      });
       return;
     }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-        audio: false,
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setCameraReady(true);
-      initFaceLandmarker().catch((err) => {
-        console.warn('MediaPipe FaceLandmarker init error:', err);
-        setCameraError('Face detection model could not initialize on this browser. Please visit branch reception for manual enrollment.');
-      });
-    } catch (err) {
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setCameraError('Camera permission was denied. Please allow front-camera access in browser settings or visit reception.');
-      } else if (err.name === 'NotFoundError') {
-        setCameraError('No front camera detected on this device. Please enroll directly at your branch reception.');
-      } else {
-        setCameraError(err.message || 'Unable to access front camera.');
-      }
-    }
-  };
-
-  const handleAcceptConsent = async () => {
-    if (!consentChecked) return;
-    setConsentBusy(true);
-    try {
-      await clientService.recordBiometricConsent(true);
-      const currentStatus = data?.enrollment?.status || 'NOT_STARTED';
-      const needsCamera = ['NOT_STARTED', 'INVITED', 'CAPTURE_IN_PROGRESS', 'REJECTED', 'FAILED', 'REVOKED'].includes(currentStatus);
-      if (needsCamera) {
-        setStep('camera');
-        setTimeout(() => startCamera(), 150);
-      } else {
-        setFeedback({ type: 'success', message: 'Biometric consent granted. Your branch terminal access is now active.' });
-        setStep('status');
-        await loadStatus();
-      }
-    } catch (err) {
-      setFeedback({ type: 'error', message: err.message });
-    } finally {
-      setConsentBusy(false);
-    }
-  };
-
-  const handleCaptureFrames = async () => {
-    if (!videoRef.current || !cameraReady) return;
-    setCapturing(true);
-    setCameraError(null);
-    try {
-      const landmarker = await initFaceLandmarker();
-      const samples = [];
-
-      for (let i = 0; i < 6; i++) {
-        const frameQuality = analyzeFrame(videoRef.current);
-        const lmRes = landmarker.detectForVideo(videoRef.current, performance.now());
-
-        if (!lmRes.faceLandmarks || lmRes.faceLandmarks.length === 0) {
-          setCameraError('No face detected. Keep your face inside the alignment oval and ensure good lighting.');
-          setCapturing(false);
-          return;
-        }
-        if (lmRes.faceLandmarks.length > 1) {
-          setCameraError('Multiple faces detected. Ensure only you are visible in the camera frame.');
-          setCapturing(false);
-          return;
-        }
-
-        const landmarks = lmRes.faceLandmarks[0];
-        const nose = landmarks[1];
-        const leftCheek = landmarks[234];
-        const rightCheek = landmarks[454];
-        const faceWidth = Math.abs((rightCheek?.x || 0) - (leftCheek?.x || 0));
-
-        if (faceWidth < 0.16) {
-          setCameraError('Move slightly closer to the camera so your face fills the alignment oval.');
-          setCapturing(false);
-          return;
-        }
-        if (nose && (nose.x < 0.25 || nose.x > 0.75 || nose.y < 0.22 || nose.y > 0.78)) {
-          setCameraError('Center your face inside the alignment oval.');
-          setCapturing(false);
-          return;
-        }
-
-        const blend = lmRes.faceBlendshapes?.[0]?.categories || [];
-        const blinkLeft = blend.find((c) => c.categoryName === 'eyeBlinkLeft')?.score || 0;
-        const blinkRight = blend.find((c) => c.categoryName === 'eyeBlinkRight')?.score || 0;
-
-        samples.push({
-          ...frameQuality,
-          noseX: nose?.x || 0.5,
-          blinkScore: Math.max(blinkLeft, blinkRight),
-        });
-
-        if (i < 5) await new Promise((r) => setTimeout(r, 280));
-      }
-
-      const avgBrightness = Math.round(samples.reduce((s, x) => s + x.brightnessScore, 0) / samples.length);
-      const avgSharpness = Math.round(samples.reduce((s, x) => s + x.sharpnessScore, 0) / samples.length);
-
-      if (avgBrightness < 35) {
-        setCameraError('Lighting is too dim. Please move to a well-lit area and retake.');
-        setCapturing(false);
-        return;
-      }
-      if (avgSharpness < 10) {
-        setCameraError('Capture is too blurry. Hold your phone steady and retake.');
-        setCapturing(false);
-        return;
-      }
-
-      const maxBlink = Math.max(...samples.map((s) => s.blinkScore));
-      const noseXs = samples.map((s) => s.noseX);
-      const headTurnDelta = Math.max(...noseXs) - Math.min(...noseXs);
-
-      const challengePassed =
-        challengeType === 'BLINK' ? maxBlink >= 0.32 : headTurnDelta >= 0.04;
-
-      if (!challengePassed) {
-        setCameraError(
-          challengeType === 'BLINK'
-            ? 'Blink challenge not detected. Please blink naturally while capturing.'
-            : 'Head-turn challenge not detected. Gently turn your head slightly left/right while capturing.'
-        );
-        setCapturing(false);
-        return;
-      }
-
-      setCapturedPreview(samples[samples.length - 1].previewUrl);
-      setCaptureMetrics({
-        brightnessScore: avgBrightness,
-        sharpnessScore: avgSharpness,
-        livenessPassed: true,
-        frameCount: samples.length,
-      });
-      stopCamera();
-    } catch (err) {
-      setCameraError(err.message || 'Face analysis failed. Please retake or enroll at reception.');
-    } finally {
-      setCapturing(false);
-    }
-  };
-
-  const handleSubmitCapture = async () => {
-    if (!captureMetrics) return;
     setSubmitting(true);
+    setFeedback(null);
     try {
-      await clientService.submitBiometricCapture({ ...captureMetrics, agreed: consentChecked || isConsentGranted });
+      await clientService.submitBiometricCapture({
+        agreed: consentChecked || isConsentGranted,
+      });
       setFeedback({
         type: 'success',
-        message: 'Pre-enrollment face capture submitted! Admin will review and complete physical X2008 terminal linking.',
+        message:
+          'Biometric enrollment request submitted! An admin will review, assign your Biometric ID, and prepare your branch terminal.',
       });
       setStep('status');
       await loadStatus();
     } catch (err) {
-      setCameraError(err.message || 'Submission failed');
+      setFeedback({ type: 'error', message: err.message || 'Submission failed.' });
     } finally {
       setSubmitting(false);
     }
@@ -324,7 +67,10 @@ export default function BiometricAccess({ onNavigate }) {
   const handleWithdrawConsent = async () => {
     try {
       await clientService.withdrawBiometricConsent();
-      setFeedback({ type: 'success', message: 'Biometric consent withdrawn. You may continue using manual reception check-in.' });
+      setFeedback({
+        type: 'success',
+        message: 'Biometric consent withdrawn. You may continue using manual reception check-in.',
+      });
       await loadStatus();
     } catch (err) {
       setFeedback({ type: 'error', message: err.message });
@@ -342,14 +88,13 @@ export default function BiometricAccess({ onNavigate }) {
   const enr = data?.enrollment || {};
   const status = enr.status || 'NOT_STARTED';
   const isConsentGranted = data?.consent?.status === 'GRANTED' || enr.consentStatus === 'GRANTED';
-  const requiresCameraAfterConsent = ['NOT_STARTED', 'INVITED', 'CAPTURE_IN_PROGRESS', 'REJECTED', 'FAILED', 'REVOKED'].includes(status);
 
   return (
     <div className="space-y-6 min-w-0">
       <div>
         <h2 className="mm-page-title text-2xl sm:text-3xl">MY BIOMETRIC ACCESS</h2>
         <p className="text-xs sm:text-sm text-[#B8B8B8] mt-1">
-          Manage your face registration, consent, and branch terminal check-in access.
+          Request face recognition check-in access and track your branch biometric terminal registration.
         </p>
       </div>
 
@@ -364,7 +109,7 @@ export default function BiometricAccess({ onNavigate }) {
         <div
           className={`p-4 rounded-xl border text-xs flex items-center justify-between gap-2 ${
             feedback.type === 'success'
-              ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-200'
+              ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-400'
               : 'bg-[#F03B2E]/10 border-[#F03B2E]/40 text-[#FF6A5E]'
           }`}
         >
@@ -418,12 +163,13 @@ export default function BiometricAccess({ onNavigate }) {
                     type="button"
                     onClick={() => {
                       setConsentChecked(isConsentGranted);
-                      setStep('camera');
-                      setTimeout(() => startCamera(), 150);
+                      setStep('request');
                     }}
                     className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#F03B2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
                   >
-                    {status === 'REJECTED' || status === 'FAILED' ? 'Retry Enrollment Request' : 'Request Biometric Enrollment'}
+                    {status === 'REJECTED' || status === 'FAILED'
+                      ? 'Resubmit Enrollment Request'
+                      : 'Request Biometric Enrollment'}
                   </button>
                 ) : null}
               </div>
@@ -465,33 +211,29 @@ export default function BiometricAccess({ onNavigate }) {
 
               {status === 'NOT_STARTED' || status === 'INVITED' ? (
                 <div className="p-3.5 rounded-xl bg-[#111111] border border-[#252525] text-xs text-[#B8B8B8]">
-                  <strong>Not Enrolled Yet:</strong> Click <em>Start Face Registration</em> to review biometric consent and complete a quick browser liveness pre-check before your physical X2008 terminal scan.
-                </div>
-              ) : status === 'CAPTURE_IN_PROGRESS' ? (
-                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200">
-                  Consent granted. Please complete your browser liveness pre-check to submit your enrollment request.
+                  <strong>Not Enrolled Yet:</strong> Click <em>Request Biometric Enrollment</em> to submit your request with authorization. Once approved by an admin, you will receive your Biometric ID to enroll your face physically at the branch terminal.
                 </div>
               ) : status === 'CAPTURE_SUBMITTED' || status === 'PENDING_REVIEW' ? (
-                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200">
-                  Your enrollment request has been saved and is <strong>Awaiting Admin Approval</strong>. Note: Browser camera liveness does not register your face on the X2008; physical capture at reception completes registration.
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-400">
+                  Your enrollment request has been saved and is <strong>Awaiting Admin Approval</strong>. Once approved, you will complete physical face capture at your branch terminal.
                 </div>
               ) : ['DEVICE_USER_READY', 'FACE_ENROLLMENT_PENDING', 'AWAITING_PHYSICAL_ENROLLMENT', 'APPROVED'].includes(status) ? (
-                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200 space-y-1.5">
-                  <p className="font-bold text-emerald-100">Your biometric enrollment request has been approved.</p>
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400 space-y-1.5">
+                  <p className="font-bold">Your biometric enrollment request has been approved.</p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
-                    <div>Your Biometric ID: <strong className="font-mono text-white">{enr.biometricUserId || 'Assigned at branch'}</strong></div>
-                    <div>Branch: <strong className="text-white">{data.branch?.city || data.branch?.name || '—'}</strong></div>
-                    <div>Device: <strong className="text-white">{data.assignedDevice?.deviceName || 'Branch Terminal'}</strong></div>
+                    <div>Your Biometric ID: <strong className="font-mono text-[#F5F5F5]">{enr.biometricUserId || 'Assigned at branch'}</strong></div>
+                    <div>Branch: <strong className="text-[#F5F5F5]">{data.branch?.city || data.branch?.name || '—'}</strong></div>
+                    <div>Device: <strong className="text-[#F5F5F5]">{data.assignedDevice?.deviceName || 'Branch Terminal'}</strong></div>
                   </div>
-                  <p className="pt-1">Please visit the branch biometric machine and enroll your face.</p>
+                  <p className="pt-1">Please visit the branch biometric machine and enroll your face under your assigned Biometric ID.</p>
                 </div>
               ) : status === 'ENROLLED' ? (
-                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200">
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400">
                   <strong>Your Biometric Registration Is Complete!</strong> Look at the {data.assignedDevice?.deviceName || 'branch terminal'} at the entrance to check in automatically.
                 </div>
               ) : status === 'REJECTED' || status === 'FAILED' ? (
                 <div className="p-3.5 rounded-xl bg-[#F03B2E]/10 border border-[#F03B2E]/40 text-xs text-[#FF6A5E]">
-                  <strong>Needs Attention ({status}):</strong> {enr.failureReason || 'Please retry pre-enrollment or visit branch reception for physical enrollment.'}
+                  <strong>Needs Attention ({status}):</strong> {enr.failureReason || 'Please resubmit your enrollment request or visit branch reception.'}
                 </div>
               ) : status === 'REVOKED' ? (
                 <div className="p-3.5 rounded-xl bg-[#202020] border border-[#303030] text-xs text-[#B8B8B8]">
@@ -514,113 +256,67 @@ export default function BiometricAccess({ onNavigate }) {
             </div>
           )}
 
-          {/* STEP 2: MOBILE FRONT-CAMERA CAPTURE */}
-          {step === 'camera' && (
-            <div className="bg-[#181818] border border-[#303030] rounded-2xl p-5 space-y-4">
+          {/* STEP 2: ENROLLMENT REQUEST & AUTHORIZATION */}
+          {step === 'request' && (
+            <form onSubmit={handleSubmitRequest} className="bg-[#181818] border border-[#303030] rounded-2xl p-5 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-display text-lg font-bold uppercase text-[#F5F5F5]">Live Face Capture</h3>
+                <h3 className="font-display text-lg font-bold uppercase text-[#F5F5F5]">
+                  Submit Biometric Enrollment Request
+                </h3>
                 <button
                   type="button"
-                  onClick={() => {
-                    stopCamera();
-                    setStep('status');
-                  }}
-                  className="text-xs text-[#B8B8B8] hover:text-white cursor-pointer"
+                  onClick={() => setStep('status')}
+                  className="text-xs text-[#858585] hover:text-[#F5F5F5] cursor-pointer"
                 >
                   Cancel
                 </button>
               </div>
 
-              <div className="p-3 rounded-xl bg-[#111111] border border-[#252525] text-xs text-[#F5F5F5]">
-                <span className="text-[10px] font-mono uppercase text-[#F03B2E] font-bold block">
-                  Challenge Prompt (Basic Landmark Verification)
-                </span>
-                <p className="mt-0.5 font-semibold">
-                  {challengeType === 'BLINK'
-                    ? 'Look at the camera and BLINK naturally during capture.'
-                    : 'Look at the camera and gently TURN YOUR HEAD slightly left or right during capture.'}
+              <div className="p-4 rounded-xl bg-[#111111] border border-[#252525] text-xs text-[#B8B8B8] space-y-2 leading-relaxed">
+                <div className="flex items-center gap-2 text-[#F5F5F5] font-semibold">
+                  <ShieldCheck className="w-4 h-4 text-[#F03B2E]" />
+                  <span>Biometric Attendance &amp; Facial Data Notice</span>
+                </div>
+                <p>
+                  Submitting this request authorizes Man &amp; Machine to verify your identity, assign a branch biometric terminal ID, and process facial attendance check-ins at your branch while your membership is active.
                 </p>
-                {!modelReady && cameraReady && (
-                  <p className="text-[11px] text-amber-400 mt-1">Initializing MediaPipe face landmark model...</p>
-                )}
+                <p className="text-[#858585]">
+                  Physical face enrollment is completed directly on the branch eSSL X2008 terminal after admin approval. You may withdraw authorization anytime from this page.
+                </p>
               </div>
 
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] text-[#B8B8B8]">
-                <li>• Find a well-lit location</li>
-                <li>• Keep only your face inside the alignment oval</li>
-                <li>• Remove sunglasses/masks where practical</li>
-                <li>• Admin review &amp; branch terminal scan complete registration</li>
-              </ul>
-
-              {cameraError && (
-                <div className="p-3 rounded-xl bg-[#F03B2E]/10 border border-[#F03B2E] text-xs text-[#FF6A5E]">
-                  {cameraError}
-                </div>
+              {!isConsentGranted && (
+                <label className="flex items-start gap-2.5 text-xs text-[#CCCCCC] cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={consentChecked}
+                    onChange={(e) => setConsentChecked(e.target.checked)}
+                    className="mt-0.5 accent-[#F03B2E]"
+                  />
+                  <span>
+                    I authorize biometric attendance registration and branch terminal face enrollment for my account.
+                  </span>
+                </label>
               )}
 
-              <div className="relative mx-auto max-w-sm aspect-[4/3] bg-black rounded-2xl overflow-hidden border border-[#303030] flex items-center justify-center">
-                {capturedPreview ? (
-                  <img src={capturedPreview} alt="Captured preview" className="w-full h-full object-cover" />
-                ) : (
-                  <>
-                    <video ref={videoRef} playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
-                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                      <div className="w-44 h-56 rounded-full border-2 border-dashed border-[#F03B2E]/80" />
-                    </div>
-                  </>
-                )}
+              <div className="flex flex-wrap gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setStep('status')}
+                  className="min-h-[44px] px-4 py-2 rounded-xl border border-[#303030] text-xs text-[#B8B8B8] hover:text-[#F5F5F5] cursor-pointer"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || (!isConsentGranted && !consentChecked)}
+                  className="min-h-[44px] flex-1 py-2.5 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{submitting ? 'Submitting...' : 'Submit Enrollment Request'}</span>
+                </button>
               </div>
-
-              <div className="flex flex-wrap justify-center gap-3">
-                {!capturedPreview ? (
-                  <button
-                    type="button"
-                    disabled={!cameraReady || capturing}
-                    onClick={handleCaptureFrames}
-                    className="min-h-[44px] px-6 py-2.5 rounded-xl bg-[#F03B2E] hover:bg-[#FF493B] disabled:opacity-40 text-white text-xs font-bold uppercase inline-flex items-center gap-2 cursor-pointer"
-                  >
-                    <Camera className="w-4 h-4" />
-                    <span>{capturing ? 'Checking Liveness...' : 'Capture Live Face'}</span>
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => startCamera()}
-                      className="min-h-[44px] px-4 py-2.5 rounded-xl bg-[#202020] border border-[#303030] text-[#F5F5F5] text-xs font-bold uppercase inline-flex items-center gap-2 cursor-pointer"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      <span>Retake</span>
-                    </button>
-                    {!isConsentGranted && (
-                      <div className="w-full space-y-2 text-left mt-2">
-                        <div className="p-3 rounded-xl bg-[#111111] border border-[#252525] text-[11px] text-[#B8B8B8] leading-relaxed">
-                          <strong className="text-[#F5F5F5]">Biometric Attendance &amp; Facial Data Notice:</strong> Submitting this request authorizes Man &amp; Machine to verify your identity, assign a branch biometric terminal ID, and process facial attendance check-ins at your branch while your membership is active. You may withdraw authorization anytime from this page.
-                        </div>
-                        <label className="flex items-start gap-2.5 p-3 rounded-xl bg-[#111111] border border-[#303030] text-xs text-[#F5F5F5] cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={consentChecked}
-                            onChange={(e) => setConsentChecked(e.target.checked)}
-                            className="mt-0.5"
-                          />
-                          <span>I authorize biometric attendance registration and branch terminal face enrollment for my account.</span>
-                        </label>
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      disabled={submitting || (!isConsentGranted && !consentChecked)}
-                      onClick={handleSubmitCapture}
-                      className="min-h-[44px] px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold uppercase inline-flex items-center gap-2 cursor-pointer"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>{submitting ? 'Submitting...' : 'Submit Enrollment Request'}</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+            </form>
           )}
         </>
       )}

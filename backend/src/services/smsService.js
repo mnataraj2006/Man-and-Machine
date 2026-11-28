@@ -94,12 +94,20 @@ const getOrCreateSettings = async () => {
       updatedAt: doc.updatedAt,
     },
     catalog: {
-      member: MEMBER_NOTIFICATIONS.map((m) => ({ key: m.key, label: m.label, classification: m.classification })),
+      member: MEMBER_NOTIFICATIONS.map((m) => ({
+        key: m.key,
+        label: m.label,
+        classification: m.classification,
+        supported: m.supported !== false,
+        unsupportedReason: m.unsupportedReason || '',
+      })),
       staff: STAFF_NOTIFICATIONS.map((s) => ({
         key: s.key,
         label: s.label,
         recipientRole: s.recipientRole,
         classification: s.classification,
+        supported: s.supported !== false,
+        unsupportedReason: s.unsupportedReason || '',
       })),
     },
     provider: smsProviderService.getPublicProviderStatus(),
@@ -403,6 +411,7 @@ const sendNotification = async ({
 }) => {
   const meta = SMS_CATALOG_MAP.get(notificationKey);
   if (!meta) return { ok: false, skipped: true, reason: 'UNKNOWN_KEY' };
+  if (meta.supported === false) return { ok: false, skipped: true, reason: 'UNSUPPORTED_NOTIFICATION' };
 
   const { settings } = await getOrCreateSettings();
   if (settings.smsEnabled === false) {

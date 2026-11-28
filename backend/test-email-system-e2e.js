@@ -1,10 +1,15 @@
 const assert = require('assert');
+const crypto = require('crypto');
 const http = require('http');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const jwt = require('jsonwebtoken');
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-email-secret-key';
+process.env.COMMUNICATION_ENCRYPTION_KEY =
+  process.env.COMMUNICATION_ENCRYPTION_KEY || 'test-communication-encryption-secret-key';
+process.env.COMMUNICATION_WEBHOOK_SECRET =
+  process.env.COMMUNICATION_WEBHOOK_SECRET || 'test-communication-webhook-secret';
 
 const app = require('./src/server');
 const User = require('./src/models/User');
@@ -439,6 +444,101 @@ const requestJson = (baseUrl, method, path, token = '', body = null) =>
       );
       assert.strictEqual(inspectRes.status, 200);
       assert.strictEqual(inspectRes.body.log._id, firstId);
+    });
+
+    await check('19. Signed Email & SMS webhooks verify signatures, reject invalid status/sig, and update matching log', async () => {
+      const targetEmailLog = await EmailLog.findOne({ status: 'SENT', providerMessageId: { $ne: '' } }).lean();
+      assert(targetEmailLog, 'Expected a SENT EmailLog with providerMessageId');
+
+      const webhookBody = JSON.stringify({
+        providerMessageId: targetEmailLog.providerMessageId,
+        status: 'DELIVERED',
+        providerResponse: '250 2.0.0 OK delivered',
+      });
+
+      const badSigRes = await requestJson(baseUrl, 'POST', '/api/webhooks/communications/email', '', JSON.parse(webhookBody));
+      assert.strictEqual(badSigRes.status, 401);
+
+      const signPayload = (raw) =>
+        `sha256=${crypto.createHmac('sha256', process.env.COMMUNICATION_WEBHOOK_SECRET).update(raw).digest('hex')}`;
+
+      const sendSignedWebhook = (path, rawPayload) =>
+        new Promise((resolve, reject) => {
+          const url = new URL(path, baseUrl);
+          const req = http.request(
+            url,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(rawPayload),
+                'x-webhook-signature': signPayload(rawPayload),
+              },
+            },
+            (res) => {
+              let raw = '';
+              res.on('data', (c) => (raw += c));
+              res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(raw || '{}') }));
+            }
+          );
+          req.on('error', reject);
+          req.write(rawPayload);
+          req.end();
+        });
+
+      const badStatusRes = await sendSignedWebhook(
+        '/api/webhooks/communications/email',
+        JSON.stringify({ providerMessageId: targetEmailLog.providerMessageId, status: 'SENT' })
+      );
+      assert.strictEqual(badStatusRes.status, 400);
+
+      const okRes = await sendSignedWebhook('/api/webhooks/communications/email', webhookBody);
+      assert.strictEqual(okRes.status, 200);
+      assert.strictEqual(okRes.body.status, 'DELIVERED');
+      const updatedEmail = await EmailLog.findById(targetEmailLog._id).lean();
+      assert.strictEqual(updatedEmail.status, 'DELIVERED');
+
+      const targetSmsLog = await SmsLog.findOne({ status: 'SENT', providerMessageId: { $ne: '' } }).lean();
+      if (targetSmsLog) {
+        const smsOk = await sendSignedWebhook(
+          '/api/webhooks/communications/sms',
+          JSON.stringify({ providerMessageId: targetSmsLog.providerMessageId, status: 'DELIVERED' })
+        );
+        assert.strictEqual(smsOk.status, 200);
+        assert.strictEqual(smsOk.body.status, 'DELIVERED');
+      }
+    });
+
+    await check('20. Encryption secret required, unsafe HTML blocked & distributed scheduler lock prevents concurrent runs', async () => {
+      const prevKey = process.env.COMMUNICATION_ENCRYPTION_KEY;
+      process.env.COMMUNICATION_ENCRYPTION_KEY = 'short';
+      assert.throws(() => emailProviderService.encryptSecret('my-smtp-pass'), /COMMUNICATION_ENCRYPTION_KEY/);
+      process.env.COMMUNICATION_ENCRYPTION_KEY = prevKey;
+
+      const unsafeHtmlRes = await requestJson(
+        baseUrl,
+        'PUT',
+        '/api/admin/communications/email/templates/MEMBER_WELCOME_GREETINGS',
+        adminToken,
+        { htmlBody: '<p>Hi</p><script>alert(1)</script>' }
+      );
+      assert.strictEqual(unsafeHtmlRes.status, 400);
+
+      const externalImgRes = await requestJson(
+        baseUrl,
+        'PUT',
+        '/api/admin/communications/email/templates/MEMBER_WELCOME_GREETINGS',
+        adminToken,
+        { htmlBody: '<img src="https://evil.example/pixel.png" />' }
+      );
+      assert.strictEqual(externalImgRes.status, 400);
+
+      const SchedulerLock = require('./src/models/SchedulerLock');
+      await SchedulerLock.acquireLock('COMMUNICATION_SCHEDULER_PASS', 'other-render-instance', 60000);
+      const skipped = await smsSchedulerService.runScheduledSmsPass(new Date('2026-11-28T16:05:00+05:30'));
+      assert.strictEqual(skipped.skipped, true);
+      assert.strictEqual(skipped.reason, 'DISTRIBUTED_LOCK_HELD');
+      await SchedulerLock.releaseLock('COMMUNICATION_SCHEDULER_PASS', 'other-render-instance');
     });
 
     console.log(`\nALL ${passed} EMAIL & COMMUNICATION E2E CHECKS PASSED!`);

@@ -10,6 +10,7 @@ router.put('/templates/:key', smsController.updateSmsTemplate);
 router.get('/logs', smsController.listSmsLogs);
 router.post('/scheduler/run', smsController.runScheduledPassNow);
 router.post('/dlr', smsController.handleDeliveryReceipt);
+router.post('/test', smsController.sendTestSms);
 
 // Email Templates, Logs, SMTP Test & Delivery Receipts
 router.get('/email/templates', smsController.listEmailTemplates);

@@ -1,3 +1,5 @@
+const os = require('os');
+const crypto = require('crypto');
 const Membership = require('../models/Membership');
 const ClientProfile = require('../models/ClientProfile');
 const Invoice = require('../models/Invoice');
@@ -5,10 +7,13 @@ const Attendance = require('../models/Attendance');
 const Payment = require('../models/Payment');
 const TrainerBooking = require('../models/TrainerBooking');
 const TrainerProfile = require('../models/TrainerProfile');
+const SchedulerLock = require('../models/SchedulerLock');
 const smsService = require('./smsService');
 const emailService = require('./emailService');
 const communicationService = require('./communicationService');
 
+const INSTANCE_ID = `${os.hostname()}-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
+const SCHEDULER_LOCK_KEY = 'COMMUNICATION_SCHEDULER_PASS';
 let schedulerTimer = null;
 let isRunningPass = false;
 
@@ -47,13 +52,57 @@ const isAnyChannelEnabled = (settings, audience, key) => {
 };
 
 const runScheduledSmsPass = async (now = new Date()) => {
-  if (isRunningPass) return { skipped: true };
+  if (isRunningPass) return { skipped: true, reason: 'IN_PROCESS_LOCK' };
   isRunningPass = true;
-  const summary = { executedAt: now.toISOString(), checksRun: [] };
+  const summary = { executedAt: now.toISOString(), checksRun: [], errors: [], instanceId: INSTANCE_ID };
+  let lockAcquired = false;
+  let fencingToken = null;
+  let renewTimer = null;
+  let lockLost = false;
+  let passError = '';
+
+  const assertLockStillHeld = async () => {
+    if (lockLost) {
+      throw new Error('Distributed scheduler lock was lost/expired during execution.');
+    }
+    const active = await SchedulerLock.findOne({
+      lockKey: SCHEDULER_LOCK_KEY,
+      ownerId: INSTANCE_ID,
+      fencingToken,
+      lockedUntil: { $gt: new Date() },
+    })
+      .select('_id')
+      .lean();
+    if (!active) {
+      lockLost = true;
+      throw new Error('Distributed scheduler lock ownership lost (fencing token superseded or expired).');
+    }
+  };
 
   try {
+    const lock = await SchedulerLock.acquireLock(SCHEDULER_LOCK_KEY, INSTANCE_ID, 120000);
+    if (!lock) {
+      return { skipped: true, reason: 'DISTRIBUTED_LOCK_HELD' };
+    }
+    lockAcquired = true;
+    fencingToken = lock.fencingToken;
+    summary.fencingToken = fencingToken;
+
+    renewTimer = setInterval(() => {
+      SchedulerLock.renewLock(SCHEDULER_LOCK_KEY, INSTANCE_ID, fencingToken, 120000)
+        .then((renewed) => {
+          if (!renewed) lockLost = true;
+        })
+        .catch(() => {
+          lockLost = true;
+        });
+    }, 40000);
+    if (typeof renewTimer.unref === 'function') renewTimer.unref();
+
+    await assertLockStillHeld();
+
     const { settings } = await smsService.getOrCreateSettings();
-    const { dateStr, monthStr, month, day, minutesOfDay } = getKolkataParts(now);
+    const { dateStr, monthStr, year, month, day, minutesOfDay } = getKolkataParts(now);
     const { ownerName, ownerPhone } = await smsService.getOwnerRecipient();
     const { ownerEmail } = await emailService.getOwnerEmailRecipient();
 
@@ -139,6 +188,7 @@ const runScheduledSmsPass = async (now = new Date()) => {
     }
 
     // 2. Membership Overdue & Owner Overdue Alert
+    await assertLockStillHeld();
     if (
       isAnyChannelEnabled(settings, 'MEMBER', 'MEMBER_MEMBERSHIP_OVERDUE') ||
       isAnyChannelEnabled(settings, 'STAFF', 'STAFF_MEMBERSHIP_OVERDUE_OWNER')
@@ -217,6 +267,7 @@ const runScheduledSmsPass = async (now = new Date()) => {
     }
 
     // 3. Balance Payment Pre-Notification & Overdue Notification
+    await assertLockStillHeld();
     if (
       isAnyChannelEnabled(settings, 'MEMBER', 'MEMBER_PRE_BALANCE_PAYMENT') ||
       isAnyChannelEnabled(settings, 'MEMBER', 'MEMBER_OVERDUE_BALANCE_PAYMENT')
@@ -295,6 +346,7 @@ const runScheduledSmsPass = async (now = new Date()) => {
     }
 
     // 4. Birthday & Anniversary Wishes + Owner/Staff Alerts
+    await assertLockStillHeld();
     const needsBirthday =
       isAnyChannelEnabled(settings, 'MEMBER', 'MEMBER_BIRTHDAY_WISHES') ||
       isAnyChannelEnabled(settings, 'STAFF', 'STAFF_BIRTHDAY_ALERT') ||
@@ -485,6 +537,7 @@ const runScheduledSmsPass = async (now = new Date()) => {
     }
 
     // 5. Absent Member Alert
+    await assertLockStillHeld();
     if (isAnyChannelEnabled(settings, 'MEMBER', 'MEMBER_ABSENT_ALERT')) {
       summary.checksRun.push('ABSENT_ALERT');
       const absentDays = settings.absentAlertDays || 7;
@@ -540,6 +593,7 @@ const runScheduledSmsPass = async (now = new Date()) => {
     }
 
     // 6. Upcoming Session Reminders (Member & Trainer)
+    await assertLockStillHeld();
     if (
       isAnyChannelEnabled(settings, 'MEMBER', 'MEMBER_SESSION_PRE_NOTIFICATION') ||
       isAnyChannelEnabled(settings, 'STAFF', 'STAFF_SESSION_PRE_NOTIFICATION_TRAINER')
@@ -626,6 +680,7 @@ const runScheduledSmsPass = async (now = new Date()) => {
     }
 
     // 7. Daily Summary, Daily Expected Business & Monthly Summary at configured dailySummaryTime (IST)
+    await assertLockStillHeld();
     const targetMinutes = parseHHMM(settings.dailySummaryTime);
     if (minutesOfDay >= targetMinutes && (ownerPhone || ownerEmail)) {
       const todayStart = new Date(`${dateStr}T00:00:00+05:30`);
@@ -712,8 +767,13 @@ const runScheduledSmsPass = async (now = new Date()) => {
 
       if (day === 1 && isAnyChannelEnabled(settings, 'STAFF', 'STAFF_MONTHLY_SUMMARY')) {
         summary.checksRun.push('MONTHLY_SUMMARY');
-        const prevMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-        const prevMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0, 23, 59, 59, 999));
+        const prevMonthNum = month === 1 ? 12 : month - 1;
+        const prevMonthYear = month === 1 ? year - 1 : year;
+        const pad = (n) => String(n).padStart(2, '0');
+        const prevMonthStr = `${prevMonthYear}-${pad(prevMonthNum)}`;
+        const prevMonthStart = new Date(`${prevMonthStr}-01T00:00:00+05:30`);
+        const nextMonthStart = new Date(`${year}-${pad(month)}-01T00:00:00+05:30`);
+        const prevMonthEnd = new Date(nextMonthStart.getTime() - 1);
         const [payments, newMembers] = await Promise.all([
           Payment.find({ status: 'PAID', createdAt: { $gte: prevMonthStart, $lte: prevMonthEnd } })
             .select('amount')
@@ -722,13 +782,13 @@ const runScheduledSmsPass = async (now = new Date()) => {
         ]);
         const totalAmt = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
         const vars = {
-          sessionDate: monthStr,
+          sessionDate: prevMonthStr,
           branchName: 'All Branches',
           paymentAmount: String(Math.round(totalAmt)),
           memberId: String(newMembers),
         };
         const monthlyReport = Buffer.from(
-          `Man & Machine Monthly Summary (${monthStr})\nTotal Collections: Rs.${Math.round(totalAmt)}\nNew Members: ${newMembers}\n`,
+          `Man & Machine Monthly Summary (${prevMonthStr})\nTotal Collections: Rs.${Math.round(totalAmt)}\nNew Members: ${newMembers}\n`,
           'utf8'
         );
         await communicationService.dispatchBothChannels({
@@ -739,7 +799,7 @@ const runScheduledSmsPass = async (now = new Date()) => {
                 recipientName: ownerName,
                 recipientType: 'OWNER',
                 variables: vars,
-                eventKey: `sched-monthly-summary:${monthStr}`,
+                eventKey: `sched-monthly-summary:${prevMonthStr}`,
               }
             : null,
           emailPayload: ownerEmail
@@ -749,16 +809,24 @@ const runScheduledSmsPass = async (now = new Date()) => {
                 recipientName: ownerName,
                 recipientType: 'OWNER',
                 variables: vars,
-                attachments: [{ filename: `monthly-summary-${monthStr}.txt`, content: monthlyReport, contentType: 'text/plain' }],
-                eventKey: `email-sched-monthly-summary:${monthStr}`,
+                attachments: [{ filename: `monthly-summary-${prevMonthStr}.txt`, content: monthlyReport, contentType: 'text/plain' }],
+                eventKey: `email-sched-monthly-summary:${prevMonthStr}`,
               }
             : null,
         });
       }
     }
   } catch (err) {
-    console.error('Communication scheduler pass error:', err.message);
+    passError = err.message || 'Scheduler pass error';
+    summary.errors.push(passError);
+    console.error('Communication scheduler pass error:', passError);
   } finally {
+    if (renewTimer) clearInterval(renewTimer);
+    if (lockAcquired) {
+      await SchedulerLock.releaseLock(SCHEDULER_LOCK_KEY, INSTANCE_ID, fencingToken, {
+        lastError: passError,
+      }).catch(() => {});
+    }
     isRunningPass = false;
   }
 

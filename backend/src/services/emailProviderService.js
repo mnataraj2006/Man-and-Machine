@@ -13,19 +13,28 @@ const resetEmailProviderAdapter = () => {
 };
 
 const getEncryptionKey = () => {
-  const secret =
-    process.env.COMMUNICATION_ENCRYPTION_KEY ||
-    process.env.SMTP_ENCRYPTION_KEY ||
-    process.env.JWT_SECRET ||
-    'man-and-machine-comm-key-change-me';
-  return crypto.createHash('sha256').update(String(secret)).digest();
+  const secret = String(
+    process.env.COMMUNICATION_ENCRYPTION_KEY || process.env.SMTP_ENCRYPTION_KEY || ''
+  ).trim();
+  if (secret.length < 16) {
+    return null;
+  }
+  return crypto.createHash('sha256').update(secret).digest();
 };
 
 const encryptSecret = (plainText) => {
   const raw = String(plainText || '');
   if (!raw) return '';
+  const key = getEncryptionKey();
+  if (!key) {
+    const err = new Error(
+      'COMMUNICATION_ENCRYPTION_KEY (minimum 16 characters) must be configured on the server before storing SMTP credentials.'
+    );
+    err.statusCode = 500;
+    throw err;
+  }
   const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', getEncryptionKey(), iv);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
   const encrypted = Buffer.concat([cipher.update(raw, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
   return `${iv.toString('hex')}:${tag.toString('hex')}:${encrypted.toString('hex')}`;
@@ -34,15 +43,13 @@ const encryptSecret = (plainText) => {
 const decryptSecret = (cipherText) => {
   const raw = String(cipherText || '');
   if (!raw) return '';
+  const key = getEncryptionKey();
+  if (!key) return '';
   const parts = raw.split(':');
   if (parts.length !== 3) return '';
   try {
     const [ivHex, tagHex, dataHex] = parts;
-    const decipher = crypto.createDecipheriv(
-      'aes-256-gcm',
-      getEncryptionKey(),
-      Buffer.from(ivHex, 'hex')
-    );
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivHex, 'hex'));
     decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
     const decrypted = Buffer.concat([
       decipher.update(Buffer.from(dataHex, 'hex')),

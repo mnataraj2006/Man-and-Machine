@@ -18,6 +18,33 @@ const escapeHtml = (str) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+const validateSafeEmailHtml = (html) => {
+  const raw = String(html || '').trim();
+  if (!raw) return '';
+  if (/<script\b|<iframe\b|<object\b|<embed\b|<form\b|<meta\b|<base\b|<link\b/i.test(raw)) {
+    const err = new Error('Unsafe HTML tags (<script>, <iframe>, <object>, <embed>, <form>, <link>, <meta>, <base>) are not permitted in email templates.');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (/\son[a-z]+\s*=|javascript:|vbscript:|data:text\/html/i.test(raw)) {
+    const err = new Error('Inline event handlers and script URIs are not permitted in email templates.');
+    err.statusCode = 400;
+    throw err;
+  }
+  // Block unexpected external resources (images/stylesheets/urls) unless explicitly allowlisted
+  const externalUrls = raw.match(/(?:src|href|action|poster|background)\s*=\s*["']?\s*(?:https?:)?\/\/[^\s"'<>]+/gi) || [];
+  const cssExternalUrls = raw.match(/url\(\s*["']?\s*(?:https?:)?\/\/[^\s"')]+/gi) || [];
+  const allowedOrigin = (process.env.EMAIL_ASSET_ORIGIN || '').trim().toLowerCase();
+  for (const match of [...externalUrls, ...cssExternalUrls]) {
+    if (!allowedOrigin || !match.toLowerCase().includes(allowedOrigin)) {
+      const err = new Error('External resource URLs are not permitted in custom email HTML templates unless matching EMAIL_ASSET_ORIGIN.');
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+  return raw;
+};
+
 const ensureEmailTemplatesSeeded = async () => {
   const existing = await EmailTemplate.find({}).select('key').lean();
   const existingKeys = new Set(existing.map((t) => t.key));
@@ -60,7 +87,7 @@ const renderEmailString = (str, variables = {}) => {
 
 const wrapInBrandedHtml = ({ subject, bodyText, customHtml = '', branchName = 'Man & Machine Fitness' }) => {
   const contentHtml = customHtml && String(customHtml).trim()
-    ? String(customHtml)
+    ? validateSafeEmailHtml(customHtml)
     : String(bodyText || '')
         .split(/\r?\n/)
         .map((line) => (line.trim() ? `<p style="margin:0 0 12px 0;line-height:1.6;color:#1f2937;font-size:15px;">${escapeHtml(line)}</p>` : '<div style="height:8px;"></div>'))
@@ -146,7 +173,7 @@ const updateEmailTemplate = async (key, payload = {}, adminUser = null) => {
     template.body = cleanBody;
   }
   if (payload.htmlBody !== undefined) {
-    template.htmlBody = String(payload.htmlBody || '');
+    template.htmlBody = validateSafeEmailHtml(payload.htmlBody);
   }
   if (payload.isActive !== undefined) {
     template.isActive = Boolean(payload.isActive);
@@ -223,6 +250,7 @@ const sendEmailNotification = async ({
 }) => {
   const meta = SMS_CATALOG_MAP.get(notificationKey);
   if (!meta) return { ok: false, skipped: true, reason: 'UNKNOWN_KEY' };
+  if (meta.supported === false) return { ok: false, skipped: true, reason: 'UNSUPPORTED_NOTIFICATION' };
 
   const { settings } = await smsService.getOrCreateSettings();
   if (settings.emailEnabled !== true) {

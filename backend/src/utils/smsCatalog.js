@@ -28,6 +28,8 @@ const MEMBER_NOTIFICATIONS = [
     label: 'Membership Deletion',
     defaultBody: 'Hi {{memberName}} ({{memberId}}), your {{membershipName}} record at {{branchName}} has been removed.',
     classification: 'SERVICE_IMPLICIT',
+    supported: false,
+    unsupportedReason: 'Membership deletion workflow not yet implemented',
   },
   {
     key: 'MEMBER_MEMBERSHIP_FREEZE',
@@ -88,12 +90,16 @@ const MEMBER_NOTIFICATIONS = [
     label: 'Referral Alert For Referred',
     defaultBody: 'Hi {{memberName}}, you were referred to Man & Machine {{branchName}}! Visit us to claim your welcome trial.',
     classification: 'SERVICE_IMPLICIT',
+    supported: false,
+    unsupportedReason: 'Referral module not yet implemented',
   },
   {
     key: 'MEMBER_REFERRAL_POINT_DEBIT',
     label: 'Referral Point Debit Alert',
     defaultBody: 'Hi {{memberName}} ({{memberId}}), referral points of Rs.{{paymentAmount}} redeemed at {{branchName}}.',
     classification: 'TRANSACTIONAL',
+    supported: false,
+    unsupportedReason: 'Referral module not yet implemented',
   },
   {
     key: 'MEMBER_ABSENT_ALERT',
@@ -130,6 +136,8 @@ const MEMBER_NOTIFICATIONS = [
     label: 'Locker Expiry',
     defaultBody: 'Hi {{memberName}}, locker {{lockerNumber}} at {{branchName}} expires on {{expiryDate}}. Please renew.',
     classification: 'SERVICE_IMPLICIT',
+    supported: false,
+    unsupportedReason: 'Locker management module not yet implemented',
   },
 ];
 
@@ -189,6 +197,8 @@ const STAFF_NOTIFICATIONS = [
     recipientRole: 'OWNER',
     defaultBody: 'Hi {{ownerName}}, new referral {{memberName}} registered at {{branchName}}.',
     classification: 'SERVICE_IMPLICIT',
+    supported: false,
+    unsupportedReason: 'Referral module not yet implemented',
   },
   {
     key: 'STAFF_LOW_FEEDBACK_ALERT',
@@ -196,6 +206,8 @@ const STAFF_NOTIFICATIONS = [
     recipientRole: 'OWNER',
     defaultBody: 'Alert {{ownerName}}: low feedback received from {{memberName}} ({{memberId}}) at {{branchName}}.',
     classification: 'SERVICE_IMPLICIT',
+    supported: false,
+    unsupportedReason: 'Member feedback module not yet implemented',
   },
   {
     key: 'STAFF_MEMBERSHIP_SUSPENDED',
@@ -217,6 +229,8 @@ const STAFF_NOTIFICATIONS = [
     recipientRole: 'OWNER',
     defaultBody: 'Hi {{ownerName}}, {{memberName}} ({{memberId}}) membership {{membershipName}} deleted at {{branchName}}.',
     classification: 'SERVICE_IMPLICIT',
+    supported: false,
+    unsupportedReason: 'Membership deletion workflow not yet implemented',
   },
   {
     key: 'STAFF_MEMBERSHIP_ACTIVATED',

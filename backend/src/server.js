@@ -17,6 +17,7 @@ const websiteController = require('./controllers/websiteController');
 const trainerRoutes = require('./routes/trainerRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const whatsappRoutes = require('./routes/whatsappRoutes');
+const webhookRoutes = require('./routes/webhookRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const biometricRoutes = require('./routes/biometricRoutes');
 const admsRoutes = require('./routes/admsRoutes');
@@ -68,8 +69,8 @@ const corsOptions = {
 
 // Middlewares
 app.use(cors(corsOptions));
-// Preserve the exact bytes used to validate signed WhatsApp webhook callbacks.
-app.use(express.json({ verify: (req, res, buffer) => { if (req.originalUrl === '/api/whatsapp/webhook') req.rawBody = Buffer.from(buffer); } }));
+// Preserve the exact bytes used to validate signed WhatsApp & communication webhook callbacks.
+app.use(express.json({ verify: (req, res, buffer) => { if (req.originalUrl === '/api/whatsapp/webhook' || req.originalUrl.startsWith('/api/webhooks/communications')) req.rawBody = Buffer.from(buffer); } }));
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded media files with browser caching & nosniff security header
@@ -274,6 +275,8 @@ app.use('/api/biometric', biometricRoutes);
 app.use('/iclock', admsRoutes);
 // Public only for Meta's signed webhook verification/callback; all management routes are ADMIN-only.
 app.use('/api/whatsapp', whatsappRoutes);
+// Public signed provider delivery receipt webhooks (HMAC-SHA256 verified)
+app.use('/api/webhooks/communications', webhookRoutes);
 
 // Root route
 app.get('/', (req, res) => {
