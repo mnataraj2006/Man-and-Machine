@@ -866,21 +866,6 @@ export default function BiometricDevices() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="p-2 rounded-lg bg-[#111111] border border-[#252525]">
-                        <span className="text-[10px] text-[#858585] block">Users</span>
-                        <span className="font-mono font-bold text-[#F5F5F5]">{d.userCount || 0}</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-[#111111] border border-[#252525]">
-                        <span className="text-[10px] text-[#858585] block">Face</span>
-                        <span className="font-mono font-bold text-[#F5F5F5]">{d.faceCount || 0}</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-[#111111] border border-[#252525]">
-                        <span className="text-[10px] text-[#858585] block">Finger</span>
-                        <span className="font-mono font-bold text-[#F5F5F5]">{d.fingerprintCount || 0}</span>
-                      </div>
-                    </div>
-
                     {(d.effectiveStatus === 'OFFLINE' || d.effectiveStatus === 'ERROR') && (
                       <div className="p-2.5 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E]/30 text-[11px] text-[#FF6A5E]">
                         <strong>Device offline:</strong> {d.errorMessage || 'Check device network / ADMS configuration.'}
@@ -1989,19 +1974,7 @@ export default function BiometricDevices() {
                       </div>
                     </div>
 
-                    <div className="bg-[#181818] border border-[#303030] rounded-xl p-4 grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
-                      <div>
-                        <span className="text-[10px] text-[#858585] block">Users</span>
-                        <span className="font-mono font-bold text-[#F5F5F5]">{deviceDetail.device.userCount} / {deviceDetail.device.userCapacity}</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-[#858585] block">Face</span>
-                        <span className="font-mono font-bold text-[#F5F5F5]">{deviceDetail.device.faceCount} / {deviceDetail.device.faceCapacity}</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-[#858585] block">Fingerprint</span>
-                        <span className="font-mono font-bold text-[#F5F5F5]">{deviceDetail.device.fingerprintCount} / {deviceDetail.device.fingerprintCapacity}</span>
-                      </div>
+                    <div className="bg-[#181818] border border-[#303030] rounded-xl p-4 grid grid-cols-2 gap-3 text-xs">
                       <div>
                         <span className="text-[10px] text-[#858585] block">Today</span>
                         <span className="font-mono font-bold text-[#F03B2E]">{deviceDetail.device.attendanceToday}</span>
