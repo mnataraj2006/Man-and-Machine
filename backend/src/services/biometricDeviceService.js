@@ -877,6 +877,32 @@ const processAttendanceEvent = async ({
       rawEventReference: dedupKey,
     });
 
+    // Reliable modality-specific FACE punch (verifyCode=15) confirms physical face enrollment on the device
+    if (profile && verificationMethod === 'FACE' && mongoose.connection.readyState === 1) {
+      const pendingFaceEnr = await BiometricEnrollment.findOne({
+        clientProfileId: profile._id,
+        branchId: device.branchId,
+        assignedDeviceId: device._id,
+        biometricUserId: cleanBioId,
+        status: { $in: ['DEVICE_USER_READY', 'FACE_ENROLLMENT_PENDING', 'AWAITING_PHYSICAL_ENROLLMENT', 'APPROVED'] },
+      });
+      if (pendingFaceEnr && pendingFaceEnr.consentStatus !== 'WITHDRAWN') {
+        const prevStatus = pendingFaceEnr.status;
+        pendingFaceEnr.status = 'ENROLLED';
+        pendingFaceEnr.faceEnrollmentStatus = 'ENROLLED';
+        pendingFaceEnr.deviceEnrollmentStatus = 'DEVICE_VERIFIED';
+        pendingFaceEnr.enrolledAt = pendingFaceEnr.enrolledAt || eventTime;
+        pendingFaceEnr.lastVerifiedAt = eventTime;
+        pendingFaceEnr.history.push({
+          action: 'FACE_ENROLLMENT_CONFIRMED_BY_DEVICE',
+          fromStatus: prevStatus,
+          toStatus: 'ENROLLED',
+          note: `Physical face enrollment confirmed by FACE verification punch on ${device.deviceName} (${device.serialNumber}) for PIN ${cleanBioId}.`,
+        });
+        await pendingFaceEnr.save();
+      }
+    }
+
     return { duplicate: false, record };
   } catch (err) {
     if (err.code === 11000) {
@@ -1051,8 +1077,17 @@ const handleAdmsOperLog = async (sn, rawBody) => {
   );
   let parsedUsersCount = 0;
   let invalidUsersCount = 0;
+  const confirmedFacePins = new Set();
   const operLines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   for (const line of operLines) {
+    if (/^FACE\b/i.test(line)) {
+      const facePinMatch = line.match(/\bPIN=([^\t\s]+)/i);
+      const facePin = facePinMatch ? facePinMatch[1].trim() : '';
+      if (facePin && /^[A-Za-z0-9_-]{1,32}$/.test(facePin)) {
+        confirmedFacePins.add(facePin);
+      }
+      continue;
+    }
     if (!/^USER\b/i.test(line)) continue;
     const pinMatch = line.match(/\bPIN=([^\t\s]+)/i);
     const pin = pinMatch ? pinMatch[1].trim() : '';
@@ -1131,6 +1166,34 @@ const handleAdmsOperLog = async (sn, rawBody) => {
         note: `Confirmed device user ${job.biometricUserId} (${discovered.name}) via OPERLOG from ${device.serialNumber}.`,
       });
       await enrollment.save();
+    }
+  }
+
+  // Promote DEVICE_USER_READY / AWAITING_PHYSICAL_ENROLLMENT to ENROLLED when OPERLOG reports FACE enrollment for that PIN
+  if (confirmedFacePins.size > 0 && device.isActive && device.status !== 'DISABLED' && mongoose.connection.readyState === 1) {
+    const BiometricEnrollment = require('../models/BiometricEnrollment');
+    const faceEnrollments = await BiometricEnrollment.find({
+      assignedDeviceId: device._id,
+      branchId: device.branchId,
+      biometricUserId: { $in: Array.from(confirmedFacePins) },
+      status: { $in: ['DEVICE_USER_READY', 'FACE_ENROLLMENT_PENDING', 'AWAITING_PHYSICAL_ENROLLMENT', 'APPROVED'] },
+    });
+    const nowFace = new Date();
+    for (const enr of faceEnrollments) {
+      if (enr.consentStatus === 'WITHDRAWN') continue;
+      const prevStatus = enr.status;
+      enr.status = 'ENROLLED';
+      enr.faceEnrollmentStatus = 'ENROLLED';
+      enr.deviceEnrollmentStatus = 'DEVICE_VERIFIED';
+      enr.enrolledAt = enr.enrolledAt || nowFace;
+      enr.lastVerifiedAt = nowFace;
+      enr.history.push({
+        action: 'FACE_ENROLLMENT_CONFIRMED_BY_OPERLOG',
+        fromStatus: prevStatus,
+        toStatus: 'ENROLLED',
+        note: `Physical face template confirmed via OPERLOG on ${device.deviceName} (${device.serialNumber}) for PIN ${enr.biometricUserId}.`,
+      });
+      await enr.save();
     }
   }
 
