@@ -78,7 +78,7 @@ router.use(verifyAdmsAccess);
  * GET /iclock/cdata?SN=TDDB250600919&options=all
  * eSSL / ZKTeco ADMS initial handshake
  */
-router.get('/cdata', async (req, res) => {
+router.get(['/cdata', '/cdata.aspx'], async (req, res) => {
   try {
     const sn = req.query.SN || req.query.sn;
     const device = await biometricDeviceService.handleAdmsHeartbeat(sn, {
@@ -138,7 +138,7 @@ const isStrictAttlogPayload = (bodyText) => {
   });
 };
 
-router.post('/cdata', async (req, res) => {
+router.post(['/cdata', '/cdata.aspx'], async (req, res) => {
   try {
     const sn = req.query.SN || req.query.sn;
     const cleanSn = String(sn || '').trim().toUpperCase();
@@ -177,7 +177,7 @@ router.post('/cdata', async (req, res) => {
  * GET /iclock/getrequest?SN=TDDB250600919
  * Periodic ADMS heartbeat & command poll
  */
-router.get('/getrequest', async (req, res) => {
+router.get(['/getrequest', '/getrequest.aspx'], async (req, res) => {
   try {
     const sn = req.query.SN || req.query.sn;
     const device = await biometricDeviceService.handleAdmsHeartbeat(sn);
@@ -201,7 +201,7 @@ router.get('/getrequest', async (req, res) => {
 /**
  * POST /iclock/devicecmd?SN=TDDB250600919
  */
-router.post('/devicecmd', async (req, res) => {
+router.post(['/devicecmd', '/devicecmd.aspx'], async (req, res) => {
   try {
     const sn = req.query.SN || req.query.sn;
     const device = await biometricDeviceService.handleAdmsHeartbeat(sn);

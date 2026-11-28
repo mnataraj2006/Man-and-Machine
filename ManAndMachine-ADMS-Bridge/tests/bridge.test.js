@@ -580,3 +580,58 @@ test('20. Unknown or OPERLOG-like payload without table parameter is NOT classif
     await mockRender.stop();
   }
 });
+
+
+test('21. GET /iclock/getrequest.aspx forwards heartbeat to Render and does not mark cloudSync when Render is down', async () => {
+  const mockRender = createMockRenderServer();
+  const renderUrl = await mockRender.start();
+  const bridge = createBridgeServer(makeSettings(renderUrl), { disableFileLogs: true, consoleLogs: false });
+  const { port } = await bridge.start();
+
+  try {
+    const res = await httpRequest(`http://127.0.0.1:${port}/iclock/getrequest.aspx?SN=TDDB250600919`, {
+      method: 'GET',
+    });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body, 'OK');
+    assert.equal(mockRender.received.length, 1);
+    assert.ok(mockRender.received[0].url.startsWith('/iclock/getrequest'));
+    const snapshot = bridge.healthMonitor.getStatusSnapshot();
+    const prevCloudSync = snapshot.devices.find((d) => d.deviceSerial === 'TDDB250600919')?.lastCloudSyncAt;
+    assert.ok(prevCloudSync);
+
+    mockRender.setMode('down');
+    const downRes = await httpRequest(`http://127.0.0.1:${port}/iclock/getrequest.aspx?SN=TDDB250600919`, {
+      method: 'GET',
+    });
+    assert.equal(downRes.statusCode, 200);
+    assert.equal(downRes.body, 'OK');
+    const afterDown = bridge.healthMonitor.getStatusSnapshot();
+    assert.equal(afterDown.devices.find((d) => d.deviceSerial === 'TDDB250600919')?.lastCloudSyncAt, prevCloudSync);
+    assert.equal(afterDown.cloud.reachable, false);
+  } finally {
+    await bridge.stop();
+    await mockRender.stop();
+  }
+});
+
+test('22. POST /iclock/devicecmd.aspx forwards device command ack to Render', async () => {
+  const mockRender = createMockRenderServer();
+  const renderUrl = await mockRender.start();
+  const bridge = createBridgeServer(makeSettings(renderUrl), { disableFileLogs: true, consoleLogs: false });
+  const { port } = await bridge.start();
+
+  try {
+    const res = await httpRequest(`http://127.0.0.1:${port}/iclock/devicecmd.aspx?SN=TDDB250600919`, {
+      method: 'POST',
+      body: 'ID=1&Return=0&CMD=INFO\n',
+      headers: { 'Content-Type': 'text/plain' },
+    });
+    assert.equal(res.statusCode, 200);
+    assert.equal(mockRender.received.length, 1);
+    assert.ok(mockRender.received[0].url.startsWith('/iclock/devicecmd'));
+  } finally {
+    await bridge.stop();
+    await mockRender.stop();
+  }
+});

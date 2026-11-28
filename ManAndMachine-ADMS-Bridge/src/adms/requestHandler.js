@@ -71,14 +71,14 @@ function createRequestHandler({ settings, queue, renderClient, retryManager, hea
         return sendJson(res, 200, healthMonitor.getStatusSnapshot());
       }
 
-      // ADMS endpoints
+      // ADMS endpoints (support both standard and .aspx eSSL/ZKTeco firmware paths)
       const isCdata = pathname === '/iclock/cdata' || pathname === '/iclock/cdata.aspx';
+      const isGetRequest =
+        pathname === '/iclock/getrequest' || pathname === '/iclock/getrequest.aspx';
+      const isDeviceCmd =
+        pathname === '/iclock/devicecmd' || pathname === '/iclock/devicecmd.aspx';
 
-      if (
-        isCdata ||
-        pathname === '/iclock/getrequest' ||
-        pathname === '/iclock/devicecmd'
-      ) {
+      if (isCdata || isGetRequest || isDeviceCmd) {
         const sn = parsedUrl.searchParams.get('SN') || parsedUrl.searchParams.get('sn') || '';
         const validation = validateDeviceRequest({ sn, remoteIp, settings });
         if (!validation.ok) {
@@ -209,8 +209,8 @@ function createRequestHandler({ settings, queue, renderClient, retryManager, hea
           return sendText(res, 200, tableName === 'ATTLOG' ? `OK: ${lines.length}` : 'OK: 1');
         }
 
-        // 3. Heartbeat / Command poll: GET /iclock/getrequest (live only, never queued)
-        if (pathname === '/iclock/getrequest' && method === 'GET') {
+        // 3. Heartbeat / Command poll: GET /iclock/getrequest(.aspx) (live only, never queued)
+        if (isGetRequest && method === 'GET') {
           queue.recordDeviceActivity({
             deviceSerial: validSn,
             ip: validIp,
@@ -238,8 +238,8 @@ function createRequestHandler({ settings, queue, renderClient, retryManager, hea
           return sendText(res, 200, 'OK');
         }
 
-        // 4. Device command acknowledgment: POST /iclock/devicecmd (live only, never queued)
-        if (pathname === '/iclock/devicecmd' && method === 'POST') {
+        // 4. Device command acknowledgment: POST /iclock/devicecmd(.aspx) (live only, never queued)
+        if (isDeviceCmd && method === 'POST') {
           const rawBody = await readRequestBody(req);
           queue.recordDeviceActivity({
             deviceSerial: validSn,

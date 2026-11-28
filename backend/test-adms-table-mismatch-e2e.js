@@ -167,6 +167,46 @@ const postText = (server, path, body) =>
       assert.strictEqual(count, 2);
     });
 
+    await check('6. GET /iclock/getrequest.aspx updates lastSeenAt -> ONLINE; stale timeout -> OFFLINE; invalid SN -> 404', async () => {
+      const biometricDeviceService = require('./src/services/biometricDeviceService');
+      const staleTime = new Date(Date.now() - 10 * 60 * 1000);
+      await BiometricDevice.updateOne({ _id: device._id }, { $set: { lastSeenAt: staleTime, status: 'OFFLINE' } });
+
+      const offlineOverview = await biometricDeviceService.getDevicesOverview({});
+      assert.strictEqual(offlineOverview.devices[0].effectiveStatus, 'OFFLINE');
+
+      const addr = server.address();
+      const pollRes = await new Promise((resolve, reject) => {
+        http
+          .get(`http://127.0.0.1:${addr.port}/iclock/getrequest.aspx?SN=TDBD242100623`, (res) => {
+            let data = '';
+            res.on('data', (c) => (data += c));
+            res.on('end', () => resolve({ status: res.statusCode, body: data }));
+          })
+          .on('error', reject);
+      });
+      assert.strictEqual(pollRes.status, 200);
+      assert.strictEqual(pollRes.body, 'OK');
+
+      const onlineOverview = await biometricDeviceService.getDevicesOverview({});
+      assert.strictEqual(onlineOverview.devices[0].effectiveStatus, 'ONLINE');
+      const recordedSeenAt = new Date(onlineOverview.devices[0].lastSeenAt).getTime();
+      assert(recordedSeenAt > staleTime.getTime());
+
+      const badRes = await new Promise((resolve, reject) => {
+        http
+          .get(`http://127.0.0.1:${addr.port}/iclock/getrequest.aspx?SN=UNKNOWN999`, (res) => {
+            let data = '';
+            res.on('data', (c) => (data += c));
+            res.on('end', () => resolve({ status: res.statusCode, body: data }));
+          })
+          .on('error', reject);
+      });
+      assert.strictEqual(badRes.status, 404);
+      const unchanged = await BiometricDevice.findById(device._id).lean();
+      assert.strictEqual(new Date(unchanged.lastSeenAt).getTime(), recordedSeenAt);
+    });
+
     console.log(`\nALL ${passed} ADMS TABLE MISMATCH BACKEND E2E CHECKS PASSED!`);
   } finally {
     server.close();
