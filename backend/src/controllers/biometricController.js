@@ -293,6 +293,22 @@ const getClientBiometricLogs = async (req, res, next) => {
   }
 };
 
+const retryEnrollmentSync = async (req, res, next) => {
+  try {
+    const biometricDeviceSyncService = require('../services/biometricDeviceSyncService');
+    const result = await biometricDeviceSyncService.retryDeviceUserSync(req.params.id, req.user);
+    res.status(200).json({
+      success: true,
+      message: result.job?.status === 'VERIFIED' || result.job?.status === 'ACKNOWLEDGED'
+        ? 'Device user sync verified.'
+        : (result.job?.failureReason || 'Device user sync retry completed.'),
+      ...result,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getDevices,
   registerDevice,
@@ -319,4 +335,5 @@ module.exports = {
   getDeviceCommands,
   queueDeviceCommand,
   cancelDeviceCommand,
+  retryEnrollmentSync,
 };

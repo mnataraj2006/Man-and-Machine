@@ -125,6 +125,7 @@ const listEnrollments = async (query = {}) => {
     .populate('clientProfileId', 'clientId name phone email')
     .populate('branchId', 'name city')
     .populate('assignedDeviceId', 'deviceName model serialNumber')
+    .populate('deviceUserSyncJobId')
     .sort({ updatedAt: -1 })
     .lean();
 
@@ -160,6 +161,7 @@ const getEnrollmentDetails = async (id) => {
     .populate('clientProfileId', 'clientId name phone email joiningDate')
     .populate('branchId', 'name city code')
     .populate('assignedDeviceId', 'deviceName model serialNumber localIp admsServerPort status lastSeenAt')
+    .populate('deviceUserSyncJobId')
     .populate('consentId')
     .lean();
 
@@ -763,6 +765,20 @@ const approveEnrollment = async (enrollmentId, adminUser, { deviceId = null, bio
     throw err;
   }
 
+  // Controlled device-user sync job (respects BIOMETRIC_REMOTE_USER_SYNC flag & firmware check)
+  if (targetDeviceId && candidateBioId) {
+    const deviceDoc = await BiometricDevice.findById(targetDeviceId);
+    if (deviceDoc) {
+      const biometricDeviceSyncService = require('./biometricDeviceSyncService');
+      await biometricDeviceSyncService.syncEnrollmentDeviceUser({
+        enrollment: updated,
+        device: deviceDoc,
+        clientProfile: enrollment.clientProfileId,
+        adminUser,
+      });
+    }
+  }
+
   await notifyClient(
     updated.userId,
     'Biometric Enrollment Approved',
@@ -1013,7 +1029,7 @@ const withdrawClientConsent = async (userId, { branchId = null } = {}) => {
 
 const submitMobileCapture = async (
   userId,
-  { brightnessScore = 0, sharpnessScore = 0, livenessPassed = false, frameCount = 0, branchId = null }
+  { brightnessScore = 0, sharpnessScore = 0, livenessPassed = false, frameCount = 0, branchId = null, agreed = false, ipAddress = '' }
 ) => {
   const profile = await ClientProfile.findOne({ userId });
   if (!profile) {
@@ -1031,11 +1047,23 @@ const submitMobileCapture = async (
   const targetBranchId =
     branchId && mongoose.Types.ObjectId.isValid(branchId) ? branchId : profile.branchId;
 
-  const consent = await BiometricConsent.findOne({ clientProfileId: profile._id, status: 'GRANTED' });
+  let consent = await BiometricConsent.findOne({ clientProfileId: profile._id, status: 'GRANTED' });
   if (!consent) {
-    const err = new Error('Biometric data consent must be granted before submitting face capture.');
-    err.statusCode = 400;
-    throw err;
+    if (!agreed) {
+      const err = new Error('Biometric enrollment authorization is required when submitting your request.');
+      err.statusCode = 400;
+      throw err;
+    }
+    consent = await BiometricConsent.create({
+      clientProfileId: profile._id,
+      userId,
+      branchId: targetBranchId,
+      consentGiven: true,
+      consentVersion: 'v1.0',
+      ipAddress,
+      status: 'GRANTED',
+      consentedAt: new Date(),
+    });
   }
 
   if (!livenessPassed || frameCount < 2) {

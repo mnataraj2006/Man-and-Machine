@@ -535,6 +535,24 @@ export default function BiometricDevices() {
     }
   };
 
+  const handleRetryEnrollmentSync = async (enr) => {
+    try {
+      const res = await biometricService.retryEnrollmentSync(enr._id);
+      const jobStatus = res.job?.status;
+      if (jobStatus === 'VERIFIED' || jobStatus === 'ACKNOWLEDGED') {
+        showToast('success', 'Device user verified and ready for physical face capture.');
+      } else {
+        showToast('error', res.job?.failureReason || 'Device user sync failed.');
+      }
+      fetchEnrollmentsData();
+      if (selectedEnrollmentDetail?.enrollment?._id === enr._id) {
+        handleOpenEnrollmentDetail(enr._id);
+      }
+    } catch (err) {
+      showToast('error', err.message || 'Retry sync failed');
+    }
+  };
+
   const fetchDeviceCommands = useCallback(async (id) => {
     if (!id) return;
     setCommandsLoading(true);
@@ -1119,6 +1137,8 @@ export default function BiometricDevices() {
             >
               <option value="ALL">All Statuses</option>
               <option value="CAPTURE_SUBMITTED">Capture Submitted (Needs Review)</option>
+              <option value="DEVICE_USER_SYNCING">Device User Syncing</option>
+              <option value="DEVICE_USER_READY">Device User Ready</option>
               <option value="AWAITING_PHYSICAL_ENROLLMENT">Awaiting Physical Enrollment</option>
               <option value="ENROLLED">Enrolled</option>
               <option value="REJECTED">Rejected</option>
@@ -1743,6 +1763,53 @@ export default function BiometricDevices() {
                   {e.failureReason && (
                     <div className="p-3 rounded-xl bg-[#F03B2E]/10 border border-[#F03B2E]/35 text-[#FF6A5E]">
                       <strong>Failure / Rejection Reason:</strong> {e.failureReason}
+                    </div>
+                  )}
+
+                  {(e.biometricUserId || e.deviceUserSyncStatus !== 'NOT_STARTED') && (
+                    <div className="p-4 rounded-xl bg-[#111111] border border-[#252525] space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-mono uppercase text-[#858585]">Device User Sync</span>
+                        <span className={`font-mono text-[11px] font-bold uppercase ${
+                          e.deviceUserSyncStatus === 'VERIFIED' || e.deviceUserSyncStatus === 'ACKNOWLEDGED' || e.status === 'DEVICE_USER_READY'
+                            ? 'text-emerald-400'
+                            : e.deviceUserSyncStatus === 'FAILED'
+                            ? 'text-[#FF6A5E]'
+                            : 'text-amber-400'
+                        }`}>
+                          {e.deviceUserSyncStatus === 'VERIFIED' || e.deviceUserSyncStatus === 'ACKNOWLEDGED' || e.status === 'DEVICE_USER_READY'
+                            ? 'READY'
+                            : e.deviceUserSyncStatus === 'FAILED'
+                            ? 'SYNC FAILED'
+                            : 'Syncing...'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-[#B8B8B8]">
+                        <div>Client: <strong className="font-mono text-[#F5F5F5]">{e.clientProfileId?.clientId || '—'}</strong></div>
+                        <div>Biometric ID: <strong className="font-mono text-[#F5F5F5]">{e.biometricUserId || '—'}</strong></div>
+                        <div>Device: <strong className="text-[#F5F5F5]">{e.assignedDeviceId?.deviceName || '—'}</strong></div>
+                        <div>Enrollment: <strong className="font-mono text-[#F5F5F5]">{e.adminApprovalStatus || 'PENDING'}</strong></div>
+                        <div>Face Enrollment: <strong className="font-mono text-[#F5F5F5]">{e.faceEnrollmentStatus || 'PENDING'}</strong></div>
+                      </div>
+                      {(e.status === 'DEVICE_USER_READY' || e.deviceUserSyncStatus === 'VERIFIED' || e.deviceUserSyncStatus === 'ACKNOWLEDGED') && (
+                        <p className="text-[11px] text-emerald-300 font-semibold">
+                          DEVICE USER READY — The client can now visit the biometric machine and enroll their face.
+                        </p>
+                      )}
+                      {e.deviceUserSyncStatus === 'FAILED' && e.deviceUserSyncError && (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                          <span className="text-[11px] text-[#FF6A5E]">Reason: {e.deviceUserSyncError}</span>
+                          {e.status !== 'ENROLLED' && (
+                            <button
+                              type="button"
+                              onClick={() => handleRetryEnrollmentSync(e)}
+                              className="px-3 py-1.5 rounded-lg bg-[#202020] hover:bg-[#303030] border border-[#303030] text-[#F5F5F5] text-[11px] font-bold uppercase cursor-pointer shrink-0"
+                            >
+                              Retry Sync
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 

@@ -39,6 +39,7 @@ router.post('/enrollments/:id/remote-enroll', biometricController.initiateRemote
 router.post('/enrollments/remote-enroll', biometricController.initiateRemoteEnrollment);
 router.post('/enrollments/:id/approve', biometricController.approveEnrollment);
 router.post('/enrollments/:id/reject', biometricController.rejectEnrollment);
+router.post('/enrollments/:id/retry-sync', biometricController.retryEnrollmentSync);
 router.post('/migration/analyze', biometricController.analyzeMigration);
 router.get('/migration/preview', biometricController.getMigrationPreview);
 router.post('/migration/bulk-map', biometricController.bulkMapMigration);

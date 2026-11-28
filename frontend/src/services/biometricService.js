@@ -125,6 +125,10 @@ class BiometricService {
     return this.request(`/enrollments/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
   }
 
+  retryEnrollmentSync(id) {
+    return this.request(`/enrollments/${id}/retry-sync`, { method: 'POST' });
+  }
+
   analyzeMigration(payload) {
     return this.request('/migration/analyze', { method: 'POST', body: JSON.stringify(payload) });
   }

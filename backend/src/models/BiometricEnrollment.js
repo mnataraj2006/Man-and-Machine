@@ -57,6 +57,10 @@ const biometricEnrollmentSchema = new mongoose.Schema(
         'CAPTURE_SUBMITTED',
         'PENDING_REVIEW',
         'APPROVED',
+        'DEVICE_USER_SYNCING',
+        'DEVICE_USER_READY',
+        'FACE_ENROLLMENT_PENDING',
+        'FACE_ENROLLED',
         'REMOTE_ENROLLMENT_PENDING',
         'AWAITING_PHYSICAL_ENROLLMENT',
         'DEVICE_ENROLLMENT_IN_PROGRESS',
@@ -122,6 +126,21 @@ const biometricEnrollmentSchema = new mongoose.Schema(
     enrolledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     lastVerifiedAt: { type: Date, default: null },
     failureReason: { type: String, trim: true, default: '' },
+    deviceUserSyncJobId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'BiometricDeviceSyncJob',
+      default: null,
+    },
+    deviceUserSyncStatus: {
+      type: String,
+      enum: ['NOT_STARTED', 'PENDING', 'SENT', 'ACKNOWLEDGED', 'VERIFIED', 'FAILED'],
+      default: 'NOT_STARTED',
+    },
+    deviceUserSyncError: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     history: {
       type: [enrollmentHistorySchema],
       default: [],

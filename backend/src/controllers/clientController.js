@@ -2086,7 +2086,7 @@ const withdrawBiometricConsent = async (req, res, next) => {
 
 const submitBiometricCapture = async (req, res, next) => {
   try {
-    const enrollment = await biometricEnrollmentService.submitMobileCapture(req.user._id, req.body);
+    const enrollment = await biometricEnrollmentService.submitMobileCapture(req.user._id, { ...req.body, ipAddress: req.ip || '' });
     res.status(201).json({
       success: true,
       message: 'Mobile face pre-enrollment submitted for review.',

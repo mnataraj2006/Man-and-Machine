@@ -171,8 +171,9 @@ async function run() {
   assert.strictEqual(statusBefore.consent, null);
   console.log('   PASS');
 
-  // 2. Attendance before consent must be rejected without deleting/deactivating mapping
-  console.log('2. Checking attendance punch rejection before consent...');
+  // 2. Attendance when consent is WITHDRAWN must be rejected without deleting/deactivating mapping
+  console.log('2. Checking attendance punch rejection when consent is WITHDRAWN...');
+  enrollmentDoc.consentStatus = 'WITHDRAWN';
   const punchBefore = await biometricDeviceService.processAttendanceEvent({
     device,
     biometricUserId: '1001',
@@ -183,6 +184,7 @@ async function run() {
   assert.strictEqual(punchBefore.rejected, true);
   assert.strictEqual(punchBefore.reason, 'CONSENT_REQUIRED');
   assert.strictEqual(attendanceCreatedCount, 0);
+  enrollmentDoc.consentStatus = 'PENDING';
   assert.strictEqual(mappingDeletedOrDeactivated, false);
   assert.strictEqual(mappingDoc.status, 'ACTIVE');
   assert(deviceLogs.some((l) => l.action === 'ATTENDANCE_REJECTED_NO_CONSENT'));

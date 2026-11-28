@@ -307,7 +307,7 @@ export default function BiometricAccess({ onNavigate }) {
     if (!captureMetrics) return;
     setSubmitting(true);
     try {
-      await clientService.submitBiometricCapture(captureMetrics);
+      await clientService.submitBiometricCapture({ ...captureMetrics, agreed: consentChecked || isConsentGranted });
       setFeedback({
         type: 'success',
         message: 'Pre-enrollment face capture submitted! Admin will review and complete physical X2008 terminal linking.',
@@ -413,27 +413,17 @@ export default function BiometricAccess({ onNavigate }) {
                   </div>
                 </div>
 
-                {['NOT_STARTED', 'INVITED', 'REJECTED', 'FAILED', 'REVOKED'].includes(status) ? (
+                {['NOT_STARTED', 'INVITED', 'CAPTURE_IN_PROGRESS', 'REJECTED', 'FAILED', 'REVOKED'].includes(status) ? (
                   <button
                     type="button"
                     onClick={() => {
-                      setConsentChecked(false);
-                      setStep('consent');
+                      setConsentChecked(isConsentGranted);
+                      setStep('camera');
+                      setTimeout(() => startCamera(), 150);
                     }}
                     className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#F03B2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
                   >
-                    {status === 'REJECTED' || status === 'FAILED' ? 'Retry Face Registration' : 'Start Face Registration'}
-                  </button>
-                ) : !isConsentGranted ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConsentChecked(false);
-                      setStep('consent');
-                    }}
-                    className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#F03B2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
-                  >
-                    Grant Biometric Consent
+                    {status === 'REJECTED' || status === 'FAILED' ? 'Retry Enrollment Request' : 'Request Biometric Enrollment'}
                   </button>
                 ) : null}
               </div>
@@ -485,13 +475,15 @@ export default function BiometricAccess({ onNavigate }) {
                 <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200">
                   Your enrollment request has been saved and is <strong>Awaiting Admin Approval</strong>. Note: Browser camera liveness does not register your face on the X2008; physical capture at reception completes registration.
                 </div>
-              ) : status === 'AWAITING_PHYSICAL_ENROLLMENT' || status === 'APPROVED' ? (
-                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200">
-                  Approved! Visit your assigned branch ({data.branch?.city}) reception desk to complete your face capture on the physical eSSL X2008 terminal (Assigned Biometric ID: <strong className="font-mono">{enr.biometricUserId || 'Assigned at desk'}</strong>).
-                </div>
-              ) : status === 'ENROLLED' && !isConsentGranted ? (
-                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200">
-                  <strong>Biometric Consent Required:</strong> Your branch terminal profile is linked, but biometric check-ins are paused until you click <strong>Grant Biometric Consent</strong> above.
+              ) : ['DEVICE_USER_READY', 'FACE_ENROLLMENT_PENDING', 'AWAITING_PHYSICAL_ENROLLMENT', 'APPROVED'].includes(status) ? (
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200 space-y-1.5">
+                  <p className="font-bold text-emerald-100">Your biometric enrollment request has been approved.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
+                    <div>Your Biometric ID: <strong className="font-mono text-white">{enr.biometricUserId || 'Assigned at branch'}</strong></div>
+                    <div>Branch: <strong className="text-white">{data.branch?.city || data.branch?.name || '—'}</strong></div>
+                    <div>Device: <strong className="text-white">{data.assignedDevice?.deviceName || 'Branch Terminal'}</strong></div>
+                  </div>
+                  <p className="pt-1">Please visit the branch biometric machine and enroll your face.</p>
                 </div>
               ) : status === 'ENROLLED' ? (
                 <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200">
@@ -518,52 +510,6 @@ export default function BiometricAccess({ onNavigate }) {
                     Withdraw Biometric Consent
                   </button>
                 )}
-              </div>
-            </div>
-          )}
-
-          {/* STEP 1: EXPLICIT CONSENT */}
-          {step === 'consent' && (
-            <div className="bg-[#181818] border border-[#303030] rounded-2xl p-5 sm:p-6 space-y-4">
-              <div className="flex items-center gap-2 text-[#F03B2E]">
-                <ShieldCheck className="w-5 h-5" />
-                <h3 className="font-display text-lg font-bold uppercase text-[#F5F5F5]">Biometric Data Consent</h3>
-              </div>
-
-              <div className="space-y-2.5 text-xs text-[#B8B8B8] leading-relaxed bg-[#111111] border border-[#252525] rounded-xl p-4">
-                <p><strong className="text-[#F5F5F5]">Why we capture your face:</strong> To verify your identity for pre-enrollment and enable fast, contactless check-in at your branch entrance.</p>
-                <p><strong className="text-[#F5F5F5]">How enrollment works:</strong> Your smartphone camera performs a live quality &amp; liveness pre-check. After Admin approval, your biometric profile is linked to the branch eSSL X2008 terminal.</p>
-                <p><strong className="text-[#F5F5F5]">What is stored:</strong> Only consent records, capture quality metrics, and your mapped terminal user ID are stored on Man &amp; Machine servers. No raw mobile photos are stored unnecessarily.</p>
-                <p><strong className="text-[#F5F5F5]">Retention &amp; Withdrawal:</strong> Records are retained while your membership is active. You may withdraw consent and request deletion at any time from this page or reception.</p>
-                <p><strong className="text-[#F5F5F5]">Alternative Check-in:</strong> Biometric enrollment is optional; you can always check in at reception using your Client ID ({data.clientId}).</p>
-              </div>
-
-              <label className="flex items-start gap-3 p-3 rounded-xl bg-[#111111] border border-[#303030] text-xs text-[#F5F5F5] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={consentChecked}
-                  onChange={(e) => setConsentChecked(e.target.checked)}
-                  className="mt-0.5"
-                />
-                <span>I have read and explicitly consent to biometric pre-enrollment and branch terminal verification.</span>
-              </label>
-
-              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStep('status')}
-                  className="min-h-[44px] px-4 py-2 rounded-xl bg-[#202020] text-[#B8B8B8] text-xs font-bold uppercase cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={!consentChecked || consentBusy}
-                  onClick={handleAcceptConsent}
-                  className="min-h-[44px] px-5 py-2 rounded-xl bg-[#F03B2E] hover:bg-[#FF493B] disabled:opacity-40 text-white text-xs font-bold uppercase cursor-pointer"
-                >
-                  {consentBusy ? 'Saving Consent...' : requiresCameraAfterConsent ? 'Agree & Open Camera' : 'Grant Biometric Consent'}
-                </button>
               </div>
             </div>
           )}
@@ -646,14 +592,30 @@ export default function BiometricAccess({ onNavigate }) {
                       <RotateCcw className="w-4 h-4" />
                       <span>Retake</span>
                     </button>
+                    {!isConsentGranted && (
+                      <div className="w-full space-y-2 text-left mt-2">
+                        <div className="p-3 rounded-xl bg-[#111111] border border-[#252525] text-[11px] text-[#B8B8B8] leading-relaxed">
+                          <strong className="text-[#F5F5F5]">Biometric Attendance &amp; Facial Data Notice:</strong> Submitting this request authorizes Man &amp; Machine to verify your identity, assign a branch biometric terminal ID, and process facial attendance check-ins at your branch while your membership is active. You may withdraw authorization anytime from this page.
+                        </div>
+                        <label className="flex items-start gap-2.5 p-3 rounded-xl bg-[#111111] border border-[#303030] text-xs text-[#F5F5F5] cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={consentChecked}
+                            onChange={(e) => setConsentChecked(e.target.checked)}
+                            className="mt-0.5"
+                          />
+                          <span>I authorize biometric attendance registration and branch terminal face enrollment for my account.</span>
+                        </label>
+                      </div>
+                    )}
                     <button
                       type="button"
-                      disabled={submitting}
+                      disabled={submitting || (!isConsentGranted && !consentChecked)}
                       onClick={handleSubmitCapture}
-                      className="min-h-[44px] px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase inline-flex items-center gap-2 cursor-pointer"
+                      className="min-h-[44px] px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold uppercase inline-flex items-center gap-2 cursor-pointer"
                     >
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>{submitting ? 'Submitting...' : 'Submit Pre-Enrollment'}</span>
+                      <span>{submitting ? 'Submitting...' : 'Submit Enrollment Request'}</span>
                     </button>
                   </>
                 )}

@@ -818,14 +818,21 @@ const processAttendanceEvent = async ({
       .select('consentStatus status')
       .lean();
 
-    if (!enrollment || enrollment.consentStatus !== 'GRANTED') {
+    const isExplicitlyRevoked =
+      !enrollment || enrollment.consentStatus === 'WITHDRAWN' || enrollment.status === 'REVOKED';
+    const hasEnrollmentAuthorization =
+      enrollment &&
+      (enrollment.consentStatus === 'GRANTED' ||
+        ['ENROLLED', 'DEVICE_USER_READY', 'FACE_ENROLLED', 'AWAITING_PHYSICAL_ENROLLMENT', 'APPROVED'].includes(enrollment.status));
+
+    if (isExplicitlyRevoked || !hasEnrollmentAuthorization) {
       await logDeviceEvent({
         deviceId: device._id,
         branchId: device.branchId,
         category: 'ATTENDANCE_SYNC',
         status: 'WARNING',
         action: 'ATTENDANCE_REJECTED_NO_CONSENT',
-        message: `Ignored biometric punch for Biometric ID ${cleanBioId} (${profile.name || profile._id}): biometric consent is ${enrollment?.consentStatus || 'PENDING'}.`,
+        message: `Ignored biometric punch for Biometric ID ${cleanBioId} (${profile.name || profile._id}): biometric authorization is ${enrollment?.consentStatus || 'PENDING'}.`,
       });
       return {
         duplicate: false,
