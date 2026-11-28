@@ -34,6 +34,21 @@ clientSequenceSchema.statics.getNextClientId = async function (session = null) {
   return `MM${String(doc.sequence).padStart(6, '0')}`;
 };
 
+/**
+ * Atomically increments the employee sequence and returns the formatted Employee ID (e.g. EMP001).
+ */
+clientSequenceSchema.statics.getNextEmployeeId = async function (session = null) {
+  const options = { new: true, upsert: true };
+  if (session) options.session = session;
+
+  const doc = await this.findByIdAndUpdate(
+    'employee',
+    { $inc: { sequence: 1 } },
+    options
+  );
+  return `EMP${String(doc.sequence).padStart(3, '0')}`;
+};
+
 const ClientSequence = mongoose.model('ClientSequence', clientSequenceSchema);
 
 module.exports = ClientSequence;

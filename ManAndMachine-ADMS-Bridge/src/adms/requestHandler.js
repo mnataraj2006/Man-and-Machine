@@ -53,6 +53,11 @@ function createRequestHandler({ settings, queue, renderClient, retryManager, hea
     const pathname = parsedUrl.pathname;
     const queryString = parsedUrl.search.startsWith('?') ? parsedUrl.search.slice(1) : '';
     const method = (req.method || 'GET').toUpperCase();
+    logger.info('Incoming HTTP request', {
+      method,
+      pathname,
+      remoteIp: normalizeIp(remoteIp),
+    });
 
     try {
       // Local administrative health & status endpoints
@@ -65,8 +70,10 @@ function createRequestHandler({ settings, queue, renderClient, retryManager, hea
       }
 
       // ADMS endpoints
+      const isCdata = pathname === '/iclock/cdata' || pathname === '/iclock/cdata.aspx';
+
       if (
-        pathname === '/iclock/cdata' ||
+        isCdata ||
         pathname === '/iclock/getrequest' ||
         pathname === '/iclock/devicecmd'
       ) {
@@ -86,7 +93,7 @@ function createRequestHandler({ settings, queue, renderClient, retryManager, hea
         const validIp = validation.remoteIp;
 
         // 1. Handshake / Options: GET /iclock/cdata
-        if (pathname === '/iclock/cdata' && method === 'GET') {
+        if (isCdata && method === 'GET') {
           const fw = extractFirmwareVersion(parsedUrl.searchParams);
           queue.recordDeviceActivity({
             deviceSerial: validSn,
@@ -124,7 +131,7 @@ function createRequestHandler({ settings, queue, renderClient, retryManager, hea
         }
 
         // 2. Attendance / Operlog upload: POST /iclock/cdata
-        if (pathname === '/iclock/cdata' && method === 'POST') {
+        if (isCdata && method === 'POST') {
           const rawBody = await readRequestBody(req);
           const tableName = (parsedUrl.searchParams.get('table') || 'ATTLOG').trim().toUpperCase();
 

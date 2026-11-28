@@ -1,4 +1,5 @@
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
@@ -6,6 +7,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const connectDB = require('./config/db');
 const seedBranches = require('./config/seedBranches');
 const seedAdmin = require('./scripts/seedAdmin');
+const { initSocketServer } = require('./services/socketService');
 const authRoutes = require('./routes/authRoutes');
 const branchRoutes = require('./routes/branchRoutes');
 const clientRoutes = require('./routes/clientRoutes');
@@ -318,7 +320,9 @@ const startServer = async () => {
     await connectDB();
     await seedBranches();
     await seedAdmin();
-    app.listen(PORT, () => {
+    const httpServer = http.createServer(app);
+    initSocketServer(httpServer, corsOptions);
+    httpServer.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
     const admsPort = Number(process.env.ADMS_PORT);

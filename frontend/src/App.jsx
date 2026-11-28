@@ -58,6 +58,8 @@ const AdminExpenses = lazy(() => import('./pages/Admin/Finance/Expenses.jsx'));
 const AdminFinanceConfig = lazy(() => import('./pages/Admin/Finance/FinanceConfigPage.jsx'));
 const AdminReports = lazy(() => import('./pages/Admin/Reports.jsx'));
 const AdminBiometricDevices = lazy(() => import('./pages/Admin/BiometricDevices.jsx'));
+const AdminEmployees = lazy(() => import('./pages/Admin/Employees.jsx'));
+const AdminEmployeeProfile = lazy(() => import('./pages/Admin/EmployeeProfile.jsx'));
 
 // Trainer Application Suite (lazy-loaded per route)
 const TrainerLayout = lazy(() => import('./components/Trainer/TrainerLayout.jsx'));
@@ -238,6 +240,11 @@ export default function App() {
       adminContent = <AdminClients onNavigate={navigate} />;
     } else if (currentPath === '/admin/trainers' || currentPath.startsWith('/admin/trainers/')) {
       adminContent = <AdminTrainers onNavigate={navigate} />;
+    } else if (currentPath === '/admin/employees') {
+      adminContent = <AdminEmployees onNavigate={navigate} />;
+    } else if (currentPath.startsWith('/admin/employees/')) {
+      const empId = currentPath.replace('/admin/employees/', '').split('/')[0];
+      adminContent = <AdminEmployeeProfile employeeId={empId} onNavigate={navigate} />;
     } else if (currentPath === '/admin/membership-plans' || currentPath.startsWith('/admin/membership-plans/')) {
       adminContent = <AdminMembershipPlans onNavigate={navigate} />;
     } else if (currentPath === '/admin/memberships') {

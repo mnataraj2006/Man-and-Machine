@@ -2923,11 +2923,19 @@ const getAttendanceOverview = async (req, res, next) => {
       .sort({ checkInTime: -1 })
       .populate('userId', 'name phone email')
       .populate('clientProfileId', 'name phone email')
+      .populate('employeeId', 'employeeId fullName phone email department designation')
       .populate('branchId', 'name city');
 
     const records = rawRecords.map((rec) => {
       const obj = rec.toObject();
-      if (!obj.userId && obj.clientProfileId) {
+      if (!obj.userId && obj.employeeId) {
+        obj.userId = {
+          _id: obj.employeeId._id,
+          name: `${obj.employeeId.fullName} (${obj.employeeId.employeeId})`,
+          phone: obj.employeeId.phone,
+          email: obj.employeeId.email,
+        };
+      } else if (!obj.userId && obj.clientProfileId) {
         obj.userId = obj.clientProfileId;
       }
       return obj;

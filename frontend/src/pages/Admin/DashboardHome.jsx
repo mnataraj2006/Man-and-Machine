@@ -20,13 +20,23 @@ import {
   ArrowRight,
   ExternalLink,
   MessageCircle,
+  Fingerprint,
+  Wifi,
 } from 'lucide-react';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
+import { useAttendanceNotifications } from '../../context/AttendanceNotificationContext.jsx';
 import adminService from '../../services/adminService.js';
 import whatsappService from '../../services/whatsappService.js';
 
 export default function DashboardHome({ onNavigate }) {
   const { selectedBranch, branches } = useAdmin();
+  const {
+    notifications: liveAttendanceNotifications,
+    socketConnected,
+    permissionState,
+    requestDesktopPermission,
+    markAsRead,
+  } = useAttendanceNotifications();
   const { resolvedTheme } = useTheme();
   const chartTheme = getChartTheme(resolvedTheme);
   const [loading, setLoading] = useState(true);
@@ -235,6 +245,14 @@ export default function DashboardHome({ onNavigate }) {
     }
   };
 
+  useEffect(() => {
+    const onLiveAttendance = () => {
+      fetchData();
+    };
+    window.addEventListener('mm:attendance-updated', onLiveAttendance);
+    return () => window.removeEventListener('mm:attendance-updated', onLiveAttendance);
+  });
+
   const todayFormatted = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'short',
@@ -317,6 +335,95 @@ export default function DashboardHome({ onNavigate }) {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
+      </div>
+
+      {/* ── LIVE EMPLOYEE ATTENDANCE ACTIVITY PANEL ── */}
+      <div className="bg-[#181818] border border-[#303030] rounded-2xl p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-[#EB3E2E]/15 border border-[#EB3E2E]/35 flex items-center justify-center text-[#EB3E2E]">
+              <Fingerprint className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-[#F5F5F5]">
+                  Live Employee Attendance Activity
+                </h3>
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                    socketConnected
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                      : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                  }`}
+                >
+                  <Wifi className="w-3 h-3" />
+                  {socketConnected ? 'Live Stream Active' : 'Connecting'}
+                </span>
+              </div>
+              <p className="text-[11px] text-[#858585]">
+                Real-time eSSL X2008 employee check-ins and check-outs • Desktop permission: <strong className="uppercase text-[#D4D4D4]">{permissionState}</strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {permissionState === 'default' && (
+              <button
+                type="button"
+                onClick={requestDesktopPermission}
+                className="px-3.5 py-2 rounded-xl bg-[#EB3E2E] hover:bg-[#FF493B] text-white text-[11px] font-bold uppercase tracking-wider cursor-pointer"
+              >
+                Enable Desktop Alerts
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onNavigate && onNavigate('/admin/employees')}
+              className="px-3.5 py-2 rounded-xl bg-[#202020] hover:bg-[#2A2A2A] border border-[#303030] text-[11px] font-bold uppercase tracking-wider text-[#D4D4D4] cursor-pointer"
+            >
+              Employee Directory
+            </button>
+          </div>
+        </div>
+
+        {liveAttendanceNotifications.length === 0 ? (
+          <div className="p-4 rounded-xl bg-[#111111] border border-[#252525] text-xs text-[#858585]">
+            No employee biometric punches recorded yet. Live check-ins and check-outs will appear here automatically.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {liveAttendanceNotifications.slice(0, 6).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  if (!item.isRead) markAsRead(item.id);
+                  if (onNavigate && item.employeeId) onNavigate(`/admin/employees/${item.employeeId}`);
+                }}
+                className="text-left p-3.5 rounded-xl bg-[#111111] hover:bg-[#1E1E1E] border border-[#252525] hover:border-[#EB3E2E]/40 transition-colors space-y-1.5 cursor-pointer"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                      item.eventType === 'CHECK_OUT'
+                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                        : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                    }`}
+                  >
+                    {item.eventLabel || (item.eventType === 'CHECK_OUT' ? 'Check-out' : 'Check-in')}
+                  </span>
+                  <span className="text-[10px] font-mono text-[#858585]">{item.formattedTime}</span>
+                </div>
+                <div className="text-xs font-bold text-[#F5F5F5] truncate">
+                  {item.employeeName} <span className="font-mono text-[#EB3E2E]">({item.employeeCode})</span>
+                </div>
+                <div className="text-[11px] text-[#858585] truncate">
+                  {item.branchName || 'Branch'} • {item.deviceName || 'eSSL X2008'}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── ERROR NOTICE & RETRY ── */}

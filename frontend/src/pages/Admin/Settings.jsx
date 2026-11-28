@@ -10,12 +10,21 @@ import {
   Server,
   Database,
   Smartphone,
+  Bell,
 } from 'lucide-react';
 import adminService from '../../services/adminService.js';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
+import { useAttendanceNotifications } from '../../context/AttendanceNotificationContext.jsx';
 
 export default function Settings() {
   const { branches } = useAdmin();
+  const {
+    permissionState,
+    desktopEnabled,
+    socketConnected,
+    requestDesktopPermission,
+    setDesktopEnabled,
+  } = useAttendanceNotifications();
   const [loading, setLoading] = useState(true);
   const [settingsData, setSettingsData] = useState(null);
   const [error, setError] = useState(null);
@@ -90,6 +99,81 @@ export default function Settings() {
 
       {/* ── APPEARANCE & THEME SECTION ── */}
       <AppearanceSettings />
+
+      {/* ── DESKTOP ATTENDANCE NOTIFICATIONS SECTION ── */}
+      <div className="bg-[#181818] border border-[#303030] rounded-2xl p-6 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#303030]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#EB3E2E]/10 border border-[#EB3E2E]/30 flex items-center justify-center text-[#EB3E2E]">
+              <Bell className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold uppercase text-[#F5F5F5]">Desktop Attendance Notifications</h3>
+              <p className="text-xs text-[#B8B8B8]">
+                Receive real-time Windows desktop alerts when employees check in or out on eSSL X2008.
+              </p>
+            </div>
+          </div>
+
+          <span
+            className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border w-fit ${
+              permissionState === 'granted'
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                : permissionState === 'denied'
+                ? 'bg-red-500/10 text-red-400 border-red-500/30'
+                : permissionState === 'unsupported'
+                ? 'bg-[#252525] text-[#9A9A9A] border-[#353535]'
+                : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+            }`}
+          >
+            Browser Permission: {permissionState}
+          </span>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="text-xs font-bold text-[#F5F5F5]">Enable Desktop Notifications</div>
+            <p className="text-[11px] text-[#858585]">
+              {permissionState === 'unsupported'
+                ? 'This browser does not support native Desktop Notifications. In-app alerts remain active.'
+                : permissionState === 'denied'
+                ? 'Browser permission was denied. Enable notifications in your browser site settings to receive desktop alerts. In-app toast alerts remain active.'
+                : `Live socket stream is ${socketConnected ? 'connected' : 'connecting'}. Alerts appear even when viewing another browser tab.`}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            {permissionState === 'default' && (
+              <button
+                type="button"
+                onClick={requestDesktopPermission}
+                className="px-4 py-2 rounded-xl bg-[#EB3E2E] hover:bg-[#FF493B] text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
+              >
+                Allow Notifications
+              </button>
+            )}
+
+            <button
+              type="button"
+              disabled={permissionState === 'unsupported'}
+              onClick={async () => {
+                if (!desktopEnabled && permissionState === 'default') {
+                  await requestDesktopPermission();
+                } else {
+                  setDesktopEnabled(!desktopEnabled);
+                }
+              }}
+              className={`px-4 py-2 rounded-xl border text-xs font-bold uppercase tracking-wider cursor-pointer disabled:opacity-40 ${
+                desktopEnabled && permissionState === 'granted'
+                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                  : 'bg-[#202020] border-[#303030] text-[#B8B8B8]'
+              }`}
+            >
+              {desktopEnabled ? 'Enabled' : 'Disabled'}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* ── PROFILE & SECURITY SECTION ── */}
       <div className="bg-[#181818] border border-[#303030] rounded-2xl p-6 space-y-6">

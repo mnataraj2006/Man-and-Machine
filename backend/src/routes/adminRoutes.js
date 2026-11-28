@@ -4,6 +4,8 @@ const { protect, authorize } = require('../middleware/authMiddleware');
 const adminController = require('../controllers/adminController');
 const financeRoutes = require('./financeRoutes');
 const websiteAdminRoutes = require('./websiteAdminRoutes');
+const employeeRoutes = require('./employeeRoutes');
+const employeeController = require('../controllers/employeeController');
 const { handleTrainerPhotoUpload } = require('../services/trainerPhotoService');
 
 // All admin routes require valid token and ADMIN role
@@ -15,6 +17,15 @@ router.use('/finance', financeRoutes);
 
 // Website Content & Gallery CMS Routes (/api/admin/website/*)
 router.use('/website', websiteAdminRoutes);
+
+// Employee Management Routes (/api/admin/employees/*)
+router.use('/employees', employeeRoutes);
+
+// Real-Time Employee Attendance Notifications (/api/admin/attendance-notifications/*)
+router.get('/attendance-notifications', employeeController.listAttendanceNotifications);
+router.patch('/attendance-notifications/read-all', employeeController.markAllAttendanceNotificationsRead);
+router.patch('/attendance-notifications/:id/read', employeeController.markAttendanceNotificationRead);
+router.delete('/attendance-notifications/clear', employeeController.clearAttendanceNotifications);
 
 // 1. Dashboard & KPIs
 router.get('/dashboard', adminController.getDashboardOverview);

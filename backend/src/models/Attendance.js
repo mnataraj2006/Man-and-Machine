@@ -14,6 +14,18 @@ const attendanceSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    employeeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employee',
+      default: null,
+      index: true,
+    },
+    subjectType: {
+      type: String,
+      enum: ['CLIENT', 'EMPLOYEE', 'UNKNOWN'],
+      default: 'CLIENT',
+      index: true,
+    },
     branchId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Branch',
@@ -92,6 +104,7 @@ const attendanceSchema = new mongoose.Schema(
 
 // Compound index to quickly fetch user and branch attendance by date
 attendanceSchema.index({ userId: 1, date: -1 });
+attendanceSchema.index({ employeeId: 1, date: -1 });
 attendanceSchema.index({ branchId: 1, date: -1 });
 attendanceSchema.index(
   { deviceId: 1, rawEventReference: 1 },

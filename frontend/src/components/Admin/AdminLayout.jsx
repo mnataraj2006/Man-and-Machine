@@ -29,10 +29,13 @@ import {
   Fingerprint,
   Globe,
   Image as ImageIcon,
+  Briefcase,
 } from 'lucide-react';
 import authService from '../../services/auth.js';
 import adminService from '../../services/adminService.js';
 import DashboardMobileDrawer from '../UI/DashboardMobileDrawer.jsx';
+import { AttendanceNotificationProvider } from '../../context/AttendanceNotificationContext.jsx';
+import NotificationBell from './NotificationBell.jsx';
 
 // Admin Context to broadcast selectedBranch across all child pages
 export const AdminContext = createContext({
@@ -74,6 +77,7 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
     { label: 'Branches', path: '/admin/branches', icon: Building2 },
     { label: 'Clients', path: '/admin/clients', icon: Users },
     { label: 'Trainers', path: '/admin/trainers', icon: Dumbbell },
+    { label: 'Employees', path: '/admin/employees', icon: Briefcase },
     { label: 'Membership Plans', path: '/admin/membership-plans', icon: ClipboardList },
     { label: 'Memberships', path: '/admin/memberships', icon: CreditCard },
     { label: 'Attendance', path: '/admin/attendance', icon: CalendarCheck },
@@ -163,7 +167,8 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
         refreshBranches: fetchBranches,
       }}
     >
-      <div data-theme={resolvedTheme} className="mm-dashboard-theme min-h-screen bg-[#090909] text-[#F5F5F5] flex selection:bg-[#EB3E2E] selection:text-white font-sans antialiased">
+      <AttendanceNotificationProvider selectedBranch={selectedBranch} onNavigate={handleNav}>
+        <div data-theme={resolvedTheme} className="mm-dashboard-theme min-h-screen bg-[#090909] text-[#F5F5F5] flex selection:bg-[#EB3E2E] selection:text-white font-sans antialiased">
         {/* ── DESKTOP SIDEBAR ── */}
         <aside className="hidden lg:flex flex-col w-64 bg-[#111111] border-r border-[#303030] shrink-0 sticky top-0 h-screen z-30">
           {/* Logo & Header */}
@@ -326,6 +331,8 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
                 <ChevronDown className="w-3 h-3 text-[#858585] absolute right-2 sm:right-2.5 pointer-events-none" />
               </div>
 
+              <NotificationBell onNavigate={handleNav} />
+
               <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-[#EB3E2E]/10 border border-[#EB3E2E]/35 text-[#EB3E2E] text-[10px] font-bold uppercase tracking-wider">
                 <ShieldAlert className="w-3.5 h-3.5 text-[#EB3E2E]" />
                 <span>Admin Scope: {activeBranchName}</span>
@@ -365,6 +372,7 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
           }
         />
       </div>
+      </AttendanceNotificationProvider>
     </AdminContext.Provider>
   );
 }

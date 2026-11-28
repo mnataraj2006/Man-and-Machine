@@ -722,12 +722,92 @@ const processAttendanceEvent = async ({
     return { duplicate: true, record: existing };
   }
 
-  // Lookup BiometricUserMapping
+  // Lookup BiometricUserMapping (supports both Clients and Employees)
   const mapping = await BiometricUserMapping.findOne({
     deviceId: device._id,
     biometricUserId: cleanBioId,
     status: 'ACTIVE',
-  }).populate('clientProfileId');
+  })
+    .populate('clientProfileId')
+    .populate('employeeId');
+
+  const dateStr = getKolkataParts(eventTime).dateStr;
+  const dayStart = new Date(`${dateStr}T00:00:00+05:30`);
+
+  // Employee biometric attendance path
+  if (mapping && (mapping.subjectType === 'EMPLOYEE' || mapping.employeeId)) {
+    const employee = mapping.employeeId;
+    if (!employee) {
+      await logDeviceEvent({
+        deviceId: device._id,
+        branchId: device.branchId,
+        category: 'ATTENDANCE_SYNC',
+        status: 'WARNING',
+        action: 'UNMAPPED_BIOMETRIC_PUNCH',
+        message: `Biometric ID ${cleanBioId} references a missing employee record on ${device.deviceName}.`,
+      });
+    } else {
+      const isInactive = employee.employmentStatus !== 'ACTIVE';
+      if (isInactive) {
+        await logDeviceEvent({
+          deviceId: device._id,
+          branchId: device.branchId,
+          category: 'ATTENDANCE_SYNC',
+          status: 'WARNING',
+          action: 'INACTIVE_EMPLOYEE_PUNCH',
+          message: `Biometric punch received for inactive employee ${employee.fullName} (${employee.employeeId}, Biometric ID ${cleanBioId}).`,
+        });
+      } else if (['LINKED', 'PENDING_VERIFICATION'].includes(employee.biometricEnrollmentStatus)) {
+        const Employee = require('../models/Employee');
+        await Employee.updateOne(
+          { _id: employee._id },
+          {
+            $set: {
+              biometricEnrollmentStatus: 'VERIFIED',
+              biometricVerifiedAt: new Date(),
+              biometricError: '',
+            },
+          }
+        );
+      }
+
+      try {
+        const record = await Attendance.create({
+          userId: null,
+          clientProfileId: null,
+          employeeId: employee._id,
+          subjectType: 'EMPLOYEE',
+          branchId: device.branchId,
+          date: dayStart,
+          checkInTime: eventTime,
+          method: 'BIOMETRIC',
+          biometricUserId: cleanBioId,
+          deviceId: device._id,
+          eventType,
+          verificationMethod,
+          source: 'BIOMETRIC_ADMS',
+          membershipStatusAtEvent: 'N/A',
+          attendanceStatus: isInactive ? 'FLAGGED_SUSPENDED' : 'SUCCESS',
+          rawEventReference: dedupKey,
+        });
+        if (!isInactive) {
+          const attendanceNotificationService = require('./attendanceNotificationService');
+          await attendanceNotificationService.createAndEmitForEmployeeAttendance({
+            attendance: record,
+            employee,
+            device,
+          });
+        }
+        return { duplicate: false, record };
+      } catch (err) {
+        if (err.code === 11000) {
+          const dup = await Attendance.findOne({ deviceId: device._id, rawEventReference: dedupKey }).lean();
+          return { duplicate: true, record: dup };
+        }
+        throw err;
+      }
+    }
+  }
 
   const profile = mapping?.clientProfileId || null;
   if (profile) {
@@ -755,17 +835,27 @@ const processAttendanceEvent = async ({
         record: null,
       };
     }
+  } else {
+    // Unknown / unmapped biometric user ? never silently discard; log for admin investigation
+    await logDeviceEvent({
+      deviceId: device._id,
+      branchId: device.branchId,
+      category: 'ATTENDANCE_SYNC',
+      status: 'WARNING',
+      action: 'UNMAPPED_BIOMETRIC_PUNCH',
+      message: `Unmapped biometric punch received for Biometric ID ${cleanBioId} on ${device.deviceName} (${device.serialNumber}).`,
+      metadata: { biometricUserId: cleanBioId, eventTime, verificationMethod, eventType },
+    });
   }
 
   const { membershipStatus, attendanceStatus } = await validateMembershipForProfile(profile);
-
-  const dateStr = getKolkataParts(eventTime).dateStr;
-  const dayStart = new Date(`${dateStr}T00:00:00+05:30`);
 
   try {
     const record = await Attendance.create({
       userId: profile?.userId || null,
       clientProfileId: profile?._id || null,
+      employeeId: null,
+      subjectType: profile ? 'CLIENT' : 'UNKNOWN',
       branchId: device.branchId,
       date: dayStart,
       checkInTime: eventTime,
@@ -1138,6 +1228,7 @@ const getBiometricAttendance = async (query = {}) => {
 
   const records = await Attendance.find(filter)
     .populate('clientProfileId', 'clientId name phone')
+    .populate('employeeId', 'employeeId fullName department designation')
     .populate('userId', 'name phone')
     .populate('branchId', 'name city')
     .populate('deviceId', 'deviceName model serialNumber')
@@ -1146,8 +1237,9 @@ const getBiometricAttendance = async (query = {}) => {
 
   let mapped = records.map((r) => ({
     id: r._id,
-    memberName: r.clientProfileId?.name || r.userId?.name || 'Unmapped Biometric User',
-    memberId: r.clientProfileId?.clientId || 'UNMAPPED',
+    subjectType: r.subjectType || (r.employeeId ? 'EMPLOYEE' : r.clientProfileId ? 'CLIENT' : 'UNKNOWN'),
+    memberName: r.employeeId?.fullName || r.clientProfileId?.name || r.userId?.name || 'Unmapped Biometric User',
+    memberId: r.employeeId?.employeeId || r.clientProfileId?.clientId || 'UNMAPPED',
     biometricUserId: r.biometricUserId,
     branch: r.branchId?.city || r.branchId?.name || '—',
     device: r.deviceId ? `${r.deviceId.model} (${r.deviceId.deviceName})` : '—',

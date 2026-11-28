@@ -7,10 +7,22 @@ const biometricUserMappingSchema = new mongoose.Schema(
       required: [true, 'Biometric user ID is required'],
       trim: true,
     },
+    subjectType: {
+      type: String,
+      enum: ['CLIENT', 'EMPLOYEE'],
+      default: 'CLIENT',
+      index: true,
+    },
     clientProfileId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ClientProfile',
-      required: [true, 'Client profile is required'],
+      default: null,
+      index: true,
+    },
+    employeeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employee',
+      default: null,
       index: true,
     },
     userId: {
