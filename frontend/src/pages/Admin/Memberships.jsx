@@ -330,14 +330,26 @@ export default function Memberships({ onNavigate }) {
                       const expiry = new Date(m.expiryDate);
                       const isExpired = expiry < now;
                       const daysLeft = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+                      const clientName =
+                        m.clientSummary?.name ||
+                        m.userId?.name?.trim() ||
+                        m.clientProfileId?.name?.trim() ||
+                        (m.clientProfileId?.clientId ? `Client ${m.clientProfileId.clientId}` : 'Missing Client');
+                      const clientPhone =
+                        m.clientSummary?.phone ||
+                        m.userId?.phone?.trim() ||
+                        m.clientProfileId?.phone?.trim() ||
+                        '';
 
                       return (
                         <tr key={m._id} className="hover:bg-[#202020] transition-colors">
                           <td className="py-3 px-4 font-bold text-[#F5F5F5]">
-                            {m.userId?.name || 'Athlete'}
-                            <span className="block text-[10px] text-[#B8B8B8] font-mono font-normal">
-                              {m.userId?.phone}
-                            </span>
+                            {clientName}
+                            {clientPhone && (
+                              <span className="block text-[10px] text-[#B8B8B8] font-mono font-normal">
+                                {clientPhone}
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-4 font-mono text-[#EB3E2E]">
                             {m.branchId?.city || 'HQ'}
@@ -601,7 +613,14 @@ export default function Memberships({ onNavigate }) {
                 : 'Membership Action'}
             </h3>
             <p className="text-xs text-[#B8B8B8] mb-4">
-              Athlete: <strong className="text-[#F5F5F5]">{actionModal.membership.userId?.name}</strong> • Current
+              Athlete:{' '}
+              <strong className="text-[#F5F5F5]">
+                {actionModal.membership.clientSummary?.name ||
+                  actionModal.membership.userId?.name?.trim() ||
+                  actionModal.membership.clientProfileId?.name?.trim() ||
+                  'Missing Client'}
+              </strong>{' '}
+              • Current
               plan: {actionModal.membership.planName}
             </p>
 

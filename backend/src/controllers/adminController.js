@@ -2575,6 +2575,36 @@ const deleteMembershipPlan = async (req, res, next) => {
   }
 };
 
+const resolveMembershipClientSummary = (m) => {
+  const userObj = m.userId && typeof m.userId === 'object' && m.userId._id ? m.userId : null;
+  const profileObj =
+    m.clientProfileId && typeof m.clientProfileId === 'object' && m.clientProfileId._id
+      ? m.clientProfileId
+      : null;
+
+  const userName = typeof userObj?.name === 'string' ? userObj.name.trim() : '';
+  const profileName = typeof profileObj?.name === 'string' ? profileObj.name.trim() : '';
+  const userPhone = typeof userObj?.phone === 'string' ? userObj.phone.trim() : '';
+  const profilePhone = typeof profileObj?.phone === 'string' ? profileObj.phone.trim() : '';
+  const userEmail = typeof userObj?.email === 'string' ? userObj.email.trim() : '';
+  const profileEmail = typeof profileObj?.email === 'string' ? profileObj.email.trim() : '';
+  const clientId = typeof profileObj?.clientId === 'string' ? profileObj.clientId.trim() : '';
+
+  const hasValidClient = Boolean(userObj || profileObj);
+  const resolvedName =
+    userName ||
+    profileName ||
+    (clientId ? `Client ${clientId}` : hasValidClient ? 'Unnamed Client' : 'Missing Client');
+
+  return {
+    name: resolvedName,
+    phone: userPhone || profilePhone || '',
+    email: userEmail || profileEmail || '',
+    clientId,
+    hasValidClient,
+  };
+};
+
 const getClientMemberships = async (req, res, next) => {
   try {
     const { branchId, status, expiringSoon } = req.query;
@@ -2599,10 +2629,17 @@ const getClientMemberships = async (req, res, next) => {
       query.status = 'ACTIVE';
     }
 
-    const memberships = await Membership.find(query)
+    const rawMemberships = await Membership.find(query)
       .sort({ expiryDate: 1 })
       .populate('userId', 'name email phone status')
-      .populate('branchId', 'name city');
+      .populate('clientProfileId', 'clientId name email phone accountAccessStatus')
+      .populate('branchId', 'name city')
+      .lean();
+
+    const memberships = rawMemberships.map((m) => ({
+      ...m,
+      clientSummary: resolveMembershipClientSummary(m),
+    }));
 
     res.status(200).json({
       success: true,
