@@ -5,6 +5,7 @@ const BiometricConsent = require('../models/BiometricConsent');
 const BiometricUserMapping = require('../models/BiometricUserMapping');
 const BiometricDeviceLog = require('../models/BiometricDeviceLog');
 const BiometricPinSequence = require('../models/BiometricPinSequence');
+const BiometricDeviceSyncJob = require('../models/BiometricDeviceSyncJob');
 const ClientProfile = require('../models/ClientProfile');
 const Membership = require('../models/Membership');
 const Attendance = require('../models/Attendance');
