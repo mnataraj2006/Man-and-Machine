@@ -313,7 +313,7 @@ const assertNoBiometricIdConflict = async ({
 };
 
 const completeManualEnrollment = async (
-  { enrollmentId = null, clientProfileId, deviceId, biometricUserId, captureType = 'FACE', verifiedByDevice = false },
+  { enrollmentId = null, clientProfileId, deviceId, biometricUserId, captureType = 'FACE' },
   adminUser
 ) => {
   if (!clientProfileId || !mongoose.Types.ObjectId.isValid(clientProfileId)) {
@@ -374,6 +374,56 @@ const completeManualEnrollment = async (
     excludeEnrollmentId: preloadedEnrollment?._id || enrollmentId || null,
   });
 
+  // Never trust frontend verifiedByDevice boolean: verify against independent device evidence only
+  const discoveredUser = (device.discoveredUsers || []).find(
+    (u) => String(u.biometricUserId || '').trim() === finalBioId
+  );
+  const normalizeTokens = (s) =>
+    String(s || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter((t) => t.length >= 2);
+  const discoveredNameConflict = (() => {
+    if (!discoveredUser || !discoveredUser.name || !profile.name) return false;
+    const a = normalizeTokens(discoveredUser.name);
+    const b = normalizeTokens(profile.name);
+    return a.length > 0 && b.length > 0 && !a.some((t) => b.includes(t));
+  })();
+
+  const isDbConnected = mongoose.connection.readyState === 1;
+  const [verifiedSyncJob, reliablePunch] = isDbConnected
+    ? await Promise.all([
+        BiometricDeviceSyncJob.findOne({
+          deviceId: device._id,
+          clientProfileId: profile._id,
+          biometricUserId: finalBioId,
+          status: 'VERIFIED',
+        })
+          .select('_id verifiedAt')
+          .lean(),
+        Attendance.findOne({
+          deviceId: device._id,
+          biometricUserId: finalBioId,
+          source: 'BIOMETRIC_ADMS',
+          verificationMethod: captureType === 'FINGERPRINT' ? 'FINGERPRINT' : { $in: ['FACE', 'FINGERPRINT'] },
+        })
+          .select('_id verificationMethod checkInTime')
+          .lean(),
+      ])
+    : [null, null];
+
+  const hasIndependentDevicePinProof = Boolean(
+    (discoveredUser && !discoveredNameConflict) || verifiedSyncJob
+  );
+  const hasReliableBiometricTemplateProof = Boolean(
+    hasIndependentDevicePinProof &&
+      reliablePunch &&
+      ((captureType === 'FACE' && reliablePunch.verificationMethod === 'FACE') ||
+        (captureType === 'FINGERPRINT' && reliablePunch.verificationMethod === 'FINGERPRINT') ||
+        (captureType === 'BOTH' && ['FACE', 'FINGERPRINT'].includes(reliablePunch.verificationMethod)))
+  );
+
   const prevMappingSnapshot = await BiometricUserMapping.findOne({
     deviceId: device._id,
     biometricUserId: finalBioId,
@@ -409,28 +459,55 @@ const completeManualEnrollment = async (
         });
       }
 
+      const now = new Date();
       targetEnrollment.assignedDeviceId = device._id;
       targetEnrollment.branchId = device.branchId;
       targetEnrollment.biometricUserId = finalBioId;
-      targetEnrollment.status = 'ENROLLED';
       targetEnrollment.adminApprovalStatus = 'APPROVED';
-      targetEnrollment.deviceEnrollmentStatus = verifiedByDevice ? 'DEVICE_VERIFIED' : 'ADMIN_CONFIRMED';
-      if (captureType === 'FINGERPRINT' || captureType === 'BOTH') {
-        targetEnrollment.fingerprintEnrollmentStatus = 'ENROLLED';
+      targetEnrollment.deviceEnrollmentStatus = hasIndependentDevicePinProof
+        ? 'DEVICE_VERIFIED'
+        : 'ADMIN_CONFIRMED';
+
+      if (hasReliableBiometricTemplateProof) {
+        targetEnrollment.status = 'ENROLLED';
+        if (captureType === 'FINGERPRINT' || captureType === 'BOTH') {
+          targetEnrollment.fingerprintEnrollmentStatus = 'ENROLLED';
+        }
+        if (captureType === 'FACE' || captureType === 'BOTH') {
+          targetEnrollment.faceEnrollmentStatus = 'ENROLLED';
+        }
+        targetEnrollment.enrolledAt = targetEnrollment.enrolledAt || now;
+        targetEnrollment.enrolledBy = adminUser?._id || null;
+      } else {
+        targetEnrollment.status = hasIndependentDevicePinProof
+          ? 'DEVICE_USER_READY'
+          : 'AWAITING_PHYSICAL_ENROLLMENT';
+        if (captureType === 'FACE' || captureType === 'BOTH') {
+          targetEnrollment.faceEnrollmentStatus = 'PENDING';
+        }
+        if (captureType === 'FINGERPRINT' || captureType === 'BOTH') {
+          targetEnrollment.fingerprintEnrollmentStatus = 'PENDING';
+        }
       }
-      if (captureType === 'FACE' || captureType === 'BOTH') {
-        targetEnrollment.faceEnrollmentStatus = 'ENROLLED';
+
+      if (hasIndependentDevicePinProof) {
+        targetEnrollment.lastVerifiedAt = verifiedSyncJob?.verifiedAt || now;
       }
-      targetEnrollment.enrolledAt = new Date();
-      targetEnrollment.enrolledBy = adminUser?._id || null;
-      targetEnrollment.lastVerifiedAt = verifiedByDevice ? new Date() : targetEnrollment.lastVerifiedAt;
       targetEnrollment.failureReason = '';
       targetEnrollment.history.push({
-        action: verifiedByDevice ? 'DEVICE_VERIFIED_ENROLLMENT' : 'ADMIN_CONFIRMED_MANUAL_ENROLLMENT',
+        action: hasReliableBiometricTemplateProof
+          ? 'DEVICE_VERIFIED_ENROLLMENT'
+          : hasIndependentDevicePinProof
+            ? 'DEVICE_USER_VERIFIED_AWAITING_FACE'
+            : 'ADMIN_CONFIRMED_MANUAL_ENROLLMENT',
         fromStatus: prevStatus,
-        toStatus: 'ENROLLED',
+        toStatus: targetEnrollment.status,
         actorUserId: adminUser?._id || null,
-        note: `Mapped Biometric ID ${finalBioId} on ${device.deviceName} (${captureType})`,
+        note: hasReliableBiometricTemplateProof
+          ? `Verified Biometric ID ${finalBioId} on ${device.deviceName} with ${reliablePunch.verificationMethod} evidence.`
+          : hasIndependentDevicePinProof
+            ? `Confirmed PIN ${finalBioId} exists on ${device.deviceName}. Awaiting physical ${captureType} enrollment.`
+            : `Admin mapped Biometric ID ${finalBioId} on ${device.deviceName}. Device verification and physical ${captureType} enrollment pending.`,
       });
 
       await targetEnrollment.save(opts);
@@ -771,7 +848,7 @@ const approveEnrollment = async (enrollmentId, adminUser, { deviceId = null, bio
   }
 
   // Controlled device-user sync job (respects BIOMETRIC_REMOTE_USER_SYNC flag & firmware check)
-  if (targetDeviceId && candidateBioId) {
+  if (targetDeviceId && candidateBioId && mongoose.connection.readyState === 1) {
     const deviceDoc = await BiometricDevice.findById(targetDeviceId);
     if (deviceDoc) {
       const biometricDeviceSyncService = require('./biometricDeviceSyncService');
@@ -863,6 +940,7 @@ const getClientBiometricStatus = async (userId, requestedBranchId = null) => {
     BiometricEnrollment.findOne({ clientProfileId: profile._id, branchId: targetBranchId })
       .populate('assignedDeviceId', 'deviceName model serialNumber status lastSeenAt')
       .populate('branchId', 'name city')
+      .populate('deviceUserSyncJobId', 'status verifiedAt acknowledgedAt responseStatus')
       .lean(),
     BiometricEnrollment.find({ clientProfileId: profile._id })
       .populate('branchId', 'name city')
@@ -1569,21 +1647,22 @@ const getClientBiometricSummary = async ({
     BiometricEnrollment.findOne({ clientProfileId })
       .select('-faceCapture -captureFrames -history')
       .sort({ updatedAt: -1, createdAt: -1 })
-      .populate('assignedDeviceId', 'deviceName serialNumber status isActive lastSyncAt lastSeenAt branchId')
+      .populate('assignedDeviceId', 'deviceName serialNumber status isActive lastSyncAt lastSeenAt branchId discoveredUsers')
       .populate('branchId', 'name city')
+      .populate('deviceUserSyncJobId', 'status verifiedAt acknowledgedAt responseStatus failureReason biometricUserId deviceId')
       .lean(),
     BiometricUserMapping.findOne({ clientProfileId })
       .sort({ status: 1, updatedAt: -1 }) // ACTIVE sorts before INACTIVE
-      .populate('deviceId', 'deviceName serialNumber status isActive lastSyncAt lastSeenAt branchId')
+      .populate('deviceId', 'deviceName serialNumber status isActive lastSyncAt lastSeenAt branchId discoveredUsers')
       .populate('branchId', 'name city')
       .lean(),
     Attendance.findOne({ $or: attOr, source: 'BIOMETRIC_ADMS' })
       .sort({ checkInTime: -1, date: -1 })
-      .select('date checkInTime attendanceStatus biometricUserId')
+      .select('date checkInTime attendanceStatus biometricUserId verificationMethod deviceId')
       .lean(),
     branchId
       ? BiometricDevice.findOne({ branchId, isActive: true })
-          .select('deviceName serialNumber status isActive lastSyncAt lastSeenAt branchId')
+          .select('deviceName serialNumber status isActive lastSyncAt lastSeenAt branchId discoveredUsers')
           .lean()
       : Promise.resolve(null),
   ]);
@@ -1592,6 +1671,29 @@ const getClientBiometricSummary = async ({
   const branchDoc = mapping?.branchId || latestEnrollment?.branchId || null;
   const rawStatus = latestEnrollment?.status || null;
   const bioPin = mapping?.biometricUserId || latestEnrollment?.biometricUserId || null;
+  const syncJob = latestEnrollment?.deviceUserSyncJobId || null;
+
+  const discoveredMatch = Boolean(
+    bioPin &&
+      device?.discoveredUsers?.some((u) => String(u.biometricUserId || '').trim() === String(bioPin).trim())
+  );
+  const verifiedJobMatch = Boolean(
+    syncJob &&
+      syncJob.status === 'VERIFIED' &&
+      (!syncJob.biometricUserId || String(syncJob.biometricUserId) === String(bioPin)) &&
+      (!syncJob.deviceId || !device?._id || String(syncJob.deviceId) === String(device._id))
+  );
+  const reliablePunchMatch = Boolean(
+    lastBioPunch &&
+      bioPin &&
+      String(lastBioPunch.biometricUserId || '') === String(bioPin) &&
+      ['FACE', 'FINGERPRINT'].includes(lastBioPunch.verificationMethod)
+  );
+  const hasIndependentPinOnly = Boolean(discoveredMatch || verifiedJobMatch);
+  const hasReliableDeviceEvidence = Boolean(verifiedJobMatch || discoveredMatch || reliablePunchMatch);
+  const hasFaceEnrolledEvidence = Boolean(
+    latestEnrollment?.faceEnrollmentStatus === 'ENROLLED' && hasReliableDeviceEvidence
+  );
 
   const PENDING_SET = new Set([
     'INVITED',
@@ -1602,17 +1704,42 @@ const getClientBiometricSummary = async ({
     'REMOTE_ENROLLMENT_PENDING',
     'AWAITING_PHYSICAL_ENROLLMENT',
     'DEVICE_ENROLLMENT_IN_PROGRESS',
+    'FACE_ENROLLMENT_PENDING',
   ]);
 
+  const isRevokedOrDisabled =
+    rawStatus === 'REVOKED' ||
+    latestEnrollment?.consentStatus === 'WITHDRAWN' ||
+    mapping?.status === 'INACTIVE' ||
+    rawStatus === 'REJECTED' ||
+    (device && (device.isActive === false || device.status === 'DISABLED'));
+
   let displayStatus = 'NOT_ENROLLED';
-  if (mapping?.status === 'INACTIVE' || rawStatus === 'REJECTED' || (device && (device.isActive === false || device.status === 'DISABLED'))) {
-    displayStatus = 'DISABLED';
-  } else if (rawStatus === 'FAILED') {
+  if (isRevokedOrDisabled) {
+    displayStatus = rawStatus === 'REVOKED' ? 'REVOKED' : 'DISABLED';
+  } else if (rawStatus === 'FAILED' || (syncJob?.status === 'FAILED' && rawStatus !== 'ENROLLED')) {
     displayStatus = 'SYNC_FAILED';
-  } else if (rawStatus && PENDING_SET.has(rawStatus)) {
-    displayStatus = 'PENDING';
-  } else if (rawStatus === 'ENROLLED' || mapping?.status === 'ACTIVE') {
+  } else if (
+    rawStatus === 'DEVICE_USER_SYNCING' ||
+    (syncJob && ['PENDING', 'SENT'].includes(syncJob.status) && rawStatus !== 'ENROLLED')
+  ) {
+    displayStatus = 'DEVICE_USER_SYNCING';
+  } else if (rawStatus === 'DEVICE_USER_READY' && !hasFaceEnrolledEvidence) {
+    displayStatus = 'DEVICE_USER_READY';
+  } else if (rawStatus === 'ENROLLED' && hasFaceEnrolledEvidence) {
     displayStatus = device?.status === 'OFFLINE' ? 'DEVICE_OFFLINE' : 'ENROLLED';
+  } else if (rawStatus === 'ENROLLED' && !hasFaceEnrolledEvidence) {
+    // Historical or unverified ENROLLED record without independent device proof must not display ENROLLED/GRANTED
+    displayStatus = hasIndependentPinOnly
+      ? 'DEVICE_USER_READY'
+      : 'AWAITING_PHYSICAL_ENROLLMENT';
+  } else if (rawStatus && PENDING_SET.has(rawStatus)) {
+    displayStatus = rawStatus === 'AWAITING_PHYSICAL_ENROLLMENT' ? 'AWAITING_PHYSICAL_ENROLLMENT' : 'PENDING';
+  } else if (mapping?.status === 'ACTIVE') {
+    // An ACTIVE mapping alone does not prove physical device existence or face enrollment
+    displayStatus = hasIndependentPinOnly
+      ? 'DEVICE_USER_READY'
+      : 'AWAITING_PHYSICAL_ENROLLMENT';
   } else if (!rawStatus || rawStatus === 'NOT_STARTED') {
     displayStatus = 'NOT_ENROLLED';
   } else {
@@ -1620,7 +1747,7 @@ const getClientBiometricSummary = async ({
   }
 
   let gymAccessStatus = 'NO_MEMBERSHIP';
-  if (displayStatus === 'DISABLED') {
+  if (displayStatus === 'REVOKED' || displayStatus === 'DISABLED') {
     gymAccessStatus = 'DISABLED';
   } else if (!hasActiveMembership) {
     gymAccessStatus = 'NO_ACTIVE_MEMBERSHIP';
@@ -1628,13 +1755,17 @@ const getClientBiometricSummary = async ({
     gymAccessStatus = 'GRANTED';
   } else if (displayStatus === 'DEVICE_OFFLINE') {
     gymAccessStatus = 'DEVICE_OFFLINE';
-  } else if (displayStatus === 'PENDING') {
+  } else if (displayStatus === 'DEVICE_USER_READY') {
+    gymAccessStatus = 'AWAITING_FACE_ENROLLMENT';
+  } else if (['PENDING', 'DEVICE_USER_SYNCING', 'AWAITING_PHYSICAL_ENROLLMENT', 'SYNC_FAILED'].includes(displayStatus)) {
     gymAccessStatus = 'PENDING_ENROLLMENT';
   } else {
     gymAccessStatus = 'NOT_ENROLLED';
   }
 
   const branchHasDevice = Boolean(branchDevice || mapping?.deviceId || latestEnrollment?.assignedDeviceId);
+  const perUserVerifiedAt =
+    syncJob?.verifiedAt || (hasReliableDeviceEvidence ? latestEnrollment?.lastVerifiedAt : null) || null;
 
   return {
     enrollmentId: latestEnrollment?._id || null,
@@ -1647,14 +1778,32 @@ const getClientBiometricSummary = async ({
     serialNumber: device?.serialNumber || null,
     deviceStatus: device?.status || null,
     branchName: branchDoc ? `${branchDoc.city || branchDoc.name}` : null,
-    enrollmentDate: latestEnrollment?.enrolledAt || latestEnrollment?.enrollmentRequestedAt || mapping?.createdAt || null,
-    lastSyncAt: device?.lastSyncAt || latestEnrollment?.updatedAt || null,
+    enrollmentDate:
+      (displayStatus === 'ENROLLED' ? latestEnrollment?.enrolledAt : null) ||
+      latestEnrollment?.enrollmentRequestedAt ||
+      mapping?.createdAt ||
+      null,
+    lastSyncAt: perUserVerifiedAt,
+    lastAcknowledgedAt: syncJob?.acknowledgedAt || null,
+    deviceUserSyncStatus: syncJob?.status || latestEnrollment?.deviceUserSyncStatus || 'NOT_STARTED',
+    deviceEnrollmentStatus: hasReliableDeviceEvidence
+      ? 'DEVICE_VERIFIED'
+      : latestEnrollment?.deviceEnrollmentStatus === 'DEVICE_VERIFIED'
+        ? 'ADMIN_CONFIRMED'
+        : latestEnrollment?.deviceEnrollmentStatus || 'NOT_STARTED',
+    faceEnrollmentStatus: hasFaceEnrolledEvidence
+      ? 'ENROLLED'
+      : latestEnrollment?.faceEnrollmentStatus === 'ENROLLED'
+        ? 'PENDING'
+        : latestEnrollment?.faceEnrollmentStatus || 'NOT_ENROLLED',
     lastPunchAt: lastBioPunch?.checkInTime || lastBioPunch?.date || null,
     lastPunchResult: lastBioPunch?.attendanceStatus || null,
     gymAccessStatus,
     failureReason: latestEnrollment?.failureReason || '',
     eligibleToEnroll: Boolean(hasActiveMembership && displayStatus === 'NOT_ENROLLED' && branchHasDevice),
-    canRetrySync: Boolean(device?._id && ['SYNC_FAILED', 'PENDING'].includes(displayStatus)),
+    canRetrySync: Boolean(
+      device?._id && ['SYNC_FAILED', 'PENDING', 'AWAITING_PHYSICAL_ENROLLMENT'].includes(displayStatus)
+    ),
     canDisableAccess: Boolean(mapping?._id && mapping.status === 'ACTIVE'),
   };
 };

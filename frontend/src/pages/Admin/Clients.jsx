@@ -378,10 +378,16 @@ export default function Clients() {
     switch (status) {
       case 'ENROLLED':
         return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+      case 'DEVICE_USER_READY':
+        return 'bg-sky-500/15 text-sky-400 border-sky-500/30';
+      case 'DEVICE_USER_SYNCING':
+        return 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30';
+      case 'AWAITING_PHYSICAL_ENROLLMENT':
       case 'PENDING':
         return 'bg-amber-500/15 text-amber-400 border-amber-500/30';
       case 'SYNC_FAILED':
       case 'DEVICE_OFFLINE':
+      case 'REVOKED':
         return 'bg-rose-500/15 text-rose-400 border-rose-500/30';
       case 'DISABLED':
         return 'bg-[#202020] text-[#858585] border-[#303030]';
@@ -390,6 +396,33 @@ export default function Clients() {
       case 'NOT_ENROLLED':
       default:
         return 'bg-[#202020] text-[#B8B8B8] border-[#303030]';
+    }
+  };
+
+  const getBiometricStatusLabel = (status) => {
+    switch (status) {
+      case 'ENROLLED':
+        return 'Enrolled';
+      case 'DEVICE_USER_READY':
+        return 'Device User Ready';
+      case 'DEVICE_USER_SYNCING':
+        return 'Syncing to Device';
+      case 'AWAITING_PHYSICAL_ENROLLMENT':
+        return 'Awaiting Face Enrollment';
+      case 'PENDING':
+        return 'Admin Approved';
+      case 'SYNC_FAILED':
+        return 'Failed';
+      case 'DEVICE_OFFLINE':
+        return 'Device Offline';
+      case 'REVOKED':
+        return 'Revoked';
+      case 'DISABLED':
+        return 'Disabled';
+      case 'NOT_ENROLLED':
+        return 'Not Enrolled';
+      default:
+        return String(status || 'NOT_ENROLLED').replace(/_/g, ' ');
     }
   };
 
@@ -506,10 +539,9 @@ export default function Clients() {
         deviceId: targetDeviceId,
         biometricUserId: targetBioId,
         captureType: bioEnrollForm.captureType || 'FACE',
-        verifiedByDevice: true,
       });
       setIsBioEnrollModalOpen(false);
-      showFeedback('success', 'Physical biometric enrollment completed and mapped.');
+      showFeedback('success', 'Biometric ID mapped. Complete physical face enrollment on the device to verify.');
       await handleOpenClientDetails(clientDetailData.client.id);
     } catch (err) {
       setBioEnrollError(err.message || 'Failed to complete physical enrollment.');
@@ -2222,9 +2254,19 @@ export default function Clients() {
                               5. Biometric Information
                             </span>
                             <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${getBiometricStatusBadge(status)}`}>
-                              {status.replace(/_/g, ' ')}
+                              {getBiometricStatusLabel(status)}
                             </span>
                           </div>
+
+                          {['DEVICE_USER_READY', 'AWAITING_PHYSICAL_ENROLLMENT', 'DEVICE_USER_SYNCING', 'PENDING'].includes(status) && (
+                            <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
+                              {status === 'DEVICE_USER_READY'
+                                ? `Device user PIN ${bio.biometricUserId || ''} is confirmed on the terminal, but physical face enrollment is still pending.`
+                                : status === 'DEVICE_USER_SYNCING'
+                                  ? `Syncing PIN ${bio.biometricUserId || ''} to ${bio.deviceName || 'the biometric device'}. Physical face enrollment is still pending.`
+                                  : `Member still needs physical face enrollment at ${bio.deviceName || 'the branch terminal'} under PIN ${bio.biometricUserId || 'assigned PIN'}.`}
+                            </div>
+                          )}
 
                           {bio.failureReason && (
                             <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
@@ -2240,6 +2282,14 @@ export default function Clients() {
                             <div>
                               <span className="text-[10px] font-mono uppercase text-[#858585] block">Gym Access Status</span>
                               <p className="font-mono font-bold text-[#F5F5F5] mt-0.5">{(bio.gymAccessStatus || 'NOT_ENROLLED').replace(/_/g, ' ')}</p>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-mono uppercase text-[#858585] block">Device User Status</span>
+                              <p className="font-mono text-[#F5F5F5] mt-0.5">{(bio.deviceEnrollmentStatus || 'NOT_STARTED').replace(/_/g, ' ')}</p>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-mono uppercase text-[#858585] block">Face Enrollment Status</span>
+                              <p className="font-mono text-[#F5F5F5] mt-0.5">{(bio.faceEnrollmentStatus || 'NOT_ENROLLED').replace(/_/g, ' ')}</p>
                             </div>
                             <div>
                               <span className="text-[10px] font-mono uppercase text-[#858585] block">Registered Device</span>
@@ -2260,11 +2310,19 @@ export default function Clients() {
                               </p>
                             </div>
                             <div>
-                              <span className="text-[10px] font-mono uppercase text-[#858585] block">Last Successful Sync</span>
+                              <span className="text-[10px] font-mono uppercase text-[#858585] block">Verified Device Sync</span>
                               <p className="font-mono text-[#F5F5F5] mt-0.5">
-                                {bio.lastSyncAt ? new Date(bio.lastSyncAt).toLocaleString() : 'No Records'}
+                                {bio.lastSyncAt ? new Date(bio.lastSyncAt).toLocaleString() : 'Not verified yet'}
                               </p>
                             </div>
+                            {bio.lastAcknowledgedAt && !bio.lastSyncAt && (
+                              <div>
+                                <span className="text-[10px] font-mono uppercase text-[#858585] block">Device Command Acknowledged</span>
+                                <p className="font-mono text-[#B8B8B8] mt-0.5">
+                                  {new Date(bio.lastAcknowledgedAt).toLocaleString()} (unverified)
+                                </p>
+                              </div>
+                            )}
                             <div>
                               <span className="text-[10px] font-mono uppercase text-[#858585] block">Last Attendance Punch</span>
                               <p className="font-mono text-[#F5F5F5] mt-0.5">

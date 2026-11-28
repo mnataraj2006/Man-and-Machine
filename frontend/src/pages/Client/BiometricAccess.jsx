@@ -176,12 +176,24 @@ export default function ClientBiometricAccess({ onNavigate }) {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                 <div className="p-3 rounded-xl bg-[#111111] border border-[#252525]">
-                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Face Registration</span>
-                  <span className="font-bold text-[#F5F5F5] mt-0.5 block">{enr.faceEnrollmentStatus || 'NOT_ENROLLED'}</span>
+                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Device User Status</span>
+                  <span className="font-bold text-[#F5F5F5] mt-0.5 block">
+                    {(enr.deviceEnrollmentStatus || 'NOT_STARTED').replace(/_/g, ' ')}
+                  </span>
                 </div>
                 <div className="p-3 rounded-xl bg-[#111111] border border-[#252525]">
-                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Fingerprint</span>
-                  <span className="font-bold text-[#F5F5F5] mt-0.5 block">{enr.fingerprintEnrollmentStatus || 'NOT_ENROLLED'}</span>
+                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Face Registration</span>
+                  <span className="font-bold text-[#F5F5F5] mt-0.5 block">
+                    {(enr.faceEnrollmentStatus || 'NOT_ENROLLED').replace(/_/g, ' ')}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-[#111111] border border-[#252525]">
+                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Verified Device Sync</span>
+                  <span className="font-mono text-[#F5F5F5] mt-0.5 block">
+                    {enr.deviceUserSyncJobId?.verifiedAt
+                      ? new Date(enr.deviceUserSyncJobId.verifiedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+                      : 'Not verified yet'}
+                  </span>
                 </div>
                 <div className="p-3 rounded-xl bg-[#111111] border border-[#252525]">
                   <span className="text-[10px] font-mono uppercase text-[#858585] block">Assigned Branch</span>
@@ -191,12 +203,6 @@ export default function ClientBiometricAccess({ onNavigate }) {
                   <span className="text-[10px] font-mono uppercase text-[#858585] block">Assigned Device</span>
                   <span className="font-bold text-[#F5F5F5] mt-0.5 block">
                     {data.assignedDevice ? `${data.assignedDevice.model} (${data.assignedDevice.deviceName})` : 'Branch Terminal'}
-                  </span>
-                </div>
-                <div className="p-3 rounded-xl bg-[#111111] border border-[#252525]">
-                  <span className="text-[10px] font-mono uppercase text-[#858585] block">Enrollment Date</span>
-                  <span className="font-mono text-[#F5F5F5] mt-0.5 block">
-                    {enr.enrolledAt ? new Date(enr.enrolledAt).toLocaleDateString('en-IN') : 'Pending'}
                   </span>
                 </div>
                 <div className="p-3 rounded-xl bg-[#111111] border border-[#252525]">
@@ -217,15 +223,23 @@ export default function ClientBiometricAccess({ onNavigate }) {
                 <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-400">
                   Your enrollment request has been saved and is <strong>Awaiting Admin Approval</strong>. Once approved, you will complete physical face capture at your branch terminal.
                 </div>
-              ) : ['DEVICE_USER_READY', 'FACE_ENROLLMENT_PENDING', 'AWAITING_PHYSICAL_ENROLLMENT', 'APPROVED'].includes(status) ? (
+              ) : ['DEVICE_USER_SYNCING', 'DEVICE_USER_READY', 'FACE_ENROLLMENT_PENDING', 'AWAITING_PHYSICAL_ENROLLMENT', 'APPROVED'].includes(status) ? (
                 <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400 space-y-1.5">
-                  <p className="font-bold">Your biometric enrollment request has been approved.</p>
+                  <p className="font-bold">
+                    {status === 'DEVICE_USER_READY'
+                      ? 'Your Biometric PIN is ready on the branch machine — face registration is pending.'
+                      : status === 'DEVICE_USER_SYNCING'
+                        ? 'Your Biometric PIN is syncing to the branch machine.'
+                        : 'Your biometric enrollment request has been approved.'}
+                  </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
                     <div>Your Biometric ID: <strong className="font-mono text-[#F5F5F5]">{enr.biometricUserId || 'Assigned at branch'}</strong></div>
                     <div>Branch: <strong className="text-[#F5F5F5]">{data.branch?.city || data.branch?.name || '—'}</strong></div>
                     <div>Device: <strong className="text-[#F5F5F5]">{data.assignedDevice?.deviceName || 'Branch Terminal'}</strong></div>
                   </div>
-                  <p className="pt-1">Please visit the branch biometric machine and enroll your face under your assigned Biometric ID.</p>
+                  <p className="pt-1">
+                    At the physical machine, enter your Biometric ID (<strong>{enr.biometricUserId || 'assigned PIN'}</strong>), select <strong>Edit</strong>, and complete your face registration.
+                  </p>
                 </div>
               ) : status === 'ENROLLED' ? (
                 <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400">
