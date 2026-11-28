@@ -4,7 +4,12 @@ const BiometricEnrollment = require('../models/BiometricEnrollment');
 const BiometricUserMapping = require('../models/BiometricUserMapping');
 const BiometricDeviceSyncJob = require('../models/BiometricDeviceSyncJob');
 const BiometricDeviceLog = require('../models/BiometricDeviceLog');
-const { assertAdminBranchAccess } = require('./biometricDeviceService');
+const BiometricDeviceCommand = require('../models/BiometricDeviceCommand');
+const {
+  assertAdminBranchAccess,
+  ALLOWED_REMOTE_USER_COMMAND,
+  queueDeviceCommand,
+} = require('./biometricDeviceService');
 
 const REMOTE_UNSUPPORTED_REASON =
   'Remote device-user creation is not supported/verified for this X2008 firmware. Manual device-user creation remains required.';
@@ -23,6 +28,50 @@ const namesRoughlyMatch = (a, b) => {
   const tb = normalizeNameTokens(b);
   if (ta.length === 0 || tb.length === 0) return false; // Missing device name must not count as a confirmed match
   return ta.some((t) => tb.includes(t));
+};
+
+const admsRemoteAdapter = async ({ device, biometricUserId, name, syncJob = null, adminUser = null }) => {
+  const cleanPin = String(biometricUserId || '').trim();
+  const existingActiveCmd = await BiometricDeviceCommand.findOne({
+    deviceId: device._id,
+    commandType: ALLOWED_REMOTE_USER_COMMAND,
+    targetPin: cleanPin,
+    status: { $in: ['PENDING', 'SENT', 'ACKNOWLEDGED'] },
+  }).sort({ createdAt: -1 });
+
+  if (existingActiveCmd) {
+    return {
+      ok: true,
+      queued: existingActiveCmd.status === 'PENDING' || existingActiveCmd.status === 'SENT',
+      acknowledged: existingActiveCmd.status === 'ACKNOWLEDGED',
+      verified: false,
+      reusedCommand: true,
+      commandId: existingActiveCmd.commandId,
+      deviceCommandId: existingActiveCmd._id,
+      responseStatus: 'COMMAND_REUSED',
+    };
+  }
+
+  const cmd = await queueDeviceCommand(
+    device._id,
+    {
+      commandType: ALLOWED_REMOTE_USER_COMMAND,
+      pin: cleanPin,
+      name,
+      syncJobId: syncJob?._id || null,
+    },
+    adminUser
+  );
+
+  return {
+    ok: true,
+    queued: true,
+    acknowledged: false,
+    verified: false,
+    commandId: cmd.commandId,
+    deviceCommandId: cmd._id,
+    responseStatus: 'COMMAND_QUEUED',
+  };
 };
 
 const syncEnrollmentDeviceUser = async ({
@@ -245,8 +294,10 @@ const syncEnrollmentDeviceUser = async ({
   job.attemptCount += 1;
   job.lastAttemptAt = now;
 
+  const effectiveAdapter = typeof remoteAdapter === 'function' ? remoteAdapter : admsRemoteAdapter;
+
   // Honest firmware & feature-flag guard: never fake device user creation
-  if (!isRemoteUserSyncEnabled() || !device.supportsRemoteEnrollment || typeof remoteAdapter !== 'function') {
+  if (!isRemoteUserSyncEnabled() || !device.supportsRemoteEnrollment) {
     job.status = 'FAILED';
     job.responseStatus = !isRemoteUserSyncEnabled() ? 'FEATURE_DISABLED' : 'FIRMWARE_UNSUPPORTED';
     job.failureReason = REMOTE_UNSUPPORTED_REASON;
@@ -282,16 +333,19 @@ const syncEnrollmentDeviceUser = async ({
     return { job, enrollment, idempotentReused: false };
   }
 
-  // Verified remote sync execution path (only when feature flag + firmware support + adapter are active)
-  job.status = 'SENT';
+  // Verified remote sync execution path (only when feature flag + firmware support are active)
+  job.status = 'PENDING';
+  job.failureReason = '';
   await job.save();
 
   try {
-    const adapterRes = await remoteAdapter({
+    const adapterRes = await effectiveAdapter({
       device,
       biometricUserId: cleanBioId,
       name: clientProfile.name || '',
       privilege: '0',
+      syncJob: job,
+      adminUser,
     });
 
     if (!adapterRes || !adapterRes.ok) {
@@ -299,9 +353,14 @@ const syncEnrollmentDeviceUser = async ({
     }
 
     const isVerifiedOnDevice = Boolean(adapterRes.verified);
-    job.status = isVerifiedOnDevice ? 'VERIFIED' : 'ACKNOWLEDGED';
+    const isQueuedForPoll = Boolean(adapterRes.queued) && !adapterRes.acknowledged && !isVerifiedOnDevice;
+
+    job.status = isVerifiedOnDevice ? 'VERIFIED' : isQueuedForPoll ? 'PENDING' : 'ACKNOWLEDGED';
     job.responseStatus = adapterRes.responseStatus || 'OK';
     job.failureReason = '';
+    if (adapterRes.commandId) job.commandId = String(adapterRes.commandId);
+    if (adapterRes.deviceCommandId) job.deviceCommandId = adapterRes.deviceCommandId;
+    if (job.status === 'ACKNOWLEDGED') job.acknowledgedAt = new Date();
     if (isVerifiedOnDevice) job.verifiedAt = new Date();
     await job.save();
 
@@ -309,7 +368,9 @@ const syncEnrollmentDeviceUser = async ({
     enrollment.deviceUserSyncJobId = job._id;
     enrollment.deviceUserSyncStatus = job.status;
     enrollment.deviceUserSyncError = '';
-    enrollment.faceEnrollmentStatus = 'PENDING'; // Never falsely mark face enrolled after user creation
+    if (enrollment.faceEnrollmentStatus !== 'ENROLLED') {
+      enrollment.faceEnrollmentStatus = 'PENDING'; // Never falsely mark face enrolled after user creation
+    }
 
     if (isVerifiedOnDevice) {
       enrollment.status = 'DEVICE_USER_READY';
@@ -320,6 +381,15 @@ const syncEnrollmentDeviceUser = async ({
         actorUserId: adminUser?._id || null,
         note: `Device user ${cleanBioId} verified on ${device.deviceName}. Awaiting physical face enrollment.`,
       });
+    } else if (isQueuedForPoll) {
+      enrollment.status = 'AWAITING_PHYSICAL_ENROLLMENT';
+      enrollment.history.push({
+        action: 'DEVICE_USER_SYNC_QUEUED',
+        fromStatus: prevStatus,
+        toStatus: 'AWAITING_PHYSICAL_ENROLLMENT',
+        actorUserId: adminUser?._id || null,
+        note: `Queued DATA UPDATE USERINFO for PIN ${cleanBioId} on ${device.deviceName} (CMD ${job.commandId || 'pending'}).`,
+      });
     } else {
       enrollment.status = 'AWAITING_PHYSICAL_ENROLLMENT';
       enrollment.history.push({
@@ -327,7 +397,7 @@ const syncEnrollmentDeviceUser = async ({
         fromStatus: prevStatus,
         toStatus: 'AWAITING_PHYSICAL_ENROLLMENT',
         actorUserId: adminUser?._id || null,
-        note: `Device user ${cleanBioId} command acknowledged by ${device.deviceName}. Awaiting device confirmation before marking READY.`,
+        note: `Device user ${cleanBioId} command acknowledged by ${device.deviceName}. Awaiting OPERLOG confirmation before marking READY.`,
       });
     }
     await enrollment.save();
@@ -337,8 +407,8 @@ const syncEnrollmentDeviceUser = async ({
       branchId: device.branchId,
       category: 'USER_SYNC',
       status: 'SUCCESS',
-      action: 'DEVICE_USER_SYNCED',
-      message: `Device user ${cleanBioId} synced to ${device.deviceName} (${job.status}).`,
+      action: isQueuedForPoll ? 'DEVICE_USER_SYNC_QUEUED' : 'DEVICE_USER_SYNCED',
+      message: `Device user ${cleanBioId} sync ${job.status} on ${device.deviceName}.`,
       actorUserId: adminUser?._id || null,
     });
 
@@ -353,12 +423,18 @@ const syncEnrollmentDeviceUser = async ({
     enrollment.deviceUserSyncJobId = job._id;
     enrollment.deviceUserSyncStatus = 'FAILED';
     enrollment.deviceUserSyncError = job.failureReason;
-    enrollment.status = 'FAILED';
+    // Keep manual physical enrollment fallback available on failed remote dispatch
+    if (!['ENROLLED', 'REVOKED', 'REJECTED'].includes(enrollment.status)) {
+      enrollment.status = 'AWAITING_PHYSICAL_ENROLLMENT';
+      if (enrollment.faceEnrollmentStatus !== 'ENROLLED') {
+        enrollment.faceEnrollmentStatus = 'PENDING';
+      }
+    }
     enrollment.failureReason = job.failureReason;
     enrollment.history.push({
       action: 'DEVICE_USER_SYNC_FAILED',
       fromStatus: prevStatus,
-      toStatus: 'FAILED',
+      toStatus: enrollment.status,
       actorUserId: adminUser?._id || null,
       note: job.failureReason,
     });
@@ -421,6 +497,7 @@ const retryDeviceUserSync = async (enrollmentId, adminUser = null, { remoteAdapt
 module.exports = {
   REMOTE_UNSUPPORTED_REASON,
   isRemoteUserSyncEnabled,
+  admsRemoteAdapter,
   syncEnrollmentDeviceUser,
   retryDeviceUserSync,
 };

@@ -61,6 +61,20 @@ const biometricDeviceSyncJobSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    commandId: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    deviceCommandId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'BiometricDeviceCommand',
+      default: null,
+    },
+    acknowledgedAt: {
+      type: Date,
+      default: null,
+    },
     failureReason: {
       type: String,
       trim: true,

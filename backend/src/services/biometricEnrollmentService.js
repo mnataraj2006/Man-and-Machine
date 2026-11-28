@@ -732,11 +732,15 @@ const approveEnrollment = async (enrollmentId, adminUser, { deviceId = null, bio
     });
   }
 
+  const nextStatus = ['DEVICE_USER_READY', 'DEVICE_USER_SYNCING'].includes(prevStatus)
+    ? prevStatus
+    : 'AWAITING_PHYSICAL_ENROLLMENT';
+
   const now = new Date();
   const historyEntry = {
     action: 'ADMIN_APPROVED',
     fromStatus: prevStatus,
-    toStatus: 'AWAITING_PHYSICAL_ENROLLMENT',
+    toStatus: nextStatus,
     actorUserId: adminUser?._id || null,
     note: `Approved pre-enrollment. Biometric ID ${candidateBioId || 'pending'} ready for physical device capture.`,
     timestamp: now,
@@ -748,12 +752,12 @@ const approveEnrollment = async (enrollmentId, adminUser, { deviceId = null, bio
       $set: {
         assignedDeviceId: targetDeviceId || null,
         biometricUserId: candidateBioId,
-        status: 'AWAITING_PHYSICAL_ENROLLMENT',
+        status: nextStatus,
         adminApprovalStatus: 'APPROVED',
         identityVerificationStatus: 'VERIFIED',
         deviceEnrollmentStatus: 'AWAITING_PHYSICAL',
-        approvedAt: now,
-        approvedBy: adminUser?._id || null,
+        approvedAt: enrollment.approvedAt || now,
+        approvedBy: enrollment.approvedBy || adminUser?._id || null,
       },
       $push: { history: historyEntry },
     },

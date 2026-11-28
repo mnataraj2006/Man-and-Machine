@@ -21,13 +21,28 @@ const biometricDeviceCommandSchema = new mongoose.Schema(
     },
     commandType: {
       type: String,
-      enum: ['INFO', 'CHECK', 'DATA_QUERY_USERINFO'],
+      enum: ['INFO', 'CHECK', 'DATA_QUERY_USERINFO', 'DATA_UPDATE_USERINFO'],
       required: true,
     },
     commandPayload: {
       type: String,
       required: true,
       trim: true,
+    },
+    syncJobId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'BiometricDeviceSyncJob',
+      default: null,
+      index: true,
+    },
+    targetPin: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    isTestCommand: {
+      type: Boolean,
+      default: false,
     },
     status: {
       type: String,

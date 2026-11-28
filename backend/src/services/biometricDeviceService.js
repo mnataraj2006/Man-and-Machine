@@ -1081,33 +1081,47 @@ const handleAdmsOperLog = async (sn, rawBody) => {
   if (device.isActive && device.status !== 'DISABLED') device.status = 'ONLINE';
   await device.save();
 
-  // Promote ACKNOWLEDGED device-user sync jobs to VERIFIED only when OPERLOG confirms the user with a non-empty matching name
-  if (parsedUsersCount > 0 && mongoose.connection.readyState === 1) {
+  // Promote SENT / ACKNOWLEDGED device-user sync jobs to VERIFIED only when independent OPERLOG confirms
+  // the expected PIN exists on this exact device (matching serial, deviceId, branchId, PIN, and name)
+  if (parsedUsersCount > 0 && device.isActive && device.status !== 'DISABLED' && mongoose.connection.readyState === 1) {
     const BiometricEnrollment = require('../models/BiometricEnrollment');
     const BiometricDeviceSyncJob = require('../models/BiometricDeviceSyncJob');
     const pendingJobs = await BiometricDeviceSyncJob.find({
       deviceId: device._id,
-      status: 'ACKNOWLEDGED',
+      status: { $in: ['SENT', 'ACKNOWLEDGED'] },
     });
     for (const job of pendingJobs) {
       const discovered = existingMap.get(job.biometricUserId);
-      if (!discovered || !discovered.name || !String(discovered.name).trim()) continue;
+      if (!discovered || String(discovered.biometricUserId).trim() !== String(job.biometricUserId).trim()) {
+        continue;
+      }
+      if (!discovered.name || !String(discovered.name).trim()) continue;
+
       const enrollment = await BiometricEnrollment.findById(job.enrollmentId).populate('clientProfileId', 'name');
       if (!enrollment) continue;
+      if (String(enrollment.assignedDeviceId) !== String(device._id)) continue;
+      if (String(enrollment.branchId) !== String(device.branchId)) continue;
+      if (String(enrollment.biometricUserId || '').trim() !== String(job.biometricUserId).trim()) continue;
+      if (['ENROLLED', 'REVOKED', 'REJECTED'].includes(enrollment.status)) continue;
+
       const clientName = enrollment.clientProfileId?.name || job.clientName || '';
-      const normA = String(discovered.name).toLowerCase().split(/\s+/).filter((t) => t.length >= 2);
-      const normB = String(clientName).toLowerCase().split(/\s+/).filter((t) => t.length >= 2);
-      if (normA.length === 0 || normB.length === 0 || !normA.some((t) => normB.includes(t))) continue;
+      if (clientName) {
+        const normA = String(discovered.name).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((t) => t.length >= 2);
+        const normB = String(clientName).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((t) => t.length >= 2);
+        if (normA.length === 0 || normB.length === 0 || !normA.some((t) => normB.includes(t))) continue;
+      }
 
       job.status = 'VERIFIED';
       job.verifiedAt = new Date();
       job.responseStatus = 'OPERLOG_CONFIRMED';
+      job.failureReason = '';
       await job.save();
 
       const prevStatus = enrollment.status;
       enrollment.deviceUserSyncStatus = 'VERIFIED';
-      if (!['ENROLLED', 'REVOKED'].includes(enrollment.status)) {
-        enrollment.status = 'DEVICE_USER_READY';
+      enrollment.deviceUserSyncError = '';
+      enrollment.status = 'DEVICE_USER_READY';
+      if (enrollment.faceEnrollmentStatus !== 'ENROLLED') {
         enrollment.faceEnrollmentStatus = 'PENDING';
       }
       enrollment.history.push({
@@ -1334,7 +1348,7 @@ const getBiometricAttendance = async (query = {}) => {
 };
 
 // ==========================================
-// 6. SAFE ADMS READ-ONLY COMMAND QUEUE
+// 6. SAFE ADMS COMMAND QUEUE (STRICT ALLOWLIST)
 // ==========================================
 
 const ALLOWED_READ_ONLY_COMMANDS = Object.freeze({
@@ -1342,6 +1356,11 @@ const ALLOWED_READ_ONLY_COMMANDS = Object.freeze({
   CHECK: 'CHECK',
   DATA_QUERY_USERINFO: 'DATA QUERY USERINFO',
 });
+
+const ALLOWED_REMOTE_USER_COMMAND = 'DATA_UPDATE_USERINFO';
+const RESERVED_TEST_PIN = String(process.env.BIOMETRIC_TEST_PIN || '9999').trim() || '9999';
+
+const isRemoteUserSyncFeatureEnabled = () => process.env.BIOMETRIC_REMOTE_USER_SYNC === 'true';
 
 const FORBIDDEN_COMMAND_PATTERNS = [
   /CLEAR/i,
@@ -1353,6 +1372,63 @@ const FORBIDDEN_COMMAND_PATTERNS = [
   /ENROLL/i,
   /SET[\s_]+OPTION/i,
 ];
+
+const CONTROL_CHAR_RE = /[\r\n\t\0]/;
+const STRICT_NUMERIC_PIN_RE = /^[1-9]\d{0,8}$/;
+const STRICT_DATA_UPDATE_USERINFO_PAYLOAD_RE =
+  /^DATA UPDATE USERINFO PIN=[1-9]\d{0,8}\tName=[A-Za-z0-9 ._-]{1,24}\tPrivilege=0\tCard=\tPasswd=\tGrp=1$/;
+
+const validateNumericPin = (pin) => {
+  const raw = String(pin ?? '');
+  if (CONTROL_CHAR_RE.test(raw)) {
+    const err = new Error('Invalid biometric PIN: control characters are not allowed.');
+    err.statusCode = 400;
+    throw err;
+  }
+  const clean = raw.trim();
+  if (!STRICT_NUMERIC_PIN_RE.test(clean)) {
+    const err = new Error('Invalid biometric PIN: must be a positive 1-9 digit integer.');
+    err.statusCode = 400;
+    throw err;
+  }
+  return clean;
+};
+
+const sanitizeDeviceUserName = (name) => {
+  const raw = String(name ?? '');
+  if (CONTROL_CHAR_RE.test(raw)) {
+    const err = new Error('Invalid client name: CR/LF/tab/null control characters are not allowed.');
+    err.statusCode = 400;
+    throw err;
+  }
+  const cleaned = raw
+    .replace(/[^A-Za-z0-9 ._-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 24)
+    .trim();
+  if (!cleaned) {
+    const err = new Error('Invalid client name: sanitized name cannot be empty.');
+    err.statusCode = 400;
+    throw err;
+  }
+  return cleaned;
+};
+
+const buildDataUpdateUserInfoPayload = ({ pin, name }) => {
+  const cleanPin = validateNumericPin(pin);
+  const cleanName = sanitizeDeviceUserName(name);
+  const payload = `DATA UPDATE USERINFO PIN=${cleanPin}\tName=${cleanName}\tPrivilege=0\tCard=\tPasswd=\tGrp=1`;
+  if (!STRICT_DATA_UPDATE_USERINFO_PAYLOAD_RE.test(payload)) {
+    const err = new Error('Constructed DATA UPDATE USERINFO payload failed strict validation.');
+    err.statusCode = 400;
+    throw err;
+  }
+  return { cleanPin, cleanName, payload };
+};
+
+const isValidDataUpdateUserInfoPayload = (payload) =>
+  typeof payload === 'string' && STRICT_DATA_UPDATE_USERINFO_PAYLOAD_RE.test(payload);
 
 const assertAdminBranchAccess = (adminUser, targetBranchId) => {
   const adminBranch = adminUser?.branchId?._id || adminUser?.branchId;
@@ -1367,25 +1443,92 @@ const assertAdminBranchAccess = (adminUser, targetBranchId) => {
 let commandSeqCounter = 0;
 const generateUniqueCommandId = () => {
   commandSeqCounter = (commandSeqCounter + 1) % 1000;
-  return `${Date.now()}${String(commandSeqCounter).padStart(3, '0')}`;
+  // 32-bit signed integer safe numeric ID (<= 1,999,999,999) for eSSL/ZKTeco ZMM510 firmware
+  const epochSlice = Math.floor(Date.now() / 1000) % 2000000;
+  return `${epochSlice}${String(commandSeqCounter).padStart(3, '0')}`;
 };
 
-const queueDeviceCommand = async (deviceId, { commandType, rawCommand = '' } = {}, adminUser = null) => {
+const updateLinkedSyncJobOnCommandState = async (cmd, { jobStatus, enrollmentSyncStatus, enrollmentStatus = null, failureReason = '', responseStatus = '' }) => {
+  if (!cmd?.syncJobId || mongoose.connection.readyState !== 1) return;
+  try {
+    const BiometricDeviceSyncJob = require('../models/BiometricDeviceSyncJob');
+    const BiometricEnrollment = require('../models/BiometricEnrollment');
+    const job = await BiometricDeviceSyncJob.findById(cmd.syncJobId);
+    if (!job) return;
+    // Never downgrade an already VERIFIED job
+    if (job.status === 'VERIFIED') return;
+
+    const now = new Date();
+    job.status = jobStatus;
+    if (responseStatus) job.responseStatus = responseStatus;
+    if (failureReason !== undefined) job.failureReason = failureReason;
+    if (jobStatus === 'SENT') job.lastAttemptAt = now;
+    if (jobStatus === 'ACKNOWLEDGED') job.acknowledgedAt = job.acknowledgedAt || now;
+    await job.save();
+
+    const enrollment = await BiometricEnrollment.findById(job.enrollmentId);
+    if (!enrollment) return;
+    enrollment.deviceUserSyncStatus = enrollmentSyncStatus;
+    if (failureReason !== undefined) enrollment.deviceUserSyncError = failureReason;
+    if (
+      enrollmentStatus &&
+      !['ENROLLED', 'REVOKED', 'REJECTED', 'DEVICE_USER_READY'].includes(enrollment.status)
+    ) {
+      enrollment.status = enrollmentStatus;
+    }
+    await enrollment.save();
+  } catch (err) {
+    console.error('SyncJob state update error:', err.message);
+  }
+};
+
+const queueDeviceCommand = async (
+  deviceId,
+  { commandType, rawCommand = '', pin = '', name = '', syncJobId = null, isTestCommand = false } = {},
+  adminUser = null
+) => {
   const normalizedType = String(commandType || '').trim().toUpperCase();
-  const rawCheck = `${normalizedType} ${String(rawCommand || '')}`;
-  if (FORBIDDEN_COMMAND_PATTERNS.some((re) => re.test(rawCheck))) {
-    const err = new Error('Command rejected: destructive or mutating device commands are strictly prohibited.');
+  const rawStr = String(rawCommand || '');
+  if (CONTROL_CHAR_RE.test(rawStr)) {
+    const err = new Error('Command rejected: CR/LF control characters are not allowed.');
     err.statusCode = 403;
     throw err;
   }
 
-  const commandPayload = ALLOWED_READ_ONLY_COMMANDS[normalizedType];
-  if (!commandPayload) {
-    const err = new Error(
-      `Unsupported commandType "${commandType}". Allowed read-only commands: ${Object.keys(ALLOWED_READ_ONLY_COMMANDS).join(', ')}.`
-    );
-    err.statusCode = 400;
-    throw err;
+  let commandPayload = ALLOWED_READ_ONLY_COMMANDS[normalizedType];
+  let targetPin = '';
+
+  if (normalizedType === ALLOWED_REMOTE_USER_COMMAND) {
+    if (rawStr.trim()) {
+      const err = new Error('Command rejected: arbitrary command text is prohibited for DATA_UPDATE_USERINFO.');
+      err.statusCode = 403;
+      throw err;
+    }
+    if (!isRemoteUserSyncFeatureEnabled()) {
+      const err = new Error('Remote user creation is disabled (BIOMETRIC_REMOTE_USER_SYNC is not enabled).');
+      err.statusCode = 403;
+      throw err;
+    }
+    const built = buildDataUpdateUserInfoPayload({ pin, name });
+    commandPayload = built.payload;
+    targetPin = built.cleanPin;
+  } else {
+    const rawCheck = `${normalizedType} ${rawStr}`;
+    if (FORBIDDEN_COMMAND_PATTERNS.some((re) => re.test(rawCheck))) {
+      const err = new Error('Command rejected: destructive or mutating device commands are strictly prohibited.');
+      err.statusCode = 403;
+      throw err;
+    }
+    if (!commandPayload) {
+      const err = new Error(
+        `Unsupported commandType "${commandType}". Allowed commands: ${[
+          ...Object.keys(ALLOWED_READ_ONLY_COMMANDS),
+          ALLOWED_REMOTE_USER_COMMAND,
+        ].join(', ')}.`
+      );
+      err.statusCode = 400;
+      throw err;
+    }
   }
 
   const device = await BiometricDevice.findById(deviceId);
@@ -1403,12 +1546,21 @@ const queueDeviceCommand = async (deviceId, { commandType, rawCommand = '' } = {
     throw err;
   }
 
+  if (normalizedType === ALLOWED_REMOTE_USER_COMMAND && !device.supportsRemoteEnrollment) {
+    const err = new Error('Device does not have remote user creation enabled (supportsRemoteEnrollment is false).');
+    err.statusCode = 403;
+    throw err;
+  }
+
   const cmd = await BiometricDeviceCommand.create({
     deviceId: device._id,
     branchId: device.branchId,
     commandId: generateUniqueCommandId(),
     commandType: normalizedType,
     commandPayload,
+    syncJobId: syncJobId || null,
+    targetPin,
+    isTestCommand: Boolean(isTestCommand),
     status: 'PENDING',
     createdBy: adminUser?._id || null,
   });
@@ -1419,11 +1571,56 @@ const queueDeviceCommand = async (deviceId, { commandType, rawCommand = '' } = {
     category: 'ADMIN_ACTION',
     status: 'INFO',
     action: 'QUEUE_COMMAND',
-    message: `Queued read-only ADMS command ${normalizedType} (ID: ${cmd.commandId}) for ${device.serialNumber}`,
+    message: `Queued ADMS command ${normalizedType} (ID: ${cmd.commandId}) for ${device.serialNumber}`,
     actorUserId: adminUser?._id || null,
   });
 
   return cmd;
+};
+
+/**
+ * Dedicated test-only command helper using the reserved test PIN (default 9999).
+ * Never reuses an existing client's biometric PIN or creates enrollment/attendance records.
+ */
+const queueTestDeviceUserCommand = async (
+  deviceId,
+  { pin = RESERVED_TEST_PIN, name = 'ADMS Test User' } = {},
+  adminUser = null
+) => {
+  const cleanPin = validateNumericPin(pin);
+  if (cleanPin !== RESERVED_TEST_PIN) {
+    const err = new Error(`Test-only mode only permits reserved test PIN ${RESERVED_TEST_PIN}.`);
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const [existingMapping, existingEnrollment] = await Promise.all([
+    BiometricUserMapping.findOne({ deviceId, biometricUserId: cleanPin }).select('_id').lean(),
+    BiometricEnrollment.findOne({
+      assignedDeviceId: deviceId,
+      biometricUserId: cleanPin,
+      status: { $nin: ['REJECTED', 'REVOKED', 'FAILED'] },
+    })
+      .select('_id')
+      .lean(),
+  ]);
+
+  if (existingMapping || existingEnrollment) {
+    const err = new Error(`Reserved test PIN ${cleanPin} is already in use by an existing client on this device.`);
+    err.statusCode = 409;
+    throw err;
+  }
+
+  return queueDeviceCommand(
+    deviceId,
+    {
+      commandType: ALLOWED_REMOTE_USER_COMMAND,
+      pin: cleanPin,
+      name,
+      isTestCommand: true,
+    },
+    adminUser
+  );
 };
 
 const getDeviceCommands = async (deviceId, query = {}, adminUser = null) => {
@@ -1507,15 +1704,31 @@ const dispatchPendingCommandsForDevice = async (snOrDevice) => {
   }
 
   const now = new Date();
-  // Expire stale commands
-  await BiometricDeviceCommand.updateMany(
-    {
-      deviceId: device._id,
-      status: { $in: ['PENDING', 'SENT'] },
-      expiresAt: { $lt: now },
-    },
-    { $set: { status: 'EXPIRED', error: 'Command expired before completion.' } }
-  );
+  // Expire stale commands and mark any linked sync jobs as FAILED (preserving manual fallback)
+  const expiredCmds = await BiometricDeviceCommand.find({
+    deviceId: device._id,
+    status: { $in: ['PENDING', 'SENT'] },
+    expiresAt: { $lt: now },
+  });
+  if (expiredCmds.length > 0) {
+    await BiometricDeviceCommand.updateMany(
+      {
+        _id: { $in: expiredCmds.map((c) => c._id) },
+      },
+      { $set: { status: 'EXPIRED', error: 'Command expired before completion.' } }
+    );
+    for (const ec of expiredCmds) {
+      if (ec.syncJobId) {
+        await updateLinkedSyncJobOnCommandState(ec, {
+          jobStatus: 'FAILED',
+          enrollmentSyncStatus: 'FAILED',
+          enrollmentStatus: 'AWAITING_PHYSICAL_ENROLLMENT',
+          failureReason: 'Device command expired before completion.',
+          responseStatus: 'EXPIRED',
+        });
+      }
+    }
+  }
 
   // Re-queue timed-out SENT commands (older than 120s) or mark FAILED if retries exhausted
   const staleThreshold = new Date(now.getTime() - 120 * 1000);
@@ -1530,6 +1743,15 @@ const dispatchPendingCommandsForDevice = async (snOrDevice) => {
       sc.error = 'Device response timed out after max retries.';
       sc.completedAt = now;
       await sc.save();
+      if (sc.syncJobId) {
+        await updateLinkedSyncJobOnCommandState(sc, {
+          jobStatus: 'FAILED',
+          enrollmentSyncStatus: 'FAILED',
+          enrollmentStatus: 'AWAITING_PHYSICAL_ENROLLMENT',
+          failureReason: 'Device response timed out after max retries.',
+          responseStatus: 'TIMEOUT',
+        });
+      }
     } else {
       sc.status = 'PENDING';
       sc.retryCount += 1;
@@ -1547,7 +1769,15 @@ const dispatchPendingCommandsForDevice = async (snOrDevice) => {
 
   const commandLines = [];
   for (const cmd of pending) {
-    if (!ALLOWED_READ_ONLY_COMMANDS[cmd.commandType]) continue;
+    const isReadOnly = Boolean(ALLOWED_READ_ONLY_COMMANDS[cmd.commandType]);
+    const isRemoteUser = cmd.commandType === ALLOWED_REMOTE_USER_COMMAND;
+    if (!isReadOnly && !isRemoteUser) continue;
+
+    if (isRemoteUser) {
+      if (!isRemoteUserSyncFeatureEnabled() || !device.supportsRemoteEnrollment) continue;
+      if (!isValidDataUpdateUserInfoPayload(cmd.commandPayload)) continue;
+    }
+
     const locked = await BiometricDeviceCommand.findOneAndUpdate(
       { _id: cmd._id, status: 'PENDING' },
       { $set: { status: 'SENT', sentAt: now } },
@@ -1555,6 +1785,15 @@ const dispatchPendingCommandsForDevice = async (snOrDevice) => {
     );
     if (locked) {
       commandLines.push(`C:${locked.commandId}:${locked.commandPayload}`);
+      if (locked.syncJobId) {
+        await updateLinkedSyncJobOnCommandState(locked, {
+          jobStatus: 'SENT',
+          enrollmentSyncStatus: 'SENT',
+          enrollmentStatus: 'DEVICE_USER_SYNCING',
+          failureReason: '',
+          responseStatus: 'COMMAND_SENT',
+        });
+      }
     }
   }
 
@@ -1603,7 +1842,7 @@ const handleAdmsDeviceCmdResponse = async (sn, rawBody) => {
     }
 
     // Idempotent handling for duplicate acknowledgements
-    if (['COMPLETED', 'FAILED'].includes(cmd.status)) {
+    if (['COMPLETED', 'ACKNOWLEDGED', 'FAILED', 'EXPIRED', 'CANCELLED'].includes(cmd.status)) {
       continue;
     }
 
@@ -1612,9 +1851,32 @@ const handleAdmsDeviceCmdResponse = async (sn, rawBody) => {
     cmd.acknowledgedAt = cmd.acknowledgedAt || now;
     cmd.completedAt = now;
     cmd.response = line.slice(0, 500);
-    cmd.status = isSuccess ? 'COMPLETED' : 'FAILED';
+    // Return=0 for DATA_UPDATE_USERINFO produces ACKNOWLEDGED only — never VERIFIED
+    cmd.status = isSuccess
+      ? (cmd.commandType === ALLOWED_REMOTE_USER_COMMAND ? 'ACKNOWLEDGED' : 'COMPLETED')
+      : 'FAILED';
     cmd.error = isSuccess ? '' : `Device returned error code ${returnCode}`;
     await cmd.save();
+
+    if (cmd.syncJobId) {
+      if (isSuccess) {
+        await updateLinkedSyncJobOnCommandState(cmd, {
+          jobStatus: 'ACKNOWLEDGED',
+          enrollmentSyncStatus: 'ACKNOWLEDGED',
+          enrollmentStatus: 'AWAITING_PHYSICAL_ENROLLMENT',
+          failureReason: '',
+          responseStatus: 'DEVICE_RETURN_0',
+        });
+      } else {
+        await updateLinkedSyncJobOnCommandState(cmd, {
+          jobStatus: 'FAILED',
+          enrollmentSyncStatus: 'FAILED',
+          enrollmentStatus: 'AWAITING_PHYSICAL_ENROLLMENT',
+          failureReason: `Device returned error code ${returnCode}`,
+          responseStatus: `ERROR_${returnCode}`,
+        });
+      }
+    }
 
     await logDeviceEvent({
       deviceId: device._id,
@@ -1649,8 +1911,16 @@ module.exports = {
   getDeviceDetails,
   getBiometricAttendance,
   ALLOWED_READ_ONLY_COMMANDS,
+  ALLOWED_REMOTE_USER_COMMAND,
+  RESERVED_TEST_PIN,
+  isRemoteUserSyncFeatureEnabled,
+  validateNumericPin,
+  sanitizeDeviceUserName,
+  buildDataUpdateUserInfoPayload,
+  isValidDataUpdateUserInfoPayload,
   assertAdminBranchAccess,
   queueDeviceCommand,
+  queueTestDeviceUserCommand,
   getDeviceCommands,
   cancelDeviceCommand,
   dispatchPendingCommandsForDevice,
