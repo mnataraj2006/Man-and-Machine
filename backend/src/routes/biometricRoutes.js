@@ -35,6 +35,7 @@ router.get('/enrollments/:id', biometricController.getEnrollmentDetails);
 router.post('/enrollments/manual', biometricController.completeManualEnrollment);
 router.post('/enrollments/physical-request', biometricController.initiatePhysicalEnrollment);
 router.post('/enrollments/:id/manual-complete', biometricController.completeManualEnrollment);
+router.post('/enrollments/:id/confirm-face', biometricController.confirmPhysicalFaceEnrollment);
 router.post('/enrollments/:id/remote-enroll', biometricController.initiateRemoteEnrollment);
 router.post('/enrollments/remote-enroll', biometricController.initiateRemoteEnrollment);
 router.post('/enrollments/:id/approve', biometricController.approveEnrollment);

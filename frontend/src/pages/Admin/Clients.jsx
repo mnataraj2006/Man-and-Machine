@@ -582,6 +582,25 @@ export default function Clients() {
     }
   };
 
+  const handleConfirmPhysicalFaceEnrollment = async () => {
+    const enrollmentId = clientDetailData?.biometricSummary?.enrollmentId;
+    if (!enrollmentId) return;
+    try {
+      setBioEnrollBusy(true);
+      setBioEnrollError(null);
+      await biometricService.confirmPhysicalFaceEnrollment(enrollmentId);
+      showFeedback('success', 'Physical face enrollment confirmed. Biometric access is now active.');
+      await Promise.all([
+        handleOpenClientDetails(clientDetailData.client.id),
+        refreshBioEnrollmentDetails(enrollmentId),
+      ]);
+    } catch (err) {
+      setBioEnrollError(err.message || 'Failed to confirm physical face enrollment.');
+    } finally {
+      setBioEnrollBusy(false);
+    }
+  };
+
   const handleDisableBiometric = async () => {
     const mappingId = clientDetailData?.biometricSummary?.mappingId;
     if (!mappingId) return;
@@ -4042,6 +4061,7 @@ export default function Clients() {
         error={bioEnrollError}
         onStartSetup={handleStartBiometricSetup}
         onRetrySetup={handleRetryBiometricSync}
+        onConfirmFace={handleConfirmPhysicalFaceEnrollment}
         onRefresh={handleRefreshBiometricModal}
       />
     </div>

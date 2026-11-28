@@ -279,17 +279,7 @@ const biometricDeviceService = require('./src/services/biometricDeviceService');
       const reloadedJob = await BiometricDeviceSyncJob.findById(job3._id);
       assert.strictEqual(reloadedJob.status, 'VERIFIED');
 
-      // I. Ordinary non-face ATTLOG punch (verifyCode=0) does NOT falsely mark face enrollment as complete
-      const attRes = await biometricDeviceService.handleAdmsAttLog(
-        deviceA.serialNumber,
-        '1007\t2026-11-28 15:00:00\t0\t0\t0\t0\n'
-      );
-      assert.strictEqual(attRes.processed, 1);
-      const enr3AfterAtt = await BiometricEnrollment.findById(enr3._id);
-      assert.strictEqual(enr3AfterAtt.status, 'DEVICE_USER_READY');
-      assert.strictEqual(enr3AfterAtt.faceEnrollmentStatus, 'PENDING');
-
-      // Modality-specific FACE punch (verifyCode=15) after mapping DOES confirm physical face enrollment
+      // I. Ordinary & FACE ATTLOG attendance punches MUST NOT mark face enrollment complete
       await BiometricUserMapping.create({
         deviceId: deviceA._id,
         branchId: branch._id,
@@ -297,14 +287,44 @@ const biometricDeviceService = require('./src/services/biometricDeviceService');
         clientProfileId: client3._id,
         status: 'ACTIVE',
       });
+      const attRes = await biometricDeviceService.handleAdmsAttLog(
+        deviceA.serialNumber,
+        '1007\t2026-11-28 15:00:00\t0\t0\t0\t0\n'
+      );
+      assert.strictEqual(attRes.processed, 1);
       const faceAttRes = await biometricDeviceService.handleAdmsAttLog(
         deviceA.serialNumber,
         '1007\t2026-11-28 15:05:00\t0\t15\t0\t0\n'
       );
       assert.strictEqual(faceAttRes.processed, 1);
-      const enr3AfterFace = await BiometricEnrollment.findById(enr3._id);
-      assert.strictEqual(enr3AfterFace.status, 'ENROLLED');
-      assert.strictEqual(enr3AfterFace.faceEnrollmentStatus, 'ENROLLED');
+      const enr3AfterAtt = await BiometricEnrollment.findById(enr3._id);
+      assert.strictEqual(enr3AfterAtt.status, 'DEVICE_USER_READY');
+      assert.strictEqual(enr3AfterAtt.faceEnrollmentStatus, 'PENDING');
+
+      // Unauthorized (non-ADMIN) user cannot confirm physical face enrollment
+      await assert.rejects(
+        () =>
+          biometricEnrollmentService.confirmPhysicalFaceEnrollment(enr3._id, {
+            _id: new mongoose.Types.ObjectId(),
+            role: 'CLIENT',
+          }),
+        /Only an authorized administrator/i
+      );
+
+      // Explicit authorized admin confirmation records actor, timestamp, and history
+      const confirmed = await biometricEnrollmentService.confirmPhysicalFaceEnrollment(enr3._id, adminUser);
+      assert.strictEqual(confirmed.idempotentReused, false);
+      assert.strictEqual(confirmed.enrollment.status, 'ENROLLED');
+      assert.strictEqual(confirmed.enrollment.faceEnrollmentStatus, 'ENROLLED');
+      assert.strictEqual(String(confirmed.enrollment.enrolledBy), String(adminUser._id));
+      assert(confirmed.enrollment.enrolledAt);
+      const histCount = confirmed.enrollment.history.length;
+      assert(confirmed.enrollment.history.some((h) => h.action === 'ADMIN_CONFIRMED_PHYSICAL_FACE_ENROLLMENT'));
+
+      // Duplicate confirmation is idempotent (no duplicate history entry)
+      const confirmedAgain = await biometricEnrollmentService.confirmPhysicalFaceEnrollment(enr3._id, adminUser);
+      assert.strictEqual(confirmedAgain.idempotentReused, true);
+      assert.strictEqual(confirmedAgain.enrollment.history.length, histCount);
     });
 
     console.log(`\nALL ${passed} BIOMETRIC STATUS CORRECTION REGRESSION CHECKS PASSED!`);

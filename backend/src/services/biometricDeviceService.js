@@ -877,32 +877,6 @@ const processAttendanceEvent = async ({
       rawEventReference: dedupKey,
     });
 
-    // Reliable modality-specific FACE punch (verifyCode=15) confirms physical face enrollment on the device
-    if (profile && verificationMethod === 'FACE' && mongoose.connection.readyState === 1) {
-      const pendingFaceEnr = await BiometricEnrollment.findOne({
-        clientProfileId: profile._id,
-        branchId: device.branchId,
-        assignedDeviceId: device._id,
-        biometricUserId: cleanBioId,
-        status: { $in: ['DEVICE_USER_READY', 'FACE_ENROLLMENT_PENDING', 'AWAITING_PHYSICAL_ENROLLMENT', 'APPROVED'] },
-      });
-      if (pendingFaceEnr && pendingFaceEnr.consentStatus !== 'WITHDRAWN') {
-        const prevStatus = pendingFaceEnr.status;
-        pendingFaceEnr.status = 'ENROLLED';
-        pendingFaceEnr.faceEnrollmentStatus = 'ENROLLED';
-        pendingFaceEnr.deviceEnrollmentStatus = 'DEVICE_VERIFIED';
-        pendingFaceEnr.enrolledAt = pendingFaceEnr.enrolledAt || eventTime;
-        pendingFaceEnr.lastVerifiedAt = eventTime;
-        pendingFaceEnr.history.push({
-          action: 'FACE_ENROLLMENT_CONFIRMED_BY_DEVICE',
-          fromStatus: prevStatus,
-          toStatus: 'ENROLLED',
-          note: `Physical face enrollment confirmed by FACE verification punch on ${device.deviceName} (${device.serialNumber}) for PIN ${cleanBioId}.`,
-        });
-        await pendingFaceEnr.save();
-      }
-    }
-
     return { duplicate: false, record };
   } catch (err) {
     if (err.code === 11000) {

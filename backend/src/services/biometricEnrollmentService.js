@@ -746,6 +746,122 @@ const initiatePhysicalEnrollment = async (
 // 4. ADMIN APPROVAL / REJECTION FOR MOBILE REQUESTS
 // ==========================================
 
+const confirmPhysicalFaceEnrollment = async (enrollmentId, adminUser, { note = '' } = {}) => {
+  if (!adminUser || String(adminUser.role || '').toUpperCase() !== 'ADMIN') {
+    const err = new Error('Only an authorized administrator can confirm physical face enrollment.');
+    err.statusCode = 403;
+    throw err;
+  }
+  if (!enrollmentId || !mongoose.Types.ObjectId.isValid(enrollmentId)) {
+    const err = new Error('Valid biometric enrollment ID is required.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const enrollment = await BiometricEnrollment.findById(enrollmentId).populate('clientProfileId', 'name clientId userId branchId');
+  if (!enrollment) {
+    const err = new Error('Biometric enrollment record not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  biometricDeviceService.assertAdminBranchAccess(adminUser, enrollment.branchId);
+
+  if (enrollment.status === 'REVOKED' || enrollment.consentStatus === 'WITHDRAWN') {
+    const err = new Error('Cannot confirm face enrollment for a REVOKED record without fresh client consent.');
+    err.statusCode = 409;
+    throw err;
+  }
+  if (enrollment.status === 'REJECTED') {
+    const err = new Error('Cannot confirm face enrollment for a REJECTED record.');
+    err.statusCode = 409;
+    throw err;
+  }
+  if (!enrollment.assignedDeviceId || !enrollment.biometricUserId) {
+    const err = new Error('Biometric device and PIN must be assigned before confirming physical face enrollment.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Idempotent: repeated confirmation on an already face-enrolled record does not duplicate history
+  if (enrollment.status === 'ENROLLED' && enrollment.faceEnrollmentStatus === 'ENROLLED') {
+    return { enrollment, idempotentReused: true };
+  }
+
+  const device = await BiometricDevice.findById(enrollment.assignedDeviceId);
+  if (!device) {
+    const err = new Error('Assigned biometric device not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const clientProfileId = enrollment.clientProfileId?._id || enrollment.clientProfileId;
+  const cleanBioId = String(enrollment.biometricUserId).trim();
+
+  await assertNoBiometricIdConflict({
+    deviceId: device._id,
+    biometricUserId: cleanBioId,
+    clientProfileId,
+    excludeEnrollmentId: enrollment._id,
+  });
+
+  const now = new Date();
+  const prevStatus = enrollment.status;
+  const hasDeviceUserProof =
+    enrollment.deviceUserSyncStatus === 'VERIFIED' ||
+    (device.discoveredUsers || []).some((u) => String(u.biometricUserId || '').trim() === cleanBioId);
+
+  const savedEnrollment = await runWithOptionalTransaction(async (session) => {
+    const opts = session ? { session } : {};
+    await BiometricUserMapping.findOneAndUpdate(
+      { deviceId: device._id, biometricUserId: cleanBioId },
+      {
+        biometricUserId: cleanBioId,
+        clientProfileId,
+        userId: enrollment.userId || enrollment.clientProfileId?.userId || null,
+        deviceId: device._id,
+        branchId: enrollment.branchId,
+        status: 'ACTIVE',
+      },
+      { upsert: true, new: true, ...opts }
+    );
+
+    const target = await BiometricEnrollment.findById(enrollment._id, null, opts);
+    target.status = 'ENROLLED';
+    target.adminApprovalStatus = 'APPROVED';
+    target.faceEnrollmentStatus = 'ENROLLED';
+    target.deviceEnrollmentStatus = hasDeviceUserProof ? 'DEVICE_VERIFIED' : 'ADMIN_CONFIRMED';
+    target.enrolledAt = target.enrolledAt || now;
+    target.enrolledBy = adminUser._id || null;
+    target.lastVerifiedAt = target.lastVerifiedAt || now;
+    target.failureReason = '';
+    target.history.push({
+      action: 'ADMIN_CONFIRMED_PHYSICAL_FACE_ENROLLMENT',
+      fromStatus: prevStatus,
+      toStatus: 'ENROLLED',
+      actorUserId: adminUser._id || null,
+      timestamp: now,
+      note:
+        String(note || '').trim() ||
+        `Admin physically inspected ${device.deviceName} (${device.serialNumber}) and confirmed face enrollment for PIN ${cleanBioId}.`,
+    });
+    await target.save(opts);
+    return target;
+  });
+
+  await BiometricDeviceLog.create({
+    deviceId: device._id,
+    branchId: device.branchId,
+    category: 'ADMIN_ACTION',
+    status: 'SUCCESS',
+    action: 'ADMIN_CONFIRMED_FACE_ENROLLMENT',
+    message: `Admin confirmed physical face enrollment for ${enrollment.clientProfileId?.name || clientProfileId} (PIN ${cleanBioId}) on ${device.deviceName}.`,
+    actorUserId: adminUser._id || null,
+  });
+
+  return { enrollment: savedEnrollment, idempotentReused: false };
+};
+
 const approveEnrollment = async (enrollmentId, adminUser, { deviceId = null, biometricUserId = '' } = {}) => {
   const enrollment = await BiometricEnrollment.findById(enrollmentId).populate('clientProfileId');
   if (!enrollment) {
@@ -1903,6 +2019,7 @@ module.exports = {
   generateNextBiometricUserId,
   assertNoBiometricIdConflict,
   completeManualEnrollment,
+  confirmPhysicalFaceEnrollment,
   initiatePhysicalEnrollment,
   initiateRemoteEnrollment,
   approveEnrollment,

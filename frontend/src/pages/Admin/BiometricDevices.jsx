@@ -1398,7 +1398,7 @@ export default function BiometricDevices() {
                 disabled={manualBusy}
                 className="flex-1 min-h-[44px] px-4 py-2 rounded-xl bg-[#F03B2E] hover:bg-[#FF493B] text-white font-bold uppercase cursor-pointer"
               >
-                {manualBusy ? 'Saving...' : 'Confirm Manual Enrollment'}
+                {manualBusy ? 'Saving...' : 'Confirm Physical Face Enrollment'}
               </button>
               <button
                 type="button"
@@ -1420,7 +1420,7 @@ export default function BiometricDevices() {
               <li>On the physical eSSL X2008, open <strong>Menu → User Mgt → New User</strong>.</li>
               <li>Enter the exact <strong>Biometric User ID</strong> shown/assigned in Man &amp; Machine.</li>
               <li>Capture the member&apos;s <strong>Face (Face VX3.5)</strong> or <strong>Fingerprint (Finger VX10.0)</strong> on the terminal and save.</li>
-              <li>Click <strong>Confirm Manual Enrollment</strong> to store the permanent Member ↔ Biometric ID mapping.</li>
+              <li>Click <strong>Confirm Physical Face Enrollment</strong> to store the permanent Member ↔ Biometric ID mapping.</li>
             </ol>
             <p className="text-[11px] text-[#858585] pt-2 border-t border-[#252525]">
               Note: Standard ADMS push firmware (ZMM510-NF24VB-Ver1.3.13) does not support remote unattended face capture; clicking Remote Enrollment will honestly report firmware capability.
@@ -1869,7 +1869,7 @@ export default function BiometricDevices() {
                         }}
                         className="min-h-[40px] px-4 py-2 rounded-xl bg-[#F03B2E] text-white font-bold uppercase cursor-pointer"
                       >
-                        {['FAILED', 'REJECTED'].includes(e.status) ? 'Retry / Complete on Device' : 'Complete Manual Enrollment'}
+                        {['FAILED', 'REJECTED'].includes(e.status) ? 'Retry / Complete on Device' : 'Confirm Physical Face Enrollment'}
                       </button>
                     )}
                   </div>

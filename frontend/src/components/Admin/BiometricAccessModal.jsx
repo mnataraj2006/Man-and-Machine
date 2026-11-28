@@ -50,6 +50,7 @@ export default function BiometricAccessModal({
   error = null,
   onStartSetup,
   onRetrySetup,
+  onConfirmFace,
   onRefresh,
 }) {
   if (!isOpen) return null;
@@ -215,10 +216,10 @@ export default function BiometricAccessModal({
           {showFaceInstructions && (
             <section className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-4 space-y-2.5">
               <h4 className="font-display text-sm font-bold uppercase text-sky-600">
-                Ready for Face Enrollment
+                Device User Ready — Face Enrollment Required
               </h4>
               <p className="text-[11px] text-[#F5F5F5] leading-relaxed">
-                The user account has been created on the biometric device. Face registration must still be completed physically on the device.
+                The user account has been created on the biometric device. Face registration must still be completed physically on the device. Because the eSSL X2008 does not push a standalone face-template confirmation event, an administrator must physically inspect the device and click <strong>Confirm Physical Face Enrollment</strong> below.
               </p>
               <ol className="space-y-1.5 list-decimal list-inside text-[11px] text-[#F5F5F5] leading-relaxed">
                 <li>Visit the biometric machine ({deviceName || 'branch terminal'}).</li>
@@ -226,7 +227,7 @@ export default function BiometricAccessModal({
                 <li>Select the existing user and choose <strong>Edit</strong>.</li>
                 <li>Confirm the displayed user details.</li>
                 <li>Complete physical face enrollment.</li>
-                <li>Return to the admin to check the enrollment status.</li>
+                <li>Physically verify on the device that face registration succeeded, then click <strong>Confirm Physical Face Enrollment</strong>.</li>
               </ol>
             </section>
           )}
@@ -276,6 +277,18 @@ export default function BiometricAccessModal({
                 {busy ? 'Retrying...' : 'Retry Setup'}
               </button>
             )}
+            {['DEVICE_USER_READY', 'FACE_ENROLLMENT_PENDING', 'AWAITING_PHYSICAL_ENROLLMENT'].includes(uiState.key) &&
+              bio.enrollmentId &&
+              onConfirmFace && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={onConfirmFace}
+                  className="min-h-[40px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase text-[11px] cursor-pointer disabled:opacity-50"
+                >
+                  {busy ? 'Confirming...' : 'Confirm Physical Face Enrollment'}
+                </button>
+              )}
           </div>
         </div>
       </div>

@@ -74,10 +74,10 @@ export function mapBiometricUiState(bio = {}) {
   if (displayStatus === 'DEVICE_USER_READY' || rawStatus === 'DEVICE_USER_READY') {
     return {
       key: 'DEVICE_USER_READY',
-      label: 'Ready for Face Enrollment',
-      actionLabel: 'View Instructions',
-      actionType: 'INSTRUCTIONS',
-      badgeClass: 'bg-sky-500/15 text-sky-400 border-sky-500/30',
+      label: 'Device User Ready — Face Enrollment Required',
+      actionLabel: 'Confirm Physical Face Enrollment',
+      actionType: 'CONFIRM_FACE',
+      badgeClass: 'bg-sky-500/15 text-sky-600 border-sky-500/30',
     };
   }
 

@@ -108,6 +108,10 @@ class BiometricService {
     return this.request(ep, { method: 'POST', body: JSON.stringify(payload) });
   }
 
+  confirmPhysicalFaceEnrollment(id, payload = {}) {
+    return this.request(`/enrollments/${id}/confirm-face`, { method: 'POST', body: JSON.stringify(payload) });
+  }
+
   initiatePhysicalEnrollment(payload) {
     return this.request('/enrollments/physical-request', { method: 'POST', body: JSON.stringify(payload) });
   }
