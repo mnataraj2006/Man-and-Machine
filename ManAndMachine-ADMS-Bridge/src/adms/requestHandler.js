@@ -3,6 +3,8 @@ const { validateDeviceRequest, normalizeIp } = require('../security/deviceValida
 const {
   parseAdmsLines,
   isLikelyMalformedAttlog,
+  isStrictAttlogLines,
+  ensureQueryTableParam,
   extractFirmwareVersion,
 } = require('./protocolHandler');
 const { sendText, sendJson, buildFallbackCdataOptions } = require('./responseHandler');
@@ -133,7 +135,29 @@ function createRequestHandler({ settings, queue, renderClient, retryManager, hea
         // 2. Attendance / Operlog upload: POST /iclock/cdata
         if (isCdata && method === 'POST') {
           const rawBody = await readRequestBody(req);
-          const tableName = (parsedUrl.searchParams.get('table') || 'ATTLOG').trim().toUpperCase();
+          const explicitTable = (parsedUrl.searchParams.get('table') || '').trim().toUpperCase();
+          const lines = parseAdmsLines(rawBody);
+
+          let tableName = explicitTable;
+          let forwardedQueryString = queryString;
+
+          if (!tableName) {
+            if (lines.length === 0) {
+              queue.recordDeviceActivity({ deviceSerial: validSn, ip: validIp });
+              return sendText(res, 200, 'OK');
+            }
+            if (isStrictAttlogLines(lines)) {
+              tableName = 'ATTLOG';
+              forwardedQueryString = ensureQueryTableParam(queryString, 'ATTLOG');
+            } else {
+              logger.info('Ignored unclassified ADMS upload without table parameter', {
+                sn: validSn,
+                lineCount: lines.length,
+              });
+              queue.recordDeviceActivity({ deviceSerial: validSn, ip: validIp });
+              return sendText(res, 200, 'OK');
+            }
+          }
 
           if (tableName !== 'ATTLOG' && tableName !== 'OPERLOG' && tableName !== 'ATTPHOTO') {
             logger.info('Ignored unsupported ADMS table upload', { sn: validSn, tableName });
@@ -144,7 +168,6 @@ function createRequestHandler({ settings, queue, renderClient, retryManager, hea
             return sendText(res, 200, 'OK');
           }
 
-          const lines = parseAdmsLines(rawBody);
           if (tableName === 'ATTLOG' && isLikelyMalformedAttlog(lines)) {
             logger.warn('Rejected malformed ATTLOG payload', { sn: validSn, ip: validIp });
             return sendText(res, 400, 'ERROR: Malformed ATTLOG payload');
@@ -158,7 +181,7 @@ function createRequestHandler({ settings, queue, renderClient, retryManager, hea
           const queued = queue.enqueueEvent({
             deviceSerial: validSn,
             tableName,
-            queryString,
+            queryString: forwardedQueryString,
             rawPayload: rawBody,
             lineCount: lines.length,
           });

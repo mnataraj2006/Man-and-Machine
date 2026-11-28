@@ -940,6 +940,7 @@ const handleAdmsAttLog = async (sn, rawBody) => {
 
   let processed = 0;
   let duplicates = 0;
+  let rejected = 0;
   let malformedCount = 0;
 
   for (const line of lines) {
@@ -979,7 +980,8 @@ const handleAdmsAttLog = async (sn, rawBody) => {
     });
 
     if (res.duplicate) duplicates += 1;
-    else if (!res.rejected) processed += 1;
+    else if (res.rejected) rejected += 1;
+    else processed += 1;
   }
 
   if (lines.length > 0 && processed === 0 && duplicates === 0 && malformedCount > 0) {
@@ -1017,7 +1019,7 @@ const handleAdmsAttLog = async (sn, rawBody) => {
     dashboardCache.invalidateOnAttendance();
   }
 
-  return { found: true, processed, duplicates };
+  return { found: true, processed, duplicates, rejected };
 };
 
 const handleAdmsOperLog = async (sn, rawBody) => {

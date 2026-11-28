@@ -503,3 +503,80 @@ test('17. [SIMULATED] Oversized payload (> 256KB) is rejected with 413 and not q
     await mockRender.stop();
   }
 });
+
+
+test('18. Missing table parameter with positive ATTLOG payload appends table=ATTLOG and preserves other params', async () => {
+  const mockRender = createMockRenderServer();
+  const renderUrl = await mockRender.start();
+  const bridge = createBridgeServer(makeSettings(renderUrl), { disableFileLogs: true, consoleLogs: false });
+  const { port } = await bridge.start();
+
+  try {
+    const payload = '1001\t2026-11-28 09:05:00\t0\t15\t0\t0\n';
+    const res = await httpRequest(`http://127.0.0.1:${port}/iclock/cdata?SN=TDDB250600919&Stamp=9999`, {
+      method: 'POST',
+      body: payload,
+      headers: { 'Content-Type': 'text/plain' },
+    });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body, 'OK: 1');
+
+    await waitFor(() => bridge.queue.getQueueStats().delivered === 1);
+    assert.equal(mockRender.received.length, 1);
+    const forwardedUrl = new URL(mockRender.received[0].url, 'http://localhost');
+    assert.equal(forwardedUrl.searchParams.get('SN'), 'TDDB250600919');
+    assert.equal(forwardedUrl.searchParams.get('Stamp'), '9999');
+    assert.equal(forwardedUrl.searchParams.get('table'), 'ATTLOG');
+  } finally {
+    await bridge.stop();
+    await mockRender.stop();
+  }
+});
+
+test('19. Explicit table=OPERLOG remains OPERLOG and is never overwritten to ATTLOG', async () => {
+  const mockRender = createMockRenderServer();
+  const renderUrl = await mockRender.start();
+  const bridge = createBridgeServer(makeSettings(renderUrl), { disableFileLogs: true, consoleLogs: false });
+  const { port } = await bridge.start();
+
+  try {
+    const payload = 'OPLOG 1\t1\t2026-11-28 09:06:00\t0\n';
+    const res = await httpRequest(`http://127.0.0.1:${port}/iclock/cdata?SN=TDDB250600919&table=OPERLOG`, {
+      method: 'POST',
+      body: payload,
+      headers: { 'Content-Type': 'text/plain' },
+    });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body, 'OK: 1');
+
+    await waitFor(() => bridge.queue.getQueueStats().delivered === 1);
+    const forwardedUrl = new URL(mockRender.received[0].url, 'http://localhost');
+    assert.equal(forwardedUrl.searchParams.get('table'), 'OPERLOG');
+  } finally {
+    await bridge.stop();
+    await mockRender.stop();
+  }
+});
+
+test('20. Unknown or OPERLOG-like payload without table parameter is NOT classified as ATTLOG', async () => {
+  const mockRender = createMockRenderServer();
+  const renderUrl = await mockRender.start();
+  const bridge = createBridgeServer(makeSettings(renderUrl), { disableFileLogs: true, consoleLogs: false });
+  const { port } = await bridge.start();
+
+  try {
+    const res = await httpRequest(`http://127.0.0.1:${port}/iclock/cdata?SN=TDDB250600919`, {
+      method: 'POST',
+      body: 'USER PIN=1001\tName=Test\n',
+      headers: { 'Content-Type': 'text/plain' },
+    });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body, 'OK');
+    assert.equal(bridge.queue.getQueueStats().pending, 0);
+    assert.equal(bridge.queue.getQueueStats().delivered, 0);
+    assert.equal(mockRender.received.length, 0);
+  } finally {
+    await bridge.stop();
+    await mockRender.stop();
+  }
+});

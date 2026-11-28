@@ -118,27 +118,54 @@ router.get('/cdata', async (req, res) => {
  * POST /iclock/cdata?SN=TDDB250600919&table=ATTLOG
  * Receives attendance punches (ATTLOG) and user/template updates (OPERLOG)
  */
+const isStrictAttlogPayload = (bodyText) => {
+  const lines = String(bodyText || '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return false;
+  return lines.every((line) => {
+    const parts = line.split('\t');
+    if (parts.length < 2) return false;
+    const pin = parts[0].trim();
+    const ts = parts[1].trim();
+    if (!/^[A-Za-z0-9_-]{1,32}$/.test(pin)) return false;
+    if (!/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/.test(ts)) {
+      return false;
+    }
+    const parsed = new Date(ts.includes('T') ? ts : `${ts.replace(' ', 'T')}+05:30`);
+    return !Number.isNaN(parsed.getTime());
+  });
+};
+
 router.post('/cdata', async (req, res) => {
   try {
     const sn = req.query.SN || req.query.sn;
-    const table = String(req.query.table || '').toUpperCase();
+    const cleanSn = String(sn || '').trim().toUpperCase();
+    const explicitTable = String(req.query.table || '').trim().toUpperCase();
     const bodyText = typeof req.body === 'string' ? req.body : '';
+    const table = explicitTable || (isStrictAttlogPayload(bodyText) ? 'ATTLOG' : '');
 
     if (table === 'ATTLOG') {
       const result = await biometricDeviceService.handleAdmsAttLog(sn, bodyText);
       if (!result.found) return res.status(404).type('text/plain').send('ERROR: Device not registered');
       if (result.disabled) return res.status(403).type('text/plain').send('ERROR: Device disabled');
       if (result.malformed) return res.status(400).type('text/plain').send('ERROR: Malformed ATTLOG payload');
+      console.info(
+        `[ADMS] SN=${cleanSn} table=${table} explicit=${Boolean(explicitTable)} processed=${result.processed} rejected=${result.rejected || 0} duplicates=${result.duplicates}`
+      );
       return res.status(200).type('text/plain').send(`OK: ${result.processed + result.duplicates}`);
     }
 
     if (table === 'OPERLOG') {
       const device = await biometricDeviceService.handleAdmsOperLog(sn, bodyText);
       if (!device) return res.status(404).type('text/plain').send('ERROR: Device not registered');
+      console.info(`[ADMS] SN=${cleanSn} table=OPERLOG processed=0 rejected=0 duplicates=0`);
       return res.status(200).type('text/plain').send('OK: 1');
     }
 
     await biometricDeviceService.handleAdmsHeartbeat(sn);
+    console.info(`[ADMS] SN=${cleanSn} table=${explicitTable || 'NONE'} processed=0 rejected=0 duplicates=0`);
     return res.status(200).type('text/plain').send('OK');
   } catch (err) {
     console.error('ADMS POST /iclock/cdata error:', err.message);

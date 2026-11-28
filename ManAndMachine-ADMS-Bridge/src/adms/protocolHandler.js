@@ -24,8 +24,34 @@ function extractFirmwareVersion(queryParams) {
   );
 }
 
+function isStrictAttlogLines(lines) {
+  if (!Array.isArray(lines) || lines.length === 0) return false;
+  return lines.every((line) => {
+    const parts = line.split('\t');
+    if (parts.length < 2) return false;
+    const pin = parts[0].trim();
+    const ts = parts[1].trim();
+    if (!/^[A-Za-z0-9_-]{1,32}$/.test(pin)) return false;
+    if (!/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/.test(ts)) {
+      return false;
+    }
+    const parsed = new Date(ts.includes('T') ? ts : `${ts.replace(' ', 'T')}+05:30`);
+    return !Number.isNaN(parsed.getTime());
+  });
+}
+
+function ensureQueryTableParam(queryString, tableName) {
+  const params = new URLSearchParams(queryString || '');
+  if (!params.get('table')) {
+    params.set('table', tableName);
+  }
+  return params.toString();
+}
+
 module.exports = {
   parseAdmsLines,
   isLikelyMalformedAttlog,
+  isStrictAttlogLines,
+  ensureQueryTableParam,
   extractFirmwareVersion,
 };
