@@ -95,7 +95,7 @@ export default function AdminLayout({ children, currentPath, onNavigate, onLogou
     { label: 'Gym Gallery', path: '/admin/website/gallery', icon: ImageIcon },
     { label: 'Website Content', path: '/admin/website/content', icon: Globe },
     { label: 'WhatsApp', path: '/admin/settings/whatsapp', icon: MessageCircle },
-    { label: 'SMS Settings', path: '/admin/settings/sms', icon: MessageSquare },
+    { label: 'Communication Settings', path: '/admin/settings/sms', icon: MessageSquare },
     { label: 'Settings', path: '/admin/settings', icon: Settings },
   ];
 

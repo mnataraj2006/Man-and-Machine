@@ -22,8 +22,9 @@ router.use('/website', websiteAdminRoutes);
 // Employee Management Routes (/api/admin/employees/*)
 router.use('/employees', employeeRoutes);
 
-// SMS Settings, Templates & History Routes (/api/admin/sms/*)
+// Centralized Communication Settings (SMS & Email), Templates & History Routes
 router.use('/sms', smsRoutes);
+router.use('/communications', smsRoutes);
 
 // Real-Time Employee Attendance Notifications (/api/admin/attendance-notifications/*)
 router.get('/attendance-notifications', employeeController.listAttendanceNotifications);

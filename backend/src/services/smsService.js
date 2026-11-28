@@ -11,6 +11,7 @@ const {
 } = require('../utils/smsCatalog');
 const { normalizeIndianPhone } = require('../utils/phone');
 const smsProviderService = require('./smsProviderService');
+const emailProviderService = require('./emailProviderService');
 
 const serializeMap = (val) => {
   if (!val) return {};
@@ -47,12 +48,26 @@ const getOrCreateSettings = async () => {
 
   const memberMap = { ...defaultToggleMap(MEMBER_NOTIFICATIONS), ...serializeMap(doc.memberNotifications) };
   const staffMap = { ...defaultToggleMap(STAFF_NOTIFICATIONS), ...serializeMap(doc.staffNotifications) };
+  const emailMemberMap = {
+    ...defaultToggleMap(MEMBER_NOTIFICATIONS),
+    ...serializeMap(doc.emailMemberNotifications),
+  };
+  const emailStaffMap = {
+    ...defaultToggleMap(STAFF_NOTIFICATIONS),
+    ...serializeMap(doc.emailStaffNotifications),
+  };
+  const rawWithSecret = await SmsSettings.findOne({ scopeKey: 'GLOBAL' }).select('+smtpConfig.passwordEncrypted').lean();
+  const dbSmtp = rawWithSecret?.smtpConfig || doc.smtpConfig || {};
 
   return {
     settings: {
       _id: doc._id,
+      smsEnabled: doc.smsEnabled !== false,
+      emailEnabled: Boolean(doc.emailEnabled),
       memberNotifications: memberMap,
       staffNotifications: staffMap,
+      emailMemberNotifications: emailMemberMap,
+      emailStaffNotifications: emailStaffMap,
       membershipExpiryNotificationDays: doc.membershipExpiryNotificationDays ?? 7,
       dailySummaryTime: doc.dailySummaryTime || '21:00',
       absentAlertDays: doc.absentAlertDays ?? 7,
@@ -60,10 +75,21 @@ const getOrCreateSettings = async () => {
       sessionPreNotifyMinutes: doc.sessionPreNotifyMinutes ?? 60,
       ownerName: doc.ownerName || 'Owner',
       ownerPhone: doc.ownerPhone || '',
+      ownerEmail: doc.ownerEmail || '',
       dltConfig: {
         senderId: doc.dltConfig?.senderId || '',
         entityId: doc.dltConfig?.entityId || '',
         providerName: doc.dltConfig?.providerName || 'DLT_HTTP_GATEWAY',
+      },
+      smtpConfig: {
+        host: dbSmtp.host || '',
+        port: dbSmtp.port || 587,
+        secure: Boolean(dbSmtp.secure),
+        username: dbSmtp.username || '',
+        hasPassword: Boolean(dbSmtp.passwordEncrypted),
+        senderEmail: dbSmtp.senderEmail || '',
+        senderName: dbSmtp.senderName || 'Man & Machine Fitness',
+        replyTo: dbSmtp.replyTo || '',
       },
       updatedAt: doc.updatedAt,
     },
@@ -77,12 +103,27 @@ const getOrCreateSettings = async () => {
       })),
     },
     provider: smsProviderService.getPublicProviderStatus(),
+    emailProvider: emailProviderService.getPublicEmailProviderStatus(dbSmtp),
   };
+};
+
+const getInternalSmtpConfig = async () => {
+  const doc = await SmsSettings.findOne({ scopeKey: 'GLOBAL' })
+    .select('+smtpConfig.passwordEncrypted')
+    .lean();
+  return doc?.smtpConfig || {};
 };
 
 const updateSettings = async (payload = {}, adminUser = null) => {
   const { settings: current } = await getOrCreateSettings();
-  const doc = await SmsSettings.findOne({ scopeKey: 'GLOBAL' });
+  const doc = await SmsSettings.findOne({ scopeKey: 'GLOBAL' }).select('+smtpConfig.passwordEncrypted');
+
+  if (payload.smsEnabled !== undefined) {
+    doc.smsEnabled = Boolean(payload.smsEnabled);
+  }
+  if (payload.emailEnabled !== undefined) {
+    doc.emailEnabled = Boolean(payload.emailEnabled);
+  }
 
   if (payload.memberNotifications && typeof payload.memberNotifications === 'object') {
     for (const item of MEMBER_NOTIFICATIONS) {
@@ -96,6 +137,22 @@ const updateSettings = async (payload = {}, adminUser = null) => {
     for (const item of STAFF_NOTIFICATIONS) {
       if (payload.staffNotifications[item.key] !== undefined) {
         doc.staffNotifications.set(item.key, Boolean(payload.staffNotifications[item.key]));
+      }
+    }
+  }
+
+  if (payload.emailMemberNotifications && typeof payload.emailMemberNotifications === 'object') {
+    for (const item of MEMBER_NOTIFICATIONS) {
+      if (payload.emailMemberNotifications[item.key] !== undefined) {
+        doc.emailMemberNotifications.set(item.key, Boolean(payload.emailMemberNotifications[item.key]));
+      }
+    }
+  }
+
+  if (payload.emailStaffNotifications && typeof payload.emailStaffNotifications === 'object') {
+    for (const item of STAFF_NOTIFICATIONS) {
+      if (payload.emailStaffNotifications[item.key] !== undefined) {
+        doc.emailStaffNotifications.set(item.key, Boolean(payload.emailStaffNotifications[item.key]));
       }
     }
   }
@@ -169,11 +226,61 @@ const updateSettings = async (payload = {}, adminUser = null) => {
     }
   }
 
+  if (payload.ownerEmail !== undefined) {
+    const rawEmail = String(payload.ownerEmail || '').trim().toLowerCase();
+    if (rawEmail && !emailProviderService.isValidEmail(rawEmail)) {
+      const err = new Error('Owner Email must be a valid email address.');
+      err.statusCode = 400;
+      throw err;
+    }
+    doc.ownerEmail = rawEmail;
+  }
+
   if (payload.dltConfig && typeof payload.dltConfig === 'object') {
     doc.dltConfig = {
       senderId: String(payload.dltConfig.senderId ?? current.dltConfig.senderId ?? '').trim().toUpperCase(),
       entityId: String(payload.dltConfig.entityId ?? current.dltConfig.entityId ?? '').trim(),
       providerName: String(payload.dltConfig.providerName ?? current.dltConfig.providerName ?? 'DLT_HTTP_GATEWAY').trim(),
+    };
+  }
+
+  if (payload.smtpConfig && typeof payload.smtpConfig === 'object') {
+    const portNum = Number(payload.smtpConfig.port ?? current.smtpConfig.port ?? 587);
+    if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
+      const err = new Error('SMTP port must be an integer between 1 and 65535.');
+      err.statusCode = 400;
+      throw err;
+    }
+    const senderEmail = String(
+      payload.smtpConfig.senderEmail ?? current.smtpConfig.senderEmail ?? ''
+    ).trim().toLowerCase();
+    if (senderEmail && !emailProviderService.isValidEmail(senderEmail)) {
+      const err = new Error('SMTP Sender Email must be a valid email address.');
+      err.statusCode = 400;
+      throw err;
+    }
+    const replyTo = String(payload.smtpConfig.replyTo ?? current.smtpConfig.replyTo ?? '').trim().toLowerCase();
+    if (replyTo && !emailProviderService.isValidEmail(replyTo)) {
+      const err = new Error('SMTP Reply-To must be a valid email address.');
+      err.statusCode = 400;
+      throw err;
+    }
+    let passwordEncrypted = doc.smtpConfig?.passwordEncrypted || '';
+    if (payload.smtpConfig.clearPassword) {
+      passwordEncrypted = '';
+    } else if (payload.smtpConfig.password && String(payload.smtpConfig.password).trim() !== '') {
+      passwordEncrypted = emailProviderService.encryptSecret(String(payload.smtpConfig.password));
+    }
+
+    doc.smtpConfig = {
+      host: String(payload.smtpConfig.host ?? current.smtpConfig.host ?? '').trim(),
+      port: portNum,
+      secure: payload.smtpConfig.secure !== undefined ? Boolean(payload.smtpConfig.secure) : Boolean(current.smtpConfig.secure),
+      username: String(payload.smtpConfig.username ?? current.smtpConfig.username ?? '').trim(),
+      passwordEncrypted,
+      senderEmail,
+      senderName: String(payload.smtpConfig.senderName ?? current.smtpConfig.senderName ?? 'Man & Machine Fitness').trim() || 'Man & Machine Fitness',
+      replyTo,
     };
   }
 
@@ -298,6 +405,9 @@ const sendNotification = async ({
   if (!meta) return { ok: false, skipped: true, reason: 'UNKNOWN_KEY' };
 
   const { settings } = await getOrCreateSettings();
+  if (settings.smsEnabled === false) {
+    return { ok: false, skipped: true, reason: 'GLOBAL_SMS_DISABLED' };
+  }
   if (!isNotificationEnabled(settings, notificationKey)) {
     return { ok: false, skipped: true, reason: 'DISABLED' };
   }
@@ -693,6 +803,7 @@ const triggerManualAttendance = safeTrigger(async ({ client, branch, attendance 
 
 module.exports = {
   getOrCreateSettings,
+  getInternalSmtpConfig,
   updateSettings,
   listTemplates,
   updateTemplate,

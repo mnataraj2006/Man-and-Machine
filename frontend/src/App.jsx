@@ -283,7 +283,7 @@ export default function App() {
       adminContent = <AdminWebsiteContent onNavigate={navigate} />;
     } else if (currentPath === '/admin/settings') {
       adminContent = <AdminSettings onNavigate={navigate} onLogout={() => navigate('/login')} />;
-    } else if (currentPath === '/admin/settings/sms') {
+    } else if (currentPath === '/admin/settings/sms' || currentPath === '/admin/settings/communications') {
       adminContent = <AdminSmsSettings onNavigate={navigate} />;
     } else if (currentPath === '/admin/settings/whatsapp') {
       adminContent = <WhatsAppSettings initialTab="connection" />;

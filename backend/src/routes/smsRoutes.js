@@ -11,4 +11,14 @@ router.get('/logs', smsController.listSmsLogs);
 router.post('/scheduler/run', smsController.runScheduledPassNow);
 router.post('/dlr', smsController.handleDeliveryReceipt);
 
+// Email Templates, Logs, SMTP Test & Delivery Receipts
+router.get('/email/templates', smsController.listEmailTemplates);
+router.put('/email/templates/:key', smsController.updateEmailTemplate);
+router.post('/email/templates/:key/preview', smsController.previewEmailTemplate);
+router.get('/email/logs', smsController.listEmailLogs);
+router.get('/email/logs/:id', smsController.getEmailLogById);
+router.post('/email/test-connection', smsController.testSmtpConnection);
+router.post('/email/send-test', smsController.sendTestEmail);
+router.post('/email/dlr', smsController.handleEmailDeliveryReceipt);
+
 module.exports = router;

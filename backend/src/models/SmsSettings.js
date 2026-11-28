@@ -10,12 +10,30 @@ const smsSettingsSchema = new mongoose.Schema(
       default: 'GLOBAL',
       trim: true,
     },
+    smsEnabled: {
+      type: Boolean,
+      default: true,
+    },
+    emailEnabled: {
+      type: Boolean,
+      default: false,
+    },
     memberNotifications: {
       type: Map,
       of: Boolean,
       default: () => defaultToggleMap(MEMBER_NOTIFICATIONS),
     },
     staffNotifications: {
+      type: Map,
+      of: Boolean,
+      default: () => defaultToggleMap(STAFF_NOTIFICATIONS),
+    },
+    emailMemberNotifications: {
+      type: Map,
+      of: Boolean,
+      default: () => defaultToggleMap(MEMBER_NOTIFICATIONS),
+    },
+    emailStaffNotifications: {
       type: Map,
       of: Boolean,
       default: () => defaultToggleMap(STAFF_NOTIFICATIONS),
@@ -60,10 +78,26 @@ const smsSettingsSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    ownerEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: '',
+    },
     dltConfig: {
       senderId: { type: String, trim: true, uppercase: true, default: '' },
       entityId: { type: String, trim: true, default: '' },
       providerName: { type: String, trim: true, default: 'DLT_HTTP_GATEWAY' },
+    },
+    smtpConfig: {
+      host: { type: String, trim: true, default: '' },
+      port: { type: Number, default: 587, min: 1, max: 65535 },
+      secure: { type: Boolean, default: false },
+      username: { type: String, trim: true, default: '' },
+      passwordEncrypted: { type: String, default: '', select: false },
+      senderEmail: { type: String, trim: true, lowercase: true, default: '' },
+      senderName: { type: String, trim: true, default: 'Man & Machine Fitness' },
+      replyTo: { type: String, trim: true, lowercase: true, default: '' },
     },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,

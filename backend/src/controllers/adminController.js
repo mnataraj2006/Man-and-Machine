@@ -1029,8 +1029,8 @@ const createClient = async (req, res, next) => {
     }
 
     setImmediate(() => {
-      const smsService = require('../services/smsService');
-      smsService.triggerClientWelcome({ client: profile, branch: { _id: targetBranchId } });
+      const communicationService = require('../services/communicationService');
+      communicationService.triggerClientWelcome({ client: profile, branch: { _id: targetBranchId } });
     });
 
     res.status(201).json({
@@ -1231,11 +1231,18 @@ const assignTrainer = async (req, res, next) => {
 
     if (profile.trainerId) {
       setImmediate(async () => {
-        const smsService = require('../services/smsService');
-        const tUser = await User.findById(profile.trainerId).select('name phone').lean();
-        const tProf = await TrainerProfile.findOne({ userId: profile.trainerId }).select('contactPhone').lean();
+        const communicationService = require('../services/communicationService');
+        const tUser = await User.findById(profile.trainerId).select('name phone email').lean();
+        const tProf = await TrainerProfile.findOne({ userId: profile.trainerId })
+          .select('contactPhone contactEmail')
+          .lean();
         if (tUser) {
-          smsService.triggerTrainerAssigned({ client: profile, trainerUser: tUser, trainerPhone: tProf?.contactPhone || tUser.phone });
+          communicationService.triggerTrainerAssigned({
+            client: profile,
+            trainerUser: tUser,
+            trainerPhone: tProf?.contactPhone || tUser.phone,
+            trainerEmail: tProf?.contactEmail || tUser.email,
+          });
         }
       });
     }
@@ -2910,13 +2917,13 @@ const updateClientMembershipStatus = async (req, res, next) => {
       clientProfileId: membership.clientProfileId,
     });
     setImmediate(async () => {
-      const smsService = require('../services/smsService');
+      const communicationService = require('../services/communicationService');
       const client = membership.clientProfileId
         ? await ClientProfile.findById(membership.clientProfileId).lean()
         : await ClientProfile.findOne({ userId: membership.userId }).lean();
       if (client) {
         const mappedStatus = action === 'EXTEND' && req.body.giftDays ? 'GIFT_DAYS' : action === 'EXTEND' ? 'UPDATED' : membership.status;
-        smsService.triggerMembershipStatusChange({ client, membership, status: mappedStatus });
+        communicationService.triggerMembershipStatusChange({ client, membership, status: mappedStatus });
       }
     });
 
@@ -3054,8 +3061,8 @@ const recordAttendance = async (req, res, next) => {
 
     if (profile) {
       setImmediate(() => {
-        const smsService = require('../services/smsService');
-        smsService.triggerManualAttendance({ client: profile, attendance: record });
+        const communicationService = require('../services/communicationService');
+        communicationService.triggerManualAttendance({ client: profile, attendance: record });
       });
     }
 
@@ -3258,10 +3265,10 @@ const assignWorkoutToClient = async (req, res, next) => {
     });
 
     setImmediate(async () => {
-      const smsService = require('../services/smsService');
+      const communicationService = require('../services/communicationService');
       const cp = await ClientProfile.findOne({ userId: client._id }).lean();
-      smsService.triggerWorkoutAssigned({
-        client: cp || { _id: client._id, name: client.name, phone: client.phone, branchId: client.branchId },
+      communicationService.triggerWorkoutAssigned({
+        client: cp || { _id: client._id, name: client.name, phone: client.phone, email: client.email, branchId: client.branchId },
         workoutPlanName: assignedPlan.title || assignedPlan.name,
         trainerName: req.user?.name || 'Coach',
       });
@@ -3441,12 +3448,12 @@ const recordOfflinePayment = async (req, res, next) => {
     }).catch((error) => console.error('WhatsApp offline-payment notification could not be queued:', error.message)));
 
     setImmediate(async () => {
-      const smsService = require('../services/smsService');
+      const communicationService = require('../services/communicationService');
       const cp = await ClientProfile.findOne({ userId: user._id }).lean();
-      smsService.triggerMembershipPayment({
-        client: cp || { _id: user._id, name: user.name, phone: user.phone, branchId: user.branchId },
-        amount: payment.amount,
-        uniqueRef: payment._id,
+      communicationService.triggerMembershipPayment({
+        client: cp || { _id: user._id, name: user.name, phone: user.phone, email: user.email, branchId: user.branchId },
+        payment,
+        branch: { _id: payment.branchId },
       });
     });
 

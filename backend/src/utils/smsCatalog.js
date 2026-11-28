@@ -312,10 +312,66 @@ const defaultToggleMap = (items) => {
   return obj;
 };
 
+const getEmailTemplateDefaults = (item) => {
+  const subjectMap = {
+    MEMBER_WELCOME_GREETINGS: 'Welcome to Man & Machine Fitness — {{branchName}}',
+    MEMBER_MEMBERSHIP_PAYMENT: 'Payment Receipt: Rs.{{paymentAmount}} Received — {{membershipName}}',
+    MEMBER_MEMBERSHIP_SUSPENSION: 'Membership Suspended — {{membershipName}} ({{memberId}})',
+    MEMBER_MEMBERSHIP_CANCELLATION: 'Membership Cancelled — {{membershipName}} ({{memberId}})',
+    MEMBER_MEMBERSHIP_DELETION: 'Membership Record Removed — {{membershipName}} ({{memberId}})',
+    MEMBER_MEMBERSHIP_FREEZE: 'Membership Frozen — {{membershipName}} ({{memberId}})',
+    MEMBER_MEMBERSHIP_ACTIVATION: 'Membership Activated — {{membershipName}}',
+    MEMBER_GIVING_GIFT_DAYS: 'Bonus Gift Days Added to Your Membership — {{membershipName}}',
+    MEMBER_MEMBERSHIP_EXPIRY: 'Membership Expiry Reminder — {{membershipName}} ({{expiryDate}})',
+    MEMBER_BIRTHDAY_WISHES: 'Happy Birthday {{memberName}} from Man & Machine!',
+    MEMBER_ANNIVERSARY_WISHES: 'Happy Fitness Anniversary {{memberName}}!',
+    MEMBER_MEMBERSHIP_OVERDUE: 'Action Required: Membership Overdue — {{membershipName}}',
+    MEMBER_PRE_BALANCE_PAYMENT: 'Balance Payment Reminder: Rs.{{dueAmount}} Due on {{expiryDate}}',
+    MEMBER_OVERDUE_BALANCE_PAYMENT: 'Overdue Balance Payment Alert: Rs.{{dueAmount}}',
+    MEMBER_REFERRAL_ALERT: 'You Were Referred to Man & Machine {{branchName}}!',
+    MEMBER_REFERRAL_POINT_DEBIT: 'Referral Points Redeemed: Rs.{{paymentAmount}}',
+    MEMBER_ABSENT_ALERT: 'We Miss You at Man & Machine {{branchName}}!',
+    MEMBER_ASSIGN_WORKOUT_PLAN: 'New Workout Plan Assigned: {{workoutPlan}}',
+    MEMBER_TRAINER_ASSIGN_ALERT: 'Your Personal Trainer Has Been Assigned: {{trainerName}}',
+    MEMBER_SESSION_PRE_NOTIFICATION: 'Upcoming Training Session Reminder — {{sessionDate}} at {{sessionTime}}',
+    MEMBER_MANUAL_ATTENDANCE_ADDED: 'Manual Check-In Logged — {{branchName}} ({{sessionDate}})',
+    MEMBER_LOCKER_EXPIRY: 'Locker Expiry Reminder — Locker {{lockerNumber}} ({{expiryDate}})',
+    STAFF_MEMBER_WELCOME_GREETINGS: '[Staff Alert] New Member Joined: {{memberName}} ({{memberId}})',
+    STAFF_MEMBERSHIP_FREEZE: '[Staff Alert] Membership Frozen: {{memberName}} ({{memberId}})',
+    STAFF_GIVING_GIFT_DAYS: '[Staff Alert] Gift Days Added: {{memberName}} ({{memberId}})',
+    STAFF_MEMBERSHIP_PAYMENT: '[Staff Alert] Payment Collected: Rs.{{paymentAmount}} from {{memberName}}',
+    STAFF_DAILY_SUMMARY: 'Daily Business Summary — {{sessionDate}} ({{branchName}})',
+    STAFF_DAILY_EXPECTED_BUSINESS: 'Daily Expected Business — {{sessionDate}} ({{branchName}})',
+    STAFF_MONTHLY_SUMMARY: 'Monthly Business Summary — {{sessionDate}} ({{branchName}})',
+    STAFF_MEMBER_REFERRAL: '[Staff Alert] New Member Referral: {{memberName}}',
+    STAFF_LOW_FEEDBACK_ALERT: '[Urgent Alert] Low Feedback from {{memberName}} ({{memberId}})',
+    STAFF_MEMBERSHIP_SUSPENDED: '[Staff Alert] Membership Suspended: {{memberName}} ({{memberId}})',
+    STAFF_MEMBERSHIP_CANCELLED: '[Staff Alert] Membership Cancelled: {{memberName}} ({{memberId}})',
+    STAFF_MEMBERSHIP_DELETED: '[Staff Alert] Membership Deleted: {{memberName}} ({{memberId}})',
+    STAFF_MEMBERSHIP_ACTIVATED: '[Staff Alert] Membership Activated: {{memberName}} ({{memberId}})',
+    STAFF_UPDATE_MEMBER_INFO: '[Staff Alert] Member Profile Updated: {{memberName}} ({{memberId}})',
+    STAFF_UPDATE_MEMBERSHIP_INFO: '[Staff Alert] Membership Updated: {{memberName}} ({{memberId}})',
+    STAFF_BIRTHDAY_ALERT: '[Staff Alert] Member Birthday Today: {{memberName}}',
+    STAFF_ANNIVERSARY_ALERT: '[Staff Alert] Member Anniversary Today: {{memberName}}',
+    STAFF_TRAINER_ASSIGN_ALERT: 'New Member Assigned to You: {{memberName}} ({{memberId}})',
+    STAFF_MEMBER_BIRTHDAY_OWNER: '[Owner Alert] Member Birthday Today: {{memberName}} ({{memberId}})',
+    STAFF_MEMBER_ANNIVERSARY_OWNER: '[Owner Alert] Member Anniversary Today: {{memberName}} ({{memberId}})',
+    STAFF_MEMBERSHIP_EXPIRY_OWNER: '[Owner Alert] Membership Expiring: {{memberName}} ({{expiryDate}})',
+    STAFF_MEMBERSHIP_OVERDUE_OWNER: '[Owner Alert] Membership Overdue: {{memberName}} ({{expiryDate}})',
+    STAFF_SESSION_PRE_NOTIFICATION_TRAINER: 'Upcoming Session Reminder: {{memberName}} on {{sessionDate}} at {{sessionTime}}',
+  };
+
+  return {
+    subject: subjectMap[item.key] || `${item.label} — Man & Machine Fitness`,
+    body: item.defaultBody,
+  };
+};
+
 module.exports = {
   MEMBER_NOTIFICATIONS,
   STAFF_NOTIFICATIONS,
   ALL_SMS_NOTIFICATIONS,
   SMS_CATALOG_MAP,
   defaultToggleMap,
+  getEmailTemplateDefaults,
 };

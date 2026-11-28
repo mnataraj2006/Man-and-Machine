@@ -61,6 +61,50 @@ class SmsService {
     const qs = new URLSearchParams(clean).toString();
     return this.request(`/logs${qs ? `?${qs}` : ''}`);
   }
+
+  getEmailTemplates() {
+    return this.request('/email/templates');
+  }
+
+  updateEmailTemplate(key, payload) {
+    return this.request(`/email/templates/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  previewEmailTemplate(key, payload = {}) {
+    return this.request(`/email/templates/${encodeURIComponent(key)}/preview`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  getEmailLogs(params = {}) {
+    const clean = {};
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '' && v !== 'ALL') clean[k] = v;
+    });
+    const qs = new URLSearchParams(clean).toString();
+    return this.request(`/email/logs${qs ? `?${qs}` : ''}`);
+  }
+
+  getEmailLogById(id) {
+    return this.request(`/email/logs/${encodeURIComponent(id)}`);
+  }
+
+  testSmtpConnection() {
+    return this.request('/email/test-connection', {
+      method: 'POST',
+    });
+  }
+
+  sendTestEmail(toEmail) {
+    return this.request('/email/send-test', {
+      method: 'POST',
+      body: JSON.stringify({ toEmail }),
+    });
+  }
 }
 
 export default new SmsService();
