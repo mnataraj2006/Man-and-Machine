@@ -34,6 +34,8 @@ import {
 import adminService from '../../services/adminService.js';
 import biometricService from '../../services/biometricService.js';
 import TrainerAvatar from '../../components/UI/TrainerAvatar.jsx';
+import BiometricAccessModal from '../../components/Admin/BiometricAccessModal.jsx';
+import { mapBiometricUiState } from '../../utils/biometricStatus.js';
 import { useAdmin } from '../../components/Admin/AdminLayout.jsx';
 
 export default function Clients() {
@@ -124,7 +126,7 @@ export default function Clients() {
   const [creatingLoginAccess, setCreatingLoginAccess] = useState(false);
   const [loginAccessResult, setLoginAccessResult] = useState(null);
 
-  // Physical Biometric Enrollment Modal state
+  // Unified Biometric Access Modal state
   const [isBioEnrollModalOpen, setIsBioEnrollModalOpen] = useState(false);
   const [bioEnrollDevices, setBioEnrollDevices] = useState([]);
   const [bioEnrollForm, setBioEnrollForm] = useState({
@@ -133,7 +135,7 @@ export default function Clients() {
     biometricUserId: '',
     captureType: 'FACE',
   });
-  const [bioEnrollRequest, setBioEnrollRequest] = useState(null);
+  const [bioEnrollDetails, setBioEnrollDetails] = useState(null);
   const [bioEnrollBusy, setBioEnrollBusy] = useState(false);
   const [bioEnrollError, setBioEnrollError] = useState(null);
 
@@ -453,17 +455,37 @@ export default function Clients() {
     try {
       const res = await biometricService.getDevices({ branchId: branchIdVal || 'ALL' });
       const activeList = (res.devices || []).filter((d) => d.isActive && d.status !== 'DISABLED');
+      const preferred =
+        activeList.find((d) => d.supportsRemoteEnrollment && d.status === 'ONLINE') ||
+        activeList.find((d) => d.supportsRemoteEnrollment) ||
+        activeList[0];
       setBioEnrollDevices(activeList);
       setBioEnrollForm((prev) => ({
         ...prev,
-        deviceId: activeList.some((d) => d._id === prev.deviceId) ? prev.deviceId : (activeList[0]?._id || ''),
+        deviceId: activeList.some((d) => d._id === prev.deviceId) ? prev.deviceId : (preferred?._id || ''),
       }));
+      return preferred?._id || '';
     } catch (err) {
       setBioEnrollDevices([]);
+      return '';
     }
   };
 
-  const handleEnrollBiometric = async () => {
+  const refreshBioEnrollmentDetails = async (enrollmentId) => {
+    if (!enrollmentId) {
+      setBioEnrollDetails(null);
+      return null;
+    }
+    try {
+      const details = await biometricService.getEnrollmentDetails(enrollmentId);
+      setBioEnrollDetails(details);
+      return details;
+    } catch {
+      return null;
+    }
+  };
+
+  const openBiometricWorkflowModal = async () => {
     const bio = clientDetailData?.biometricSummary;
     const defaultBranchId =
       clientDetailData?.client?.branch?._id ||
@@ -473,16 +495,7 @@ export default function Clients() {
       branches[0]?._id ||
       '';
     setBioEnrollError(null);
-    setBioEnrollRequest(
-      bio?.rawEnrollmentStatus === 'AWAITING_PHYSICAL_ENROLLMENT' && bio?.enrollmentId
-        ? {
-            _id: bio.enrollmentId,
-            status: bio.rawEnrollmentStatus,
-            biometricUserId: bio.biometricUserId || '',
-            assignedDeviceId: bio.deviceId || '',
-          }
-        : null
-    );
+    setBioEnrollDetails(null);
     setBioEnrollForm({
       branchId: defaultBranchId,
       deviceId: bio?.deviceId || '',
@@ -490,78 +503,82 @@ export default function Clients() {
       captureType: 'FACE',
     });
     setIsBioEnrollModalOpen(true);
-    await loadBioEnrollDevices(defaultBranchId);
+    await Promise.all([
+      loadBioEnrollDevices(defaultBranchId),
+      bio?.enrollmentId ? refreshBioEnrollmentDetails(bio.enrollmentId) : Promise.resolve(null),
+    ]);
   };
 
-  const handleCreatePhysicalEnrollmentRequest = async (e) => {
-    e.preventDefault();
+  const handleStartBiometricSetup = async () => {
+    const bio = clientDetailData?.biometricSummary;
     const profileId = clientDetailData?.profile?._id;
     if (!profileId || !bioEnrollForm.deviceId) {
-      setBioEnrollError('Please select a branch and registered biometric device.');
+      setBioEnrollError('A registered branch biometric device is required.');
+      return;
+    }
+    // Never create a second enrollment if one already exists
+    if (bio?.enrollmentId) {
+      await refreshBioEnrollmentDetails(bio.enrollmentId);
       return;
     }
     try {
       setBioEnrollBusy(true);
       setBioEnrollError(null);
-      const res = await biometricService.initiatePhysicalEnrollment({
+      const created = await biometricService.initiatePhysicalEnrollment({
         clientProfileId: profileId,
         deviceId: bioEnrollForm.deviceId,
-        biometricUserId: bioEnrollForm.biometricUserId,
       });
-      setBioEnrollRequest(res.enrollment);
-      setBioEnrollForm((prev) => ({
-        ...prev,
-        biometricUserId: res.enrollment?.biometricUserId || prev.biometricUserId,
-      }));
-      showFeedback('success', 'Enrollment request queued (AWAITING_PHYSICAL_ENROLLMENT). Capture face at the X2008 terminal.');
+      const enrollmentId = created?.enrollment?._id;
+      if (enrollmentId) {
+        await biometricService.approveEnrollment(enrollmentId, {
+          deviceId: bioEnrollForm.deviceId,
+          biometricUserId: created.enrollment?.biometricUserId || '',
+        });
+        await refreshBioEnrollmentDetails(enrollmentId);
+      }
+      showFeedback('success', 'Biometric access setup initiated.');
       await handleOpenClientDetails(clientDetailData.client.id);
     } catch (err) {
-      setBioEnrollError(err.message || 'Failed to create physical enrollment request.');
-    } finally {
-      setBioEnrollBusy(false);
-    }
-  };
-
-  const handleConfirmPhysicalEnrollment = async () => {
-    const profileId = clientDetailData?.profile?._id;
-    const targetDeviceId = bioEnrollRequest?.assignedDeviceId?._id || bioEnrollRequest?.assignedDeviceId || bioEnrollForm.deviceId;
-    const targetBioId = bioEnrollForm.biometricUserId || bioEnrollRequest?.biometricUserId || '';
-    if (!profileId || !targetDeviceId) {
-      setBioEnrollError('Device and member profile are required to complete enrollment.');
-      return;
-    }
-    try {
-      setBioEnrollBusy(true);
-      setBioEnrollError(null);
-      await biometricService.completeManualEnrollment({
-        enrollmentId: bioEnrollRequest?._id || clientDetailData?.biometricSummary?.enrollmentId || null,
-        clientProfileId: profileId,
-        deviceId: targetDeviceId,
-        biometricUserId: targetBioId,
-        captureType: bioEnrollForm.captureType || 'FACE',
-      });
-      setIsBioEnrollModalOpen(false);
-      showFeedback('success', 'Biometric ID mapped. Complete physical face enrollment on the device to verify.');
-      await handleOpenClientDetails(clientDetailData.client.id);
-    } catch (err) {
-      setBioEnrollError(err.message || 'Failed to complete physical enrollment.');
+      setBioEnrollError(err.message || 'Failed to set up biometric access.');
     } finally {
       setBioEnrollBusy(false);
     }
   };
 
   const handleRetryBiometricSync = async () => {
-    const deviceId = clientDetailData?.biometricSummary?.deviceId;
-    if (!deviceId) return;
+    const enrollmentId = clientDetailData?.biometricSummary?.enrollmentId;
+    if (!enrollmentId) return;
     try {
+      setBioEnrollBusy(true);
       setBioActionLoading(true);
-      await biometricService.syncDevice(deviceId);
-      showFeedback('success', 'Device synchronization triggered.');
-      await handleOpenClientDetails(clientDetailData.client.id);
+      setBioEnrollError(null);
+      await biometricService.retryEnrollmentSync(enrollmentId);
+      showFeedback('success', 'Biometric setup retry triggered.');
+      await Promise.all([
+        handleOpenClientDetails(clientDetailData.client.id),
+        refreshBioEnrollmentDetails(enrollmentId),
+      ]);
     } catch (err) {
-      showFeedback('error', err.message || 'Failed to sync biometric device.');
+      const msg = err.message || 'Failed to retry biometric setup.';
+      setBioEnrollError(msg);
+      showFeedback('error', msg);
     } finally {
+      setBioEnrollBusy(false);
       setBioActionLoading(false);
+    }
+  };
+
+  const handleRefreshBiometricModal = async () => {
+    const enrollmentId = clientDetailData?.biometricSummary?.enrollmentId;
+    if (!enrollmentId) return;
+    try {
+      setBioEnrollBusy(true);
+      await Promise.all([
+        handleOpenClientDetails(clientDetailData.client.id),
+        refreshBioEnrollmentDetails(enrollmentId),
+      ]);
+    } finally {
+      setBioEnrollBusy(false);
     }
   };
 
@@ -2245,6 +2262,7 @@ export default function Clients() {
                   <section className="bg-[#181818] border border-[#303030] rounded-xl p-4 space-y-3">
                     {(() => {
                       const bio = clientDetailData.biometricSummary || {};
+                      const uiState = mapBiometricUiState(bio);
                       const status = bio.displayStatus || 'NOT_ENROLLED';
                       return (
                         <>
@@ -2253,8 +2271,8 @@ export default function Clients() {
                               <Fingerprint className="w-3.5 h-3.5" />
                               5. Biometric Information
                             </span>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${getBiometricStatusBadge(status)}`}>
-                              {getBiometricStatusLabel(status)}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${uiState.badgeClass}`}>
+                              {uiState.label}
                             </span>
                           </div>
 
@@ -2337,18 +2355,26 @@ export default function Clients() {
                             </div>
                           </div>
 
-                          {/* Conditional Admin Actions */}
+                          {/* Unified Single Primary Biometric Action */}
                           <div className="flex flex-wrap gap-2 pt-2 border-t border-[#252525]">
-                            {(bio.eligibleToEnroll || bio.rawEnrollmentStatus === 'AWAITING_PHYSICAL_ENROLLMENT') && (
+                            {(uiState.actionType !== 'SETUP' || bio.eligibleToEnroll) && (
                               <button
                                 type="button"
-                                disabled={bioActionLoading}
-                                onClick={handleEnrollBiometric}
-                                className="px-3 py-1.5 rounded-lg bg-[#F03B2E] hover:bg-[#FF493B] text-white text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                                disabled={bioActionLoading || bioEnrollBusy}
+                                onClick={
+                                  uiState.actionType === 'RETRY'
+                                    ? handleRetryBiometricSync
+                                    : openBiometricWorkflowModal
+                                }
+                                className={`px-3.5 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50 ${
+                                  uiState.actionType === 'SETUP'
+                                    ? 'bg-[#F03B2E] hover:bg-[#FF493B] text-white'
+                                    : uiState.actionType === 'RETRY'
+                                      ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                                      : 'bg-[#202020] hover:bg-[#303030] border border-[#303030] text-[#F5F5F5]'
+                                }`}
                               >
-                                {bio.rawEnrollmentStatus === 'AWAITING_PHYSICAL_ENROLLMENT'
-                                  ? 'Complete Physical Enrollment'
-                                  : 'Enroll Member'}
+                                {uiState.actionLabel}
                               </button>
                             )}
                             <button
@@ -2358,16 +2384,6 @@ export default function Clients() {
                             >
                               {bioLogsOpen ? 'Hide Biometric Logs' : 'View Biometric Logs'}
                             </button>
-                            {bio.canRetrySync && (
-                              <button
-                                type="button"
-                                disabled={bioActionLoading}
-                                onClick={handleRetryBiometricSync}
-                                className="px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
-                              >
-                                Retry Sync
-                              </button>
-                            )}
                             {bio.canDisableAccess && (
                               <button
                                 type="button"
@@ -4012,163 +4028,22 @@ export default function Clients() {
         </div>
       )}
 
-      {/* ── PHYSICAL BIOMETRIC ENROLLMENT MODAL ── */}
-      {isBioEnrollModalOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
-          onClick={() => !bioEnrollBusy && setIsBioEnrollModalOpen(false)}
-        >
-          <div
-            className="bg-[#181818] border-t sm:border border-[#303030] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90dvh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-5 py-4 border-b border-[#252525] flex items-center justify-between shrink-0">
-              <div>
-                <span className="text-[10px] font-mono uppercase text-[#F03B2E] font-bold block">
-                  PHYSICAL TERMINAL ENROLLMENT
-                </span>
-                <h3 className="mm-page-title text-lg">
-                  {clientDetailData?.client?.name || 'Member'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                disabled={bioEnrollBusy}
-                onClick={() => setIsBioEnrollModalOpen(false)}
-                className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg bg-[#202020] text-[#F5F5F5] cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreatePhysicalEnrollmentRequest} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
-              {bioEnrollError && (
-                <div className="p-3 rounded-lg bg-[#F03B2E]/10 border border-[#F03B2E] text-[#FF6A5E]">
-                  {bioEnrollError}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Branch *</label>
-                  <select
-                    required
-                    disabled={Boolean(bioEnrollRequest)}
-                    value={bioEnrollForm.branchId}
-                    onChange={(e) => {
-                      const nextBranch = e.target.value;
-                      setBioEnrollForm((prev) => ({ ...prev, branchId: nextBranch, deviceId: '' }));
-                      loadBioEnrollDevices(nextBranch);
-                    }}
-                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5] disabled:opacity-60"
-                  >
-                    {branches.map((b) => (
-                      <option key={b._id} value={b._id}>{b.city || b.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Registered Device *</label>
-                  <select
-                    required
-                    disabled={Boolean(bioEnrollRequest)}
-                    value={bioEnrollForm.deviceId}
-                    onChange={(e) => setBioEnrollForm((prev) => ({ ...prev, deviceId: e.target.value }))}
-                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5] disabled:opacity-60"
-                  >
-                    <option value="">Select biometric device</option>
-                    {bioEnrollDevices.map((d) => (
-                      <option key={d._id} value={d._id}>
-                        {d.deviceName} ({d.model} • {d.serialNumber})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">
-                    Device User ID (Auto if blank)
-                  </label>
-                  <input
-                    type="text"
-                    value={bioEnrollForm.biometricUserId}
-                    onChange={(e) => setBioEnrollForm((prev) => ({ ...prev, biometricUserId: e.target.value }))}
-                    placeholder="e.g. 1001"
-                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5] font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-mono uppercase text-[#B8B8B8] mb-1">Capture Type</label>
-                  <select
-                    value={bioEnrollForm.captureType}
-                    onChange={(e) => setBioEnrollForm((prev) => ({ ...prev, captureType: e.target.value }))}
-                    className="w-full min-h-[44px] bg-[#111111] border border-[#303030] rounded-xl px-3 text-[#F5F5F5]"
-                  >
-                    <option value="FACE">Face (X2008)</option>
-                    <option value="FINGERPRINT">Fingerprint</option>
-                    <option value="BOTH">Face + Fingerprint</option>
-                  </select>
-                </div>
-              </div>
-
-              {bioEnrollRequest ? (
-                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2 text-[#F5F5F5]">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono font-bold text-amber-400">
-                      STATUS: {bioEnrollRequest.status}
-                    </span>
-                    <span className="font-mono font-bold text-[#F03B2E]">
-                      PIN: {bioEnrollRequest.biometricUserId}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#B8B8B8] leading-relaxed">
-                    On the physical eSSL X2008 terminal, open <strong>Menu → User Mgt → New User</strong>, enter User ID{' '}
-                    <strong className="font-mono text-white">{bioEnrollRequest.biometricUserId}</strong>, capture the
-                    member&apos;s face, and save. Then click <strong>Confirm Physical Enrollment</strong> below.
-                  </p>
-                </div>
-              ) : (
-                <div className="p-3.5 rounded-xl bg-[#111111] border border-[#252525] text-[11px] text-[#B8B8B8]">
-                  Creates an <strong className="text-white">AWAITING_PHYSICAL_ENROLLMENT</strong> request and reserves a
-                  unique Device User ID before you capture the member&apos;s face on the physical X2008.
-                </div>
-              )}
-
-              <div className="pt-3 border-t border-[#252525] flex flex-col-reverse sm:flex-row justify-end gap-2">
-                <button
-                  type="button"
-                  disabled={bioEnrollBusy}
-                  onClick={() => setIsBioEnrollModalOpen(false)}
-                  className="min-h-[44px] px-4 py-2 rounded-xl bg-[#202020] text-[#B8B8B8] font-bold uppercase cursor-pointer"
-                >
-                  Cancel
-                </button>
-                {!bioEnrollRequest ? (
-                  <button
-                    type="submit"
-                    disabled={bioEnrollBusy || !bioEnrollForm.deviceId}
-                    className="min-h-[44px] px-5 py-2 rounded-xl bg-[#F03B2E] hover:bg-[#FF493B] text-white font-bold uppercase cursor-pointer disabled:opacity-50"
-                  >
-                    {bioEnrollBusy ? 'Creating Request...' : 'Start Physical Enrollment'}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={bioEnrollBusy}
-                    onClick={handleConfirmPhysicalEnrollment}
-                    className="min-h-[44px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase cursor-pointer disabled:opacity-50"
-                  >
-                    {bioEnrollBusy ? 'Confirming...' : 'Confirm Physical Enrollment'}
-                  </button>
-                )}
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* ── UNIFIED BIOMETRIC ACCESS WORKFLOW MODAL ── */}
+      <BiometricAccessModal
+        isOpen={isBioEnrollModalOpen}
+        onClose={() => setIsBioEnrollModalOpen(false)}
+        client={clientDetailData?.client}
+        biometricSummary={clientDetailData?.biometricSummary}
+        enrollmentDetails={bioEnrollDetails}
+        devices={bioEnrollDevices}
+        selectedDeviceId={bioEnrollForm.deviceId}
+        onSelectDevice={(deviceId) => setBioEnrollForm((prev) => ({ ...prev, deviceId }))}
+        busy={bioEnrollBusy}
+        error={bioEnrollError}
+        onStartSetup={handleStartBiometricSetup}
+        onRetrySetup={handleRetryBiometricSync}
+        onRefresh={handleRefreshBiometricModal}
+      />
     </div>
   );
 }
