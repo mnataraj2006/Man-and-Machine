@@ -813,6 +813,19 @@ const processAttendanceEvent = async ({
             device,
           });
         }
+        const { emitAttendanceUpdated } = require('./socketService');
+        emitAttendanceUpdated({
+          attendanceId: String(record._id),
+          branchId: String(record.branchId),
+          subjectType: 'EMPLOYEE',
+          employeeId: String(employee._id),
+          subjectName: employee.fullName,
+          eventType: record.eventType,
+          checkInTime: record.checkInTime,
+          attendanceStatus: record.attendanceStatus,
+          deviceId: String(device._id),
+          deviceName: device.deviceName,
+        });
         return { duplicate: false, record };
       } catch (err) {
         if (err.code === 11000) {
@@ -890,6 +903,34 @@ const processAttendanceEvent = async ({
       membershipStatusAtEvent: membershipStatus,
       attendanceStatus,
       rawEventReference: dedupKey,
+    });
+
+    if (profile) {
+      try {
+        const attendanceNotificationService = require('./attendanceNotificationService');
+        await attendanceNotificationService.createAndEmitForClientAttendance({
+          attendance: record,
+          client: profile,
+          device,
+        });
+      } catch (notifErr) {
+        console.error('Client attendance notification error:', notifErr.message);
+      }
+    }
+
+    const { emitAttendanceUpdated } = require('./socketService');
+    emitAttendanceUpdated({
+      attendanceId: String(record._id),
+      branchId: String(record.branchId),
+      subjectType: record.subjectType,
+      clientProfileId: profile ? String(profile._id) : null,
+      clientCode: profile?.clientId || '',
+      subjectName: profile?.name || `Bio ID ${cleanBioId}`,
+      eventType: record.eventType,
+      checkInTime: record.checkInTime,
+      attendanceStatus: record.attendanceStatus,
+      deviceId: String(device._id),
+      deviceName: device.deviceName,
     });
 
     return { duplicate: false, record };

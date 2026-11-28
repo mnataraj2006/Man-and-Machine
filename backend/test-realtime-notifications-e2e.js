@@ -14,6 +14,9 @@ const BiometricDeviceLog = require('./src/models/BiometricDeviceLog');
 const Attendance = require('./src/models/Attendance');
 const AttendanceNotification = require('./src/models/AttendanceNotification');
 const Employee = require('./src/models/Employee');
+const ClientProfile = require('./src/models/ClientProfile');
+const BiometricEnrollment = require('./src/models/BiometricEnrollment');
+const Membership = require('./src/models/Membership');
 const generateToken = require('./src/utils/generateToken');
 
 const request = (server, method, path, body = null, token = null, isText = false) =>
@@ -190,8 +193,14 @@ const connectSocket = (port, token) =>
 
     const adminEvents = [];
     const branchBEvents = [];
+    const clientEvents = [];
+    const branchBClientEvents = [];
+    const attendanceUpdatedEvents = [];
     adminSocket.on('attendance:employee', (e) => adminEvents.push(e));
+    adminSocket.on('attendance:client', (e) => clientEvents.push(e));
+    adminSocket.on('attendance:updated', (e) => attendanceUpdatedEvents.push(e));
     branchBSocket.on('attendance:employee', (e) => branchBEvents.push(e));
+    branchBSocket.on('attendance:client', (e) => branchBClientEvents.push(e));
 
     await check('2. Employee check-in on eSSL X2008 emits real-time notification to authorized admin only', async () => {
       const res = await request(
@@ -297,6 +306,92 @@ const connectSocket = (port, token) =>
 
       const list4 = await request(httpServer, 'GET', '/api/admin/attendance-notifications', null, adminToken);
       assert.strictEqual(list4.data.notifications.length, 0);
+    });
+
+    await check('8. Client biometric check-in persists Attendance, creates notification, emits attendance:client & attendance:updated (branch-isolated)', async () => {
+      const clientProfile = await ClientProfile.create({
+        clientId: 'MM000009',
+        name: 'Nataraj Client',
+        phone: '9876500009',
+        branchId: branchA._id,
+        status: 'ACTIVE',
+      });
+      await Membership.create({
+        clientProfileId: clientProfile._id,
+        branchId: branchA._id,
+        planName: 'Monthly Pro',
+        status: 'ACTIVE',
+        startDate: new Date(Date.now() - 86400000),
+        expiryDate: new Date(Date.now() + 30 * 86400000),
+      });
+      await BiometricEnrollment.create({
+        clientProfileId: clientProfile._id,
+        branchId: branchA._id,
+        deviceId: deviceA._id,
+        biometricUserId: '1007',
+        consentStatus: 'GRANTED',
+        status: 'ENROLLED',
+      });
+      await BiometricUserMapping.create({
+        biometricUserId: '1007',
+        subjectType: 'CLIENT',
+        clientProfileId: clientProfile._id,
+        deviceId: deviceA._id,
+        branchId: branchA._id,
+        status: 'ACTIVE',
+      });
+
+      const liveAdminSocket = await connectSocket(port, adminToken);
+      const liveClientEvents = [];
+      const liveAttendanceUpdated = [];
+      liveAdminSocket.on('attendance:client', (e) => liveClientEvents.push(e));
+      liveAdminSocket.on('attendance:updated', (e) => liveAttendanceUpdated.push(e));
+
+      const res = await request(
+        httpServer,
+        'POST',
+        `/iclock/cdata?SN=${deviceA.serialNumber}&table=ATTLOG`,
+        '1007\t2026-11-28 10:15:00\t0\t15\t0\t0',
+        null,
+        true
+      );
+      assert.strictEqual(res.status, 200);
+      await new Promise((r) => setTimeout(r, 200));
+
+      assert.strictEqual(liveClientEvents.length, 1);
+      assert.strictEqual(branchBClientEvents.length, 0);
+      assert.strictEqual(liveClientEvents[0].subjectType, 'CLIENT');
+      assert.strictEqual(liveClientEvents[0].subjectName, 'Nataraj Client');
+      assert.strictEqual(liveClientEvents[0].clientCode, 'MM000009');
+      assert(liveClientEvents[0].message.includes('Nataraj Client successfully verified'));
+      assert(liveAttendanceUpdated.some((e) => e.subjectType === 'CLIENT' && e.clientCode === 'MM000009'));
+
+      // Duplicate ATTLOG must not create duplicate attendance or notification
+      const dupRes = await request(
+        httpServer,
+        'POST',
+        `/iclock/cdata?SN=${deviceA.serialNumber}&table=ATTLOG`,
+        '1007\t2026-11-28 10:15:02\t0\t15\t0\t0',
+        null,
+        true
+      );
+      assert.strictEqual(dupRes.status, 200);
+      await new Promise((r) => setTimeout(r, 150));
+      assert.strictEqual(liveClientEvents.length, 1);
+
+      // Reconnection recovery via ?since= cursor
+      const cursorBefore = new Date(Date.now() - 5000).toISOString();
+      const sinceList = await request(
+        httpServer,
+        'GET',
+        `/api/admin/attendance-notifications?since=${encodeURIComponent(cursorBefore)}`,
+        null,
+        adminToken
+      );
+      assert.strictEqual(sinceList.status, 200);
+      assert(sinceList.data.notifications.some((n) => n.clientCode === 'MM000009'));
+
+      liveAdminSocket.disconnect();
     });
 
     branchBSocket.disconnect();

@@ -79,9 +79,11 @@ export default function Attendance() {
     setBranchFilter(selectedBranch);
   }, [selectedBranch]);
 
-  const fetchAttendance = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const fetchAttendance = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const [res, clientsRes, empRes] = await Promise.all([
         adminService.getAttendance({ branchId: branchFilter, date }),
@@ -94,9 +96,13 @@ export default function Attendance() {
       if (clientsRes.clients) setAllClients(clientsRes.clients);
       if (empRes.employees) setAllEmployees(empRes.employees);
     } catch (err) {
-      setError(err.message || 'Failed to fetch attendance');
+      if (!silent) {
+        setError(err.message || 'Failed to fetch attendance');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [branchFilter, date]);
 
@@ -105,12 +111,16 @@ export default function Attendance() {
   }, [fetchAttendance]);
 
   useEffect(() => {
-    const onLiveAttendance = () => {
-      fetchAttendance();
+    const onLiveAttendance = (event) => {
+      const detail = event?.detail;
+      if (branchFilter !== 'ALL' && detail?.branchId && String(detail.branchId) !== String(branchFilter)) {
+        return;
+      }
+      fetchAttendance({ silent: true });
     };
     window.addEventListener('mm:attendance-updated', onLiveAttendance);
     return () => window.removeEventListener('mm:attendance-updated', onLiveAttendance);
-  }, [fetchAttendance]);
+  }, [fetchAttendance, branchFilter]);
 
   const handleRecordSubmit = async (e) => {
     e.preventDefault();

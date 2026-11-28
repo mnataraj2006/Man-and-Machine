@@ -3181,6 +3181,19 @@ const recordAttendance = async (req, res, next) => {
       });
     }
 
+    const { emitAttendanceUpdated } = require('../services/socketService');
+    emitAttendanceUpdated({
+      attendanceId: String(record._id),
+      branchId: String(record.branchId),
+      subjectType: record.subjectType,
+      employeeId: employee ? String(employee._id) : null,
+      clientProfileId: profile ? String(profile._id) : null,
+      subjectName,
+      eventType: record.eventType,
+      checkInTime: record.checkInTime,
+      attendanceStatus: record.attendanceStatus,
+    });
+
     res.status(201).json({
       success: true,
       message: `${eventType === 'CHECK_OUT' ? 'Check-out' : 'Check-in'} recorded for ${subjectName}`,

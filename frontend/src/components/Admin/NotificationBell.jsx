@@ -31,7 +31,12 @@ export default function NotificationBell({ onNavigate }) {
       markAsRead(item.id);
     }
     setOpen(false);
-    const target = `/admin/employees/${item.employeeId}`;
+    const target =
+      item.subjectType === 'CLIENT'
+        ? '/admin/attendance'
+        : item.employeeId
+          ? `/admin/employees/${item.employeeId}`
+          : '/admin/attendance';
     if (onNavigate) {
       onNavigate(target);
     } else {
@@ -117,7 +122,7 @@ export default function NotificationBell({ onNavigate }) {
                 <Fingerprint className="w-8 h-8 text-[#404040] mx-auto" />
                 <div className="text-xs font-semibold text-[#B8B8B8]">No recent attendance alerts</div>
                 <p className="text-[11px] text-[#858585]">
-                  Employee check-ins and check-outs from eSSL X2008 will appear here in real time.
+                  Member and employee check-ins from eSSL X2008 will appear here in real time.
                 </p>
               </div>
             ) : (
@@ -152,9 +157,16 @@ export default function NotificationBell({ onNavigate }) {
                       </span>
                     </div>
                     <div className="text-xs font-bold text-[#F5F5F5] truncate">
-                      {item.employeeName}{' '}
-                      <span className="font-mono text-[#EB3E2E] font-normal">({item.employeeCode})</span>
+                      {item.subjectName || item.employeeName}{' '}
+                      {(item.clientCode || item.employeeCode) && (
+                        <span className="font-mono text-[#EB3E2E] font-normal">
+                          ({item.clientCode || item.employeeCode})
+                        </span>
+                      )}
                     </div>
+                    {item.message && item.subjectType === 'CLIENT' && (
+                      <div className="text-[11px] text-[#B8B8B8] truncate">{item.message}</div>
+                    )}
                     <div className="text-[11px] text-[#858585] flex items-center gap-2 truncate">
                       {item.branchName && (
                         <span className="inline-flex items-center gap-1">

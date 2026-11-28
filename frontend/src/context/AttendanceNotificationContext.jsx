@@ -52,6 +52,9 @@ export function AttendanceNotificationProvider({ children, selectedBranch = 'ALL
   const seenAttendanceIdsRef = useRef(new Set());
   const desktopEnabledRef = useRef(desktopEnabled);
   const onNavigateRef = useRef(onNavigate);
+  const selectedBranchRef = useRef(selectedBranch);
+  const hasConnectedOnceRef = useRef(false);
+  const lastEventCursorRef = useRef(null);
 
   useEffect(() => {
     desktopEnabledRef.current = desktopEnabled;
@@ -61,8 +64,17 @@ export function AttendanceNotificationProvider({ children, selectedBranch = 'ALL
     onNavigateRef.current = onNavigate;
   }, [onNavigate]);
 
-  const navigateToEmployee = useCallback((employeeId) => {
-    const path = `/admin/employees/${employeeId}`;
+  useEffect(() => {
+    selectedBranchRef.current = selectedBranch;
+  }, [selectedBranch]);
+
+  const navigateToSubject = useCallback((item) => {
+    const path =
+      item?.subjectType === 'CLIENT'
+        ? '/admin/attendance'
+        : item?.employeeId
+          ? `/admin/employees/${item.employeeId}`
+          : '/admin/attendance';
     if (onNavigateRef.current) {
       onNavigateRef.current(path);
     } else {
@@ -79,6 +91,9 @@ export function AttendanceNotificationProvider({ children, selectedBranch = 'ALL
       list.forEach((n) => {
         if (n.attendanceId) seenAttendanceIdsRef.current.add(String(n.attendanceId));
       });
+      if (list[0]?.createdAt) {
+        lastEventCursorRef.current = list[0].createdAt;
+      }
       setNotifications(list);
       setUnreadCount(res.unreadCount || 0);
     } catch {
@@ -138,9 +153,11 @@ export function AttendanceNotificationProvider({ children, selectedBranch = 'ALL
       if (typeof window === 'undefined' || !('Notification' in window)) return;
       if (window.Notification.permission !== 'granted') return;
 
+      const displayName = item.subjectName || item.employeeName || 'Member';
+      const displayCode = item.clientCode || item.employeeCode || '';
+      const subjectLabel = item.subjectType === 'CLIENT' ? 'Client' : 'Employee';
       const bodyLines = [
-        `Employee: ${item.employeeName}`,
-        `Employee ID: ${item.employeeCode}`,
+        `${subjectLabel}: ${displayName}${displayCode ? ` (${displayCode})` : ''}`,
         item.branchName ? `Branch: ${item.branchName}` : null,
         `Time: ${item.formattedTime}`,
         `Device: ${item.deviceName || 'eSSL X2008'}`,
@@ -148,7 +165,7 @@ export function AttendanceNotificationProvider({ children, selectedBranch = 'ALL
       ].filter(Boolean);
 
       try {
-        const notif = new window.Notification(item.title || 'New Employee Check-in', {
+        const notif = new window.Notification(item.title || 'New Attendance Event', {
           body: bodyLines.join('\n'),
           icon: '/logo.jpg',
           tag: `mm-att-${item.attendanceId || item.id}`,
@@ -157,19 +174,77 @@ export function AttendanceNotificationProvider({ children, selectedBranch = 'ALL
 
         notif.onclick = () => {
           window.focus();
-          if (item.employeeId) {
-            navigateToEmployee(item.employeeId);
-          }
+          navigateToSubject(item);
           notif.close();
         };
       } catch {
         // Fallback already handled by in-app toast
       }
     },
-    [navigateToEmployee]
+    [navigateToSubject]
   );
 
-  // Establish authenticated Socket.IO connection with automatic reconnect & deduplication
+  const handleIncomingNotification = useCallback(
+    (item) => {
+      if (!item) return;
+      const activeBranch = selectedBranchRef.current;
+      if (activeBranch && activeBranch !== 'ALL' && item.branchId && String(item.branchId) !== String(activeBranch)) {
+        return;
+      }
+
+      const dedupId = String(item.attendanceId || item.id || '');
+      if (dedupId && seenAttendanceIdsRef.current.has(dedupId)) {
+        return;
+      }
+      if (dedupId) {
+        seenAttendanceIdsRef.current.add(dedupId);
+      }
+      if (item.createdAt) {
+        lastEventCursorRef.current = item.createdAt;
+      }
+
+      setNotifications((prev) => [item, ...prev].slice(0, 50));
+      setUnreadCount((c) => c + 1);
+      showInAppToast(item);
+      showDesktopNotification(item);
+
+      window.dispatchEvent(new CustomEvent('mm:attendance-updated', { detail: item }));
+    },
+    [showInAppToast, showDesktopNotification]
+  );
+
+  const recoverMissedEvents = useCallback(async () => {
+    try {
+      const res = await attendanceNotificationService.list({
+        branchId: selectedBranchRef.current,
+        limit: 30,
+        ...(lastEventCursorRef.current ? { since: lastEventCursorRef.current } : {}),
+      });
+      const incoming = res.notifications || [];
+      if (incoming.length > 0) {
+        if (incoming[0]?.createdAt) {
+          lastEventCursorRef.current = incoming[0].createdAt;
+        }
+        const unseen = incoming.filter((n) => {
+          const id = String(n.attendanceId || n.id || '');
+          if (!id || seenAttendanceIdsRef.current.has(id)) return false;
+          seenAttendanceIdsRef.current.add(id);
+          return true;
+        });
+        if (unseen.length > 0) {
+          setNotifications((prev) => [...unseen, ...prev].slice(0, 50));
+        }
+      }
+      if (typeof res.unreadCount === 'number') {
+        setUnreadCount(res.unreadCount);
+      }
+      window.dispatchEvent(new CustomEvent('mm:attendance-updated', { detail: { recovered: true } }));
+    } catch {
+      // Ignore transient recovery failure
+    }
+  }, []);
+
+  // Establish authenticated Socket.IO connection with automatic reconnect & missed-event recovery
   useEffect(() => {
     const token = authService.getToken();
     const user = authService.getUser();
@@ -186,6 +261,11 @@ export function AttendanceNotificationProvider({ children, selectedBranch = 'ALL
 
     socket.on('connect', () => {
       setSocketConnected(true);
+      if (hasConnectedOnceRef.current) {
+        recoverMissedEvents();
+      } else {
+        hasConnectedOnceRef.current = true;
+      }
     });
 
     socket.on('disconnect', () => {
@@ -196,29 +276,37 @@ export function AttendanceNotificationProvider({ children, selectedBranch = 'ALL
       setSocketConnected(false);
     });
 
-    socket.on('attendance:employee', (item) => {
-      if (!item) return;
-      const dedupId = String(item.attendanceId || item.id || '');
-      if (dedupId && seenAttendanceIdsRef.current.has(dedupId)) {
+    socket.on('attendance:employee', handleIncomingNotification);
+    socket.on('attendance:client', handleIncomingNotification);
+    socket.on('attendance:updated', (payload) => {
+      const activeBranch = selectedBranchRef.current;
+      if (activeBranch && activeBranch !== 'ALL' && payload?.branchId && String(payload.branchId) !== String(activeBranch)) {
         return;
       }
-      if (dedupId) {
-        seenAttendanceIdsRef.current.add(dedupId);
-      }
-
-      setNotifications((prev) => [item, ...prev].slice(0, 50));
-      setUnreadCount((c) => c + 1);
-      showInAppToast(item);
-      showDesktopNotification(item);
-
-      window.dispatchEvent(new CustomEvent('mm:attendance-updated', { detail: item }));
+      window.dispatchEvent(new CustomEvent('mm:attendance-updated', { detail: payload }));
     });
 
     return () => {
+      socket.off('attendance:employee', handleIncomingNotification);
+      socket.off('attendance:client', handleIncomingNotification);
+      socket.off('attendance:updated');
       socket.disconnect();
       setSocketConnected(false);
     };
-  }, [showInAppToast, showDesktopNotification]);
+  }, [handleIncomingNotification, recoverMissedEvents]);
+
+  // Lightweight fallback polling ONLY while socket is disconnected
+  useEffect(() => {
+    if (socketConnected) return undefined;
+    const token = authService.getToken();
+    const user = authService.getUser();
+    if (!token || user?.role !== 'ADMIN') return undefined;
+
+    const timer = setInterval(() => {
+      recoverMissedEvents();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [socketConnected, recoverMissedEvents]);
 
   const markAsRead = useCallback(async (id) => {
     setNotifications((prev) => {
@@ -299,18 +387,22 @@ export function AttendanceNotificationProvider({ children, selectedBranch = 'ALL
                   </button>
                 </div>
                 <p className="text-xs text-[#D4D4D4] mt-1">
-                  <strong>{toast.employeeName}</strong> ({toast.employeeCode})
+                  <strong>{toast.subjectName || toast.employeeName}</strong>
+                  {(toast.clientCode || toast.employeeCode) && ` (${toast.clientCode || toast.employeeCode})`}
                 </p>
+                {toast.message && toast.subjectType === 'CLIENT' && (
+                  <p className="text-[11px] text-[#B8B8B8] mt-0.5">{toast.message}</p>
+                )}
                 <p className="text-[11px] text-[#858585] mt-0.5">
                   {toast.branchName ? `${toast.branchName} • ` : ''}
                   {toast.formattedTime} • {toast.deviceName || 'eSSL X2008'}
                 </p>
-                {toast.employeeId && (
+                {(toast.employeeId || toast.clientProfileId) && (
                   <button
                     type="button"
                     onClick={() => {
                       markAsRead(toast.id);
-                      navigateToEmployee(toast.employeeId);
+                      navigateToSubject(toast);
                       setToasts((prev) => prev.filter((t) => t.toastId !== toast.toastId));
                     }}
                     className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold uppercase text-[#EB3E2E] hover:underline cursor-pointer"

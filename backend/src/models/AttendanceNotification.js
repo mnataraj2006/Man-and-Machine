@@ -14,10 +14,22 @@ const attendanceNotificationSchema = new mongoose.Schema(
       trim: true,
       default: undefined,
     },
+    subjectType: {
+      type: String,
+      enum: ['EMPLOYEE', 'CLIENT'],
+      default: 'EMPLOYEE',
+      index: true,
+    },
     employeeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Employee',
-      required: true,
+      default: null,
+      index: true,
+    },
+    clientProfileId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ClientProfile',
+      default: null,
       index: true,
     },
     employeeCode: {
@@ -25,10 +37,20 @@ const attendanceNotificationSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    clientCode: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     employeeName: {
       type: String,
-      required: true,
       trim: true,
+      default: '',
+    },
+    subjectName: {
+      type: String,
+      trim: true,
+      default: '',
     },
     branchId: {
       type: mongoose.Schema.Types.ObjectId,

@@ -88,23 +88,42 @@ const closeSocketServer = async () => {
   }
 };
 
-/**
- * Broadcast an employee attendance notification only to authorized global admins
- * and admins assigned to that employee's branch.
- */
-const emitEmployeeAttendanceNotification = (payload) => {
+const emitToAuthorizedBranchRooms = (eventName, payload) => {
   if (!io || !payload) return false;
   const rooms = ['admin:all'];
   if (payload.branchId) {
     rooms.push(`admin:branch:${String(payload.branchId)}`);
   }
-  io.to(rooms).emit('attendance:employee', payload);
+  io.to(rooms).emit(eventName, payload);
   return true;
 };
+
+/**
+ * Broadcast an employee attendance notification only to authorized global admins
+ * and admins assigned to that employee's branch.
+ */
+const emitEmployeeAttendanceNotification = (payload) =>
+  emitToAuthorizedBranchRooms('attendance:employee', payload);
+
+/**
+ * Broadcast a client biometric attendance / facility access notification only to
+ * authorized global admins and admins assigned to that branch.
+ */
+const emitClientAttendanceNotification = (payload) =>
+  emitToAuthorizedBranchRooms('attendance:client', payload);
+
+/**
+ * Broadcast any persisted attendance/access record (client, employee, unmapped, or manual)
+ * so Attendance & Facility Access dashboards update immediately without refresh.
+ */
+const emitAttendanceUpdated = (payload) =>
+  emitToAuthorizedBranchRooms('attendance:updated', payload);
 
 module.exports = {
   initSocketServer,
   getIO,
   closeSocketServer,
   emitEmployeeAttendanceNotification,
+  emitClientAttendanceNotification,
+  emitAttendanceUpdated,
 };
