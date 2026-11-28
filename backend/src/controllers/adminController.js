@@ -2919,15 +2919,20 @@ const getAttendanceOverview = async (req, res, next) => {
 
     query.date = { $gte: startOfDay, $lte: endOfDay };
 
+    const { summarizeDailyPunches } = require('../utils/attendanceSummary');
     const rawRecords = await Attendance.find(query)
       .sort({ checkInTime: -1 })
       .populate('userId', 'name phone email')
-      .populate('clientProfileId', 'name phone email')
+      .populate('clientProfileId', 'clientId name phone email')
       .populate('employeeId', 'employeeId fullName phone email department designation')
+      .populate('deviceId', 'deviceName model serialNumber')
+      .populate('correctionHistory.correctedBy', 'name email')
       .populate('branchId', 'name city');
 
-    const records = rawRecords.map((rec) => {
-      const obj = rec.toObject();
+    const rawObjs = rawRecords.map((rec) => rec.toObject());
+    const dailySummaries = summarizeDailyPunches(rawObjs);
+
+    const records = rawObjs.map((obj) => {
       if (!obj.userId && obj.employeeId) {
         obj.userId = {
           _id: obj.employeeId._id,
@@ -2957,6 +2962,7 @@ const getAttendanceOverview = async (req, res, next) => {
       selectedDate: targetDateStr,
       count: records.length,
       records,
+      dailySummaries,
       monthTotal: monthCount,
     });
   } catch (err) {
@@ -2966,63 +2972,62 @@ const getAttendanceOverview = async (req, res, next) => {
 
 const recordAttendance = async (req, res, next) => {
   try {
-    const { userId, clientProfileId, branchId, date, checkInTime, method = 'STAFF_CHECKIN' } = req.body;
+    const {
+      userId,
+      clientProfileId,
+      employeeId,
+      branchId,
+      date,
+      checkInTime,
+      eventType = 'CHECK_IN',
+      method = 'STAFF_CHECKIN',
+    } = req.body;
 
-    if (!userId && !clientProfileId) {
-      return res.status(400).json({ success: false, message: 'Client ID or Profile ID is required' });
+    if (!userId && !clientProfileId && !employeeId) {
+      return res.status(400).json({ success: false, message: 'Employee ID, Client ID, or Profile ID is required' });
     }
 
-    let user = userId ? await User.findById(userId) : null;
-    let profile = clientProfileId
-      ? await ClientProfile.findById(clientProfileId)
-      : (!user && userId ? await ClientProfile.findById(userId) : await ClientProfile.findOne({ userId }));
+    const Employee = require('../models/Employee');
+    const employee = employeeId ? await Employee.findById(employeeId) : null;
+    let user = !employee && userId ? await User.findById(userId) : null;
+    let profile = !employee
+      ? (clientProfileId
+          ? await ClientProfile.findById(clientProfileId)
+          : (!user && userId ? await ClientProfile.findById(userId) : await ClientProfile.findOne({ userId })))
+      : null;
 
-    if (!user && !profile) {
-      return res.status(404).json({ success: false, message: 'Client not found' });
+    if (!employee && !user && !profile) {
+      return res.status(404).json({ success: false, message: 'Member or employee not found' });
     }
 
     if (!user && profile?.userId) {
       user = await User.findById(profile.userId);
     }
 
-    const clientName = user?.name || profile?.name || 'Client';
-    const targetBranchId = branchId || user?.branchId || profile?.branchId;
+    const subjectName = employee?.fullName || user?.name || profile?.name || 'Member';
+    const targetBranchId = branchId || employee?.branchId || user?.branchId || profile?.branchId;
 
-    const attDate = date ? new Date(date) : new Date();
+    const eventTs = checkInTime ? new Date(checkInTime) : new Date();
+    const attDate = date ? new Date(date) : eventTs;
     const { dateStr } = getKolkataDateParts(attDate);
     const startOfDay = new Date(`${dateStr}T00:00:00+05:30`);
-    const endOfDay = new Date(`${dateStr}T23:59:59.999+05:30`);
 
-    // Prevent duplicate attendance for the same day
-    const dupOr = [
-      ...(user ? [{ userId: user._id }] : []),
-      ...(profile ? [{ clientProfileId: profile._id }] : []),
-    ];
-    const duplicate = await Attendance.findOne({
-      $or: dupOr,
-      date: { $gte: startOfDay, $lte: endOfDay },
-    });
-
-    if (duplicate) {
-      return res.status(400).json({
-        success: false,
-        message: `Attendance has already been recorded for ${clientName} on this date.`,
-        record: duplicate,
-      });
-    }
-
+    // Multiple legitimate punches per day are allowed (no 1-check-in-per-day restriction).
     const record = await Attendance.create({
       userId: user?._id || null,
       clientProfileId: profile?._id || null,
+      employeeId: employee?._id || null,
+      subjectType: employee ? 'EMPLOYEE' : 'CLIENT',
       branchId: targetBranchId,
       date: startOfDay,
-      checkInTime: checkInTime ? new Date(checkInTime) : new Date(),
+      checkInTime: eventTs,
+      eventType: ['CHECK_IN', 'CHECK_OUT', 'UNKNOWN'].includes(eventType) ? eventType : 'CHECK_IN',
       method,
     });
 
     res.status(201).json({
       success: true,
-      message: `Check-in recorded for ${clientName}`,
+      message: `${eventType === 'CHECK_OUT' ? 'Check-out' : 'Check-in'} recorded for ${subjectName}`,
       record,
     });
   } catch (err) {
@@ -3033,7 +3038,7 @@ const recordAttendance = async (req, res, next) => {
 const correctAttendanceRecord = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { checkInTime, checkOutTime, action } = req.body;
+    const { checkInTime, checkOutTime, eventType, reason = '', action } = req.body;
 
     if (action === 'DELETE') {
       await Attendance.findByIdAndDelete(id);
@@ -3043,11 +3048,28 @@ const correctAttendanceRecord = async (req, res, next) => {
     const record = await Attendance.findById(id);
     if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
 
+    const auditEntry = {
+      correctedBy: req.user?._id || null,
+      correctedAt: new Date(),
+      reason: String(reason || '').trim() || 'Admin manual correction',
+      previousEventType: record.eventType || 'CHECK_IN',
+      newEventType: eventType && ['CHECK_IN', 'CHECK_OUT', 'UNKNOWN'].includes(eventType) ? eventType : (record.eventType || 'CHECK_IN'),
+      previousCheckInTime: record.checkInTime || null,
+      newCheckInTime: checkInTime ? new Date(checkInTime) : (record.checkInTime || null),
+      previousCheckOutTime: record.checkOutTime || null,
+      newCheckOutTime: checkOutTime ? new Date(checkOutTime) : (record.checkOutTime || null),
+    };
+
     if (checkInTime) record.checkInTime = new Date(checkInTime);
     if (checkOutTime) record.checkOutTime = new Date(checkOutTime);
+    if (eventType && ['CHECK_IN', 'CHECK_OUT', 'UNKNOWN'].includes(eventType)) {
+      record.eventType = eventType;
+    }
+    record.correctionHistory = record.correctionHistory || [];
+    record.correctionHistory.push(auditEntry);
     await record.save();
 
-    res.status(200).json({ success: true, message: 'Attendance record updated successfully', record });
+    res.status(200).json({ success: true, message: 'Attendance record updated with audit trail', record });
   } catch (err) {
     next(err);
   }

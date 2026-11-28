@@ -96,6 +96,19 @@ const attendanceSchema = new mongoose.Schema(
       trim: true,
       default: undefined,
     },
+    correctionHistory: [
+      {
+        correctedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+        correctedAt: { type: Date, default: Date.now },
+        reason: { type: String, trim: true, default: '' },
+        previousEventType: { type: String, default: '' },
+        newEventType: { type: String, default: '' },
+        previousCheckInTime: { type: Date, default: null },
+        newCheckInTime: { type: Date, default: null },
+        previousCheckOutTime: { type: Date, default: null },
+        newCheckOutTime: { type: Date, default: null },
+      },
+    ],
   },
   {
     timestamps: true,
