@@ -96,11 +96,12 @@ export function mapBiometricUiState(bio = {}) {
   }
 
   if (displayStatus === 'AWAITING_PHYSICAL_ENROLLMENT' || rawStatus === 'AWAITING_PHYSICAL_ENROLLMENT') {
+    const notSyncedYet = syncStatus === 'NOT_STARTED';
     return {
       key: 'AWAITING_PHYSICAL_ENROLLMENT',
-      label: 'Waiting for Device',
-      actionLabel: 'View Progress',
-      actionType: 'PROGRESS',
+      label: notSyncedYet ? 'Waiting to Send to Device' : 'Waiting for Device',
+      actionLabel: notSyncedYet ? 'Send User to Device' : 'View Progress',
+      actionType: notSyncedYet ? 'RETRY' : 'PROGRESS',
       badgeClass: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
     };
   }

@@ -274,7 +274,7 @@ export default function BiometricAccessModal({
                 onClick={onRetrySetup}
                 className="min-h-[40px] px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold uppercase text-[11px] cursor-pointer disabled:opacity-50"
               >
-                {busy ? 'Retrying...' : 'Retry Setup'}
+                {busy ? 'Sending...' : uiState.actionLabel || 'Retry Setup'}
               </button>
             )}
             {['DEVICE_USER_READY', 'FACE_ENROLLMENT_PENDING', 'AWAITING_PHYSICAL_ENROLLMENT'].includes(uiState.key) &&
