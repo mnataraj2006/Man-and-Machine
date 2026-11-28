@@ -24,19 +24,9 @@ const notifyClient = async (userId, title, message, category = 'SYSTEM') => {
 
 const hasActiveMembershipForClient = async (profile) => {
   if (!profile) return false;
-  const now = new Date();
-  const query = profile.userId
-    ? { $or: [{ userId: profile.userId }, { clientProfileId: profile._id }] }
-    : { clientProfileId: profile._id };
-  const { getKolkataEndOfToday } = require('../utils/membershipSync');
-  const endOfToday = getKolkataEndOfToday(now);
-  const active = await Membership.findOne({
-    ...query,
-    status: 'ACTIVE',
-    startDate: { $lte: endOfToday },
-    expiryDate: { $gte: now },
-  }).lean();
-  return Boolean(active);
+  const { evaluateClientMembershipEligibility } = require('./membershipEligibilityService');
+  const res = await evaluateClientMembershipEligibility(profile, { branchId: profile.branchId });
+  return Boolean(res?.eligible);
 };
 
 // ==========================================
@@ -931,10 +921,16 @@ const autoInitiateBiometricEnrollment = async ({
   });
 
   if (enrollment && enrollment.status === 'ENROLLED') {
-    return { initiated: false, idempotentReused: true, reason: 'ALREADY_ENROLLED', enrollment };
+    const { syncBiometricAccessForClient } = require('./membershipEligibilityService');
+    await syncBiometricAccessForClient(profile, { actorUserId: actorUser?._id || null });
+    const refreshed = await BiometricEnrollment.findById(enrollment._id);
+    return { initiated: false, idempotentReused: true, reason: 'ALREADY_ENROLLED', enrollment: refreshed || enrollment };
   }
   if (enrollment && enrollment.status === 'DEVICE_USER_READY') {
-    return { initiated: false, idempotentReused: true, reason: 'ALREADY_DEVICE_READY', enrollment };
+    const { syncBiometricAccessForClient } = require('./membershipEligibilityService');
+    await syncBiometricAccessForClient(profile, { actorUserId: actorUser?._id || null });
+    const refreshed = await BiometricEnrollment.findById(enrollment._id);
+    return { initiated: false, idempotentReused: true, reason: 'ALREADY_DEVICE_READY', enrollment: refreshed || enrollment };
   }
 
   const existingConsent = await BiometricConsent.findOne({

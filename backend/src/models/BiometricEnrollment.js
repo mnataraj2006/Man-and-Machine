@@ -141,6 +141,21 @@ const biometricEnrollmentSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    accessState: {
+      type: String,
+      enum: ['ALLOWED', 'DENIED', 'PENDING'],
+      default: 'PENDING',
+      index: true,
+    },
+    accessDenialReason: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    accessUpdatedAt: {
+      type: Date,
+      default: null,
+    },
     history: {
       type: [enrollmentHistorySchema],
       default: [],

@@ -3027,10 +3027,14 @@ const updateClientMembershipStatus = async (req, res, next) => {
     }
 
     await membership.save();
-    await syncClientProfileMembership({
+    const synced = await syncClientProfileMembership({
       userId: membership.userId,
       clientProfileId: membership.clientProfileId,
     });
+    if (synced?.profile) {
+      const { syncBiometricAccessForClient } = require('../services/membershipEligibilityService');
+      await syncBiometricAccessForClient(synced.profile, { actorUserId: req.user?._id || null });
+    }
     setImmediate(async () => {
       const communicationService = require('../services/communicationService');
       const client = membership.clientProfileId

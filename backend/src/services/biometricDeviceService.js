@@ -637,49 +637,9 @@ const unmapBiometricUser = async (mappingId, adminUser) => {
 // 3. ATTENDANCE EVENT PROCESSING & MEMBERSHIP VALIDATION
 // ==========================================
 
-const validateMembershipForProfile = async (profile) => {
-  if (!profile) return { membershipStatus: 'NOT_FOUND', attendanceStatus: 'UNMAPPED_USER' };
-
-  if (profile.userId) {
-    const user = await User.findById(profile.userId).select('status').lean();
-    if (user && (user.status === 'SUSPENDED' || user.status === 'INACTIVE')) {
-      return { membershipStatus: 'SUSPENDED', attendanceStatus: 'FLAGGED_SUSPENDED' };
-    }
-  }
-
-  const identityQuery = profile.userId
-    ? { $or: [{ userId: profile.userId }, { clientProfileId: profile._id }] }
-    : { clientProfileId: profile._id };
-
-  const memberships = await Membership.find(identityQuery).sort({ expiryDate: -1 }).lean();
-  if (!memberships || memberships.length === 0) {
-    return { membershipStatus: 'NO_MEMBERSHIP', attendanceStatus: 'FLAGGED_NO_MEMBERSHIP' };
-  }
-
-  const now = new Date();
-  const { getKolkataEndOfToday } = require('../utils/membershipSync');
-  const endOfToday = getKolkataEndOfToday(now);
-  const active = memberships.find(
-    (m) => m.status === 'ACTIVE' && new Date(m.startDate) <= endOfToday && new Date(m.expiryDate) >= now
-  );
-  if (active) {
-    return { membershipStatus: 'ACTIVE', attendanceStatus: 'SUCCESS' };
-  }
-
-  const latest = memberships[0];
-  if (latest.status === 'EXPIRED' || (latest.status === 'ACTIVE' && new Date(latest.expiryDate) < now)) {
-    return { membershipStatus: 'EXPIRED', attendanceStatus: 'FLAGGED_EXPIRED' };
-  }
-
-  if (latest.status === 'FROZEN' || latest.status === 'PAUSED') {
-    return { membershipStatus: 'FROZEN', attendanceStatus: 'FLAGGED_FROZEN' };
-  }
-
-  if (latest.status === 'CANCELLED') {
-    return { membershipStatus: 'CANCELLED', attendanceStatus: 'FLAGGED_CANCELLED' };
-  }
-
-  return { membershipStatus: 'NO_MEMBERSHIP', attendanceStatus: 'FLAGGED_NO_MEMBERSHIP' };
+const validateMembershipForProfile = async (profile, { branchId = null } = {}) => {
+  const { evaluateClientMembershipEligibility } = require('./membershipEligibilityService');
+  return evaluateClientMembershipEligibility(profile, { branchId });
 };
 
 /**
@@ -883,7 +843,14 @@ const processAttendanceEvent = async ({
     });
   }
 
-  const { membershipStatus, attendanceStatus } = await validateMembershipForProfile(profile);
+  const eligibility = await validateMembershipForProfile(profile, { branchId: device.branchId });
+  const { membershipStatus, attendanceStatus, accessDecision, reason: accessReason } = eligibility;
+  const faceAuthStatus = verificationMethod === 'FACE' ? 'SUCCESS' : 'N/A';
+
+  if (profile && !eligibility.eligible) {
+    const { syncBiometricAccessForClient } = require('./membershipEligibilityService');
+    syncBiometricAccessForClient(profile).catch(() => {});
+  }
 
   try {
     const record = await Attendance.create({
@@ -902,6 +869,9 @@ const processAttendanceEvent = async ({
       source: 'BIOMETRIC_ADMS',
       membershipStatusAtEvent: membershipStatus,
       attendanceStatus,
+      faceAuthStatus,
+      accessDecision: profile ? accessDecision : 'DENIED',
+      accessDenialReason: profile ? (accessDecision === 'DENIED' ? accessReason : '') : 'UNMAPPED_USER',
       rawEventReference: dedupKey,
     });
 

@@ -91,6 +91,22 @@ const attendanceSchema = new mongoose.Schema(
       default: 'SUCCESS',
       index: true,
     },
+    faceAuthStatus: {
+      type: String,
+      enum: ['SUCCESS', 'N/A'],
+      default: 'N/A',
+    },
+    accessDecision: {
+      type: String,
+      enum: ['ALLOWED', 'DENIED', 'N/A'],
+      default: 'N/A',
+      index: true,
+    },
+    accessDenialReason: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     rawEventReference: {
       type: String,
       trim: true,
