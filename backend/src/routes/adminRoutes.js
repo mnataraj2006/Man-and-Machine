@@ -5,6 +5,7 @@ const adminController = require('../controllers/adminController');
 const financeRoutes = require('./financeRoutes');
 const websiteAdminRoutes = require('./websiteAdminRoutes');
 const employeeRoutes = require('./employeeRoutes');
+const smsRoutes = require('./smsRoutes');
 const employeeController = require('../controllers/employeeController');
 const { handleTrainerPhotoUpload } = require('../services/trainerPhotoService');
 
@@ -20,6 +21,9 @@ router.use('/website', websiteAdminRoutes);
 
 // Employee Management Routes (/api/admin/employees/*)
 router.use('/employees', employeeRoutes);
+
+// SMS Settings, Templates & History Routes (/api/admin/sms/*)
+router.use('/sms', smsRoutes);
 
 // Real-Time Employee Attendance Notifications (/api/admin/attendance-notifications/*)
 router.get('/attendance-notifications', employeeController.listAttendanceNotifications);

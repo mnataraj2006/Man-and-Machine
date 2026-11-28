@@ -1028,6 +1028,11 @@ const createClient = async (req, res, next) => {
       }
     }
 
+    setImmediate(() => {
+      const smsService = require('../services/smsService');
+      smsService.triggerClientWelcome({ client: profile, branch: { _id: targetBranchId } });
+    });
+
     res.status(201).json({
       success: true,
       message: user ? 'Client profile created. Account invitation is pending.' : 'Walk-in client profile created without login access.',
@@ -1222,6 +1227,17 @@ const assignTrainer = async (req, res, next) => {
     if (profile.trainerId) {
       const countNew = await ClientProfile.countDocuments({ trainerId: profile.trainerId });
       await TrainerProfile.updateOne({ userId: profile.trainerId }, { activeClientsCount: countNew });
+    }
+
+    if (profile.trainerId) {
+      setImmediate(async () => {
+        const smsService = require('../services/smsService');
+        const tUser = await User.findById(profile.trainerId).select('name phone').lean();
+        const tProf = await TrainerProfile.findOne({ userId: profile.trainerId }).select('contactPhone').lean();
+        if (tUser) {
+          smsService.triggerTrainerAssigned({ client: profile, trainerUser: tUser, trainerPhone: tProf?.contactPhone || tUser.phone });
+        }
+      });
     }
 
     res.status(200).json({
@@ -2893,6 +2909,17 @@ const updateClientMembershipStatus = async (req, res, next) => {
       userId: membership.userId,
       clientProfileId: membership.clientProfileId,
     });
+    setImmediate(async () => {
+      const smsService = require('../services/smsService');
+      const client = membership.clientProfileId
+        ? await ClientProfile.findById(membership.clientProfileId).lean()
+        : await ClientProfile.findOne({ userId: membership.userId }).lean();
+      if (client) {
+        const mappedStatus = action === 'EXTEND' && req.body.giftDays ? 'GIFT_DAYS' : action === 'EXTEND' ? 'UPDATED' : membership.status;
+        smsService.triggerMembershipStatusChange({ client, membership, status: mappedStatus });
+      }
+    });
+
     res.status(200).json({ success: true, message: `Membership action ${action} completed successfully`, membership });
   } catch (err) {
     next(err);
@@ -3024,6 +3051,13 @@ const recordAttendance = async (req, res, next) => {
       eventType: ['CHECK_IN', 'CHECK_OUT', 'UNKNOWN'].includes(eventType) ? eventType : 'CHECK_IN',
       method,
     });
+
+    if (profile) {
+      setImmediate(() => {
+        const smsService = require('../services/smsService');
+        smsService.triggerManualAttendance({ client: profile, attendance: record });
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -3223,6 +3257,16 @@ const assignWorkoutToClient = async (req, res, next) => {
       isActive: true,
     });
 
+    setImmediate(async () => {
+      const smsService = require('../services/smsService');
+      const cp = await ClientProfile.findOne({ userId: client._id }).lean();
+      smsService.triggerWorkoutAssigned({
+        client: cp || { _id: client._id, name: client.name, phone: client.phone, branchId: client.branchId },
+        workoutPlanName: assignedPlan.title || assignedPlan.name,
+        trainerName: req.user?.name || 'Coach',
+      });
+    });
+
     res.status(201).json({ success: true, message: `Workout routine assigned to ${client.name}`, plan: assignedPlan });
   } catch (err) {
     next(err);
@@ -3395,6 +3439,16 @@ const recordOfflinePayment = async (req, res, next) => {
     setImmediate(() => notificationService.queuePaymentConfirmation({
       client: user, invoice, payment, triggeredBy: req.user?._id,
     }).catch((error) => console.error('WhatsApp offline-payment notification could not be queued:', error.message)));
+
+    setImmediate(async () => {
+      const smsService = require('../services/smsService');
+      const cp = await ClientProfile.findOne({ userId: user._id }).lean();
+      smsService.triggerMembershipPayment({
+        client: cp || { _id: user._id, name: user.name, phone: user.phone, branchId: user.branchId },
+        amount: payment.amount,
+        uniqueRef: payment._id,
+      });
+    });
 
     res.status(201).json({
       success: true,

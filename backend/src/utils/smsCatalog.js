@@ -1,0 +1,321 @@
+const MEMBER_NOTIFICATIONS = [
+  {
+    key: 'MEMBER_WELCOME_GREETINGS',
+    label: 'Member Welcome Greetings',
+    defaultBody: 'Welcome to Man & Machine {{branchName}}, {{memberName}}! Your Member ID is {{memberId}}. Train strong!',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_MEMBERSHIP_PAYMENT',
+    label: 'Membership Payment',
+    defaultBody: 'Hi {{memberName}}, payment of Rs.{{paymentAmount}} received for {{membershipName}} at {{branchName}}. Thank you!',
+    classification: 'TRANSACTIONAL',
+  },
+  {
+    key: 'MEMBER_MEMBERSHIP_SUSPENSION',
+    label: 'Membership Suspension',
+    defaultBody: 'Hi {{memberName}} ({{memberId}}), your {{membershipName}} at {{branchName}} has been suspended. Contact reception for details.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_MEMBERSHIP_CANCELLATION',
+    label: 'Membership Cancellation',
+    defaultBody: 'Hi {{memberName}} ({{memberId}}), your {{membershipName}} at {{branchName}} has been cancelled.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_MEMBERSHIP_DELETION',
+    label: 'Membership Deletion',
+    defaultBody: 'Hi {{memberName}} ({{memberId}}), your {{membershipName}} record at {{branchName}} has been removed.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_MEMBERSHIP_FREEZE',
+    label: 'Membership Freeze',
+    defaultBody: 'Hi {{memberName}} ({{memberId}}), your {{membershipName}} at {{branchName}} is now frozen.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_MEMBERSHIP_ACTIVATION',
+    label: 'Membership Activation',
+    defaultBody: 'Hi {{memberName}}, your {{membershipName}} at {{branchName}} is active until {{expiryDate}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_GIVING_GIFT_DAYS',
+    label: 'Giving Gift Days',
+    defaultBody: 'Hi {{memberName}}, bonus days added to your {{membershipName}} at {{branchName}}. New expiry: {{expiryDate}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_MEMBERSHIP_EXPIRY',
+    label: 'Membership Expiry',
+    defaultBody: 'Hi {{memberName}}, your {{membershipName}} at {{branchName}} expires on {{expiryDate}}. Renew soon!',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_BIRTHDAY_WISHES',
+    label: 'Birthday Wishes',
+    defaultBody: 'Happy Birthday {{memberName}}! Wishing you strength and great health from Man & Machine {{branchName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_ANNIVERSARY_WISHES',
+    label: 'Anniversary Wishes',
+    defaultBody: 'Happy Fitness Anniversary {{memberName}}! Thank you for training with Man & Machine {{branchName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_MEMBERSHIP_OVERDUE',
+    label: 'Membership Overdue',
+    defaultBody: 'Hi {{memberName}}, your {{membershipName}} at {{branchName}} expired on {{expiryDate}}. Please renew to continue access.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_PRE_BALANCE_PAYMENT',
+    label: 'Pre Notification For Balance Payment',
+    defaultBody: 'Hi {{memberName}}, reminder: balance of Rs.{{dueAmount}} is due on {{expiryDate}} at {{branchName}}.',
+    classification: 'TRANSACTIONAL',
+  },
+  {
+    key: 'MEMBER_OVERDUE_BALANCE_PAYMENT',
+    label: 'Overdue Notification For Balance Payment',
+    defaultBody: 'Hi {{memberName}}, balance payment of Rs.{{dueAmount}} is overdue at {{branchName}}. Please clear at reception.',
+    classification: 'TRANSACTIONAL',
+  },
+  {
+    key: 'MEMBER_REFERRAL_ALERT',
+    label: 'Referral Alert For Referred',
+    defaultBody: 'Hi {{memberName}}, you were referred to Man & Machine {{branchName}}! Visit us to claim your welcome trial.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_REFERRAL_POINT_DEBIT',
+    label: 'Referral Point Debit Alert',
+    defaultBody: 'Hi {{memberName}} ({{memberId}}), referral points of Rs.{{paymentAmount}} redeemed at {{branchName}}.',
+    classification: 'TRANSACTIONAL',
+  },
+  {
+    key: 'MEMBER_ABSENT_ALERT',
+    label: 'Absent Alert For Member',
+    defaultBody: 'Hi {{memberName}}, we missed you at Man & Machine {{branchName}}! Come back for your next workout.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_ASSIGN_WORKOUT_PLAN',
+    label: 'Assign Workout Plan To Member',
+    defaultBody: 'Hi {{memberName}}, a new workout plan ({{workoutPlan}}) has been assigned by {{trainerName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_TRAINER_ASSIGN_ALERT',
+    label: 'Trainer Assign Alert For Member',
+    defaultBody: 'Hi {{memberName}}, coach {{trainerName}} has been assigned as your trainer at {{branchName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_SESSION_PRE_NOTIFICATION',
+    label: 'Session Pre Notification Alert For Member',
+    defaultBody: 'Reminder {{memberName}}: your session with {{trainerName}} is on {{sessionDate}} at {{sessionTime}} ({{branchName}}).',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_MANUAL_ATTENDANCE_ADDED',
+    label: 'Manual Attendance Added Member Alert',
+    defaultBody: 'Hi {{memberName}}, your manual check-in at {{branchName}} on {{sessionDate}} {{sessionTime}} has been logged.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'MEMBER_LOCKER_EXPIRY',
+    label: 'Locker Expiry',
+    defaultBody: 'Hi {{memberName}}, locker {{lockerNumber}} at {{branchName}} expires on {{expiryDate}}. Please renew.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+];
+
+const STAFF_NOTIFICATIONS = [
+  {
+    key: 'STAFF_MEMBER_WELCOME_GREETINGS',
+    label: 'Member Welcome Greetings',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, new member {{memberName}} ({{memberId}}) joined {{branchName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_MEMBERSHIP_FREEZE',
+    label: 'Membership Freeze',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, {{memberName}} ({{memberId}}) froze {{membershipName}} at {{branchName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_GIVING_GIFT_DAYS',
+    label: 'Giving Gift Days',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, gift days added for {{memberName}} ({{memberId}}) at {{branchName}} until {{expiryDate}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_MEMBERSHIP_PAYMENT',
+    label: 'Membership Payment',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, Rs.{{paymentAmount}} collected from {{memberName}} ({{memberId}}) at {{branchName}}.',
+    classification: 'TRANSACTIONAL',
+  },
+  {
+    key: 'STAFF_DAILY_SUMMARY',
+    label: 'Daily Summary',
+    recipientRole: 'OWNER',
+    defaultBody: 'Daily Summary {{sessionDate}} ({{branchName}}): Collections Rs.{{paymentAmount}}, New Members {{dueAmount}}, Check-ins {{memberId}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_DAILY_EXPECTED_BUSINESS',
+    label: 'Daily Expected Business',
+    recipientRole: 'OWNER',
+    defaultBody: 'Daily Expected Business {{sessionDate}} ({{branchName}}): Pending Dues Rs.{{dueAmount}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_MONTHLY_SUMMARY',
+    label: 'Monthly Summary',
+    recipientRole: 'OWNER',
+    defaultBody: 'Monthly Summary {{sessionDate}} ({{branchName}}): Total Collections Rs.{{paymentAmount}}, New Members {{memberId}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_MEMBER_REFERRAL',
+    label: 'Member Referral',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, new referral {{memberName}} registered at {{branchName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_LOW_FEEDBACK_ALERT',
+    label: 'Low Feedback Alert',
+    recipientRole: 'OWNER',
+    defaultBody: 'Alert {{ownerName}}: low feedback received from {{memberName}} ({{memberId}}) at {{branchName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_MEMBERSHIP_SUSPENDED',
+    label: 'Membership Suspended',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, {{memberName}} ({{memberId}}) membership {{membershipName}} suspended at {{branchName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_MEMBERSHIP_CANCELLED',
+    label: 'Membership Cancelled',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, {{memberName}} ({{memberId}}) membership {{membershipName}} cancelled at {{branchName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_MEMBERSHIP_DELETED',
+    label: 'Membership Deleted',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, {{memberName}} ({{memberId}}) membership {{membershipName}} deleted at {{branchName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_MEMBERSHIP_ACTIVATED',
+    label: 'Membership Activated',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, {{memberName}} ({{memberId}}) activated {{membershipName}} at {{branchName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_UPDATE_MEMBER_INFO',
+    label: 'Update Member Info',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, profile updated for {{memberName}} ({{memberId}}) at {{branchName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_UPDATE_MEMBERSHIP_INFO',
+    label: 'Update Membership Info',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, membership {{membershipName}} updated for {{memberName}} ({{memberId}}) at {{branchName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_BIRTHDAY_ALERT',
+    label: 'Birthday Alert',
+    recipientRole: 'OWNER',
+    defaultBody: 'Staff Birthday Alert ({{branchName}}): {{memberName}} celebrates their birthday today!',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_ANNIVERSARY_ALERT',
+    label: 'Anniversary Alert',
+    recipientRole: 'OWNER',
+    defaultBody: 'Staff Anniversary Alert ({{branchName}}): {{memberName}} celebrates their anniversary today!',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_TRAINER_ASSIGN_ALERT',
+    label: 'Trainer Assign Alert For Trainer',
+    recipientRole: 'TRAINER',
+    defaultBody: 'Hi {{trainerName}}, member {{memberName}} ({{memberId}}) has been assigned to you at {{branchName}}.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_MEMBER_BIRTHDAY_OWNER',
+    label: 'Member Birthday Alert For Owner',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, member {{memberName}} ({{memberId}}) at {{branchName}} has a birthday today.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_MEMBER_ANNIVERSARY_OWNER',
+    label: 'Member Anniversary Alert For Owner',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, member {{memberName}} ({{memberId}}) at {{branchName}} has a gym anniversary today.',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_MEMBERSHIP_EXPIRY_OWNER',
+    label: 'Membership Expiry Alert For Owner',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, {{memberName}} ({{memberId}}) {{membershipName}} expires on {{expiryDate}} ({{branchName}}).',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_MEMBERSHIP_OVERDUE_OWNER',
+    label: 'Membership Overdue Alert For Owner',
+    recipientRole: 'OWNER',
+    defaultBody: 'Hi {{ownerName}}, {{memberName}} ({{memberId}}) {{membershipName}} is overdue since {{expiryDate}} ({{branchName}}).',
+    classification: 'SERVICE_IMPLICIT',
+  },
+  {
+    key: 'STAFF_SESSION_PRE_NOTIFICATION_TRAINER',
+    label: 'Session Pre Notification Alert For Trainer',
+    recipientRole: 'TRAINER',
+    defaultBody: 'Hi {{trainerName}}, upcoming session with {{memberName}} on {{sessionDate}} at {{sessionTime}} ({{branchName}}).',
+    classification: 'SERVICE_IMPLICIT',
+  },
+];
+
+const ALL_SMS_NOTIFICATIONS = [
+  ...MEMBER_NOTIFICATIONS.map((n) => ({ ...n, audience: 'MEMBER', recipientRole: 'MEMBER' })),
+  ...STAFF_NOTIFICATIONS.map((n) => ({ ...n, audience: 'STAFF' })),
+];
+
+const SMS_CATALOG_MAP = new Map(ALL_SMS_NOTIFICATIONS.map((item) => [item.key, item]));
+
+const defaultToggleMap = (items) => {
+  const obj = {};
+  for (const item of items) {
+    obj[item.key] = false;
+  }
+  return obj;
+};
+
+module.exports = {
+  MEMBER_NOTIFICATIONS,
+  STAFF_NOTIFICATIONS,
+  ALL_SMS_NOTIFICATIONS,
+  SMS_CATALOG_MAP,
+  defaultToggleMap,
+};

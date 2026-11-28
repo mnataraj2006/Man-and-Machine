@@ -46,6 +46,7 @@ const AdminPayments = lazy(() => import('./pages/Admin/Payments.jsx'));
 const AdminNotifications = lazy(() => import('./pages/Admin/Notifications.jsx'));
 const AdminSettings = lazy(() => import('./pages/Admin/Settings.jsx'));
 const WhatsAppSettings = lazy(() => import('./pages/Admin/WhatsApp.jsx'));
+const AdminSmsSettings = lazy(() => import('./pages/Admin/SmsSettings.jsx'));
 const AdminFinanceSummary = lazy(() => import('./pages/Admin/Finance/FinanceSummary.jsx'));
 const AdminCashApprovals = lazy(() => import('./pages/Admin/Finance/CashApprovals.jsx'));
 const AdminWebsiteGallery = lazy(() => import('./pages/Admin/Website/GalleryManager.jsx'));
@@ -282,6 +283,8 @@ export default function App() {
       adminContent = <AdminWebsiteContent onNavigate={navigate} />;
     } else if (currentPath === '/admin/settings') {
       adminContent = <AdminSettings onNavigate={navigate} onLogout={() => navigate('/login')} />;
+    } else if (currentPath === '/admin/settings/sms') {
+      adminContent = <AdminSmsSettings onNavigate={navigate} />;
     } else if (currentPath === '/admin/settings/whatsapp') {
       adminContent = <WhatsAppSettings initialTab="connection" />;
     } else if (currentPath === '/admin/settings/whatsapp/templates') {

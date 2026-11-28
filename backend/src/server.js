@@ -8,6 +8,7 @@ const connectDB = require('./config/db');
 const seedBranches = require('./config/seedBranches');
 const seedAdmin = require('./scripts/seedAdmin');
 const { initSocketServer } = require('./services/socketService');
+const { startSmsScheduler } = require('./services/smsSchedulerService');
 const authRoutes = require('./routes/authRoutes');
 const branchRoutes = require('./routes/branchRoutes');
 const clientRoutes = require('./routes/clientRoutes');
@@ -324,6 +325,7 @@ const startServer = async () => {
     initSocketServer(httpServer, corsOptions);
     httpServer.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
+      startSmsScheduler();
     });
     const admsPort = Number(process.env.ADMS_PORT);
     if (admsPort && admsPort !== Number(PORT)) {
