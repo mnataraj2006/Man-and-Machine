@@ -1195,8 +1195,10 @@ const getDevicesOverview = async (query = {}) => {
 
   const todayRange = getKolkataDayRange(getKolkataParts().dateStr);
 
-  const [devices, todayBioAttendance] = await Promise.all([
-    BiometricDevice.find(filter).populate('branchId', 'name city code').sort({ createdAt: 1 }).lean(),
+  const devices = await BiometricDevice.find(filter).populate('branchId', 'name city code').sort({ createdAt: 1 }).lean();
+  const deviceIds = devices.map((d) => d._id);
+
+  const [todayBioAttendance, activeMappings, deviceEnrollments] = await Promise.all([
     Attendance.find({
       ...(filter.branchId ? { branchId: filter.branchId } : {}),
       source: 'BIOMETRIC_ADMS',
@@ -1204,12 +1206,48 @@ const getDevicesOverview = async (query = {}) => {
     })
       .select('deviceId')
       .lean(),
+    deviceIds.length > 0
+      ? BiometricUserMapping.find({ deviceId: { $in: deviceIds }, status: 'ACTIVE' })
+          .select('deviceId biometricUserId')
+          .lean()
+      : Promise.resolve([]),
+    deviceIds.length > 0
+      ? BiometricEnrollment.find({
+          assignedDeviceId: { $in: deviceIds },
+          status: { $in: ['DEVICE_USER_READY', 'FACE_ENROLLMENT_PENDING', 'ENROLLED'] },
+        })
+          .select('assignedDeviceId biometricUserId status faceEnrollmentStatus fingerprintEnrollmentStatus')
+          .lean()
+      : Promise.resolve([]),
   ]);
 
   const countByDevice = {};
   for (const a of todayBioAttendance) {
     const dId = String(a.deviceId || '');
     countByDevice[dId] = (countByDevice[dId] || 0) + 1;
+  }
+
+  const mappingsByDevice = {};
+  for (const m of activeMappings) {
+    const dId = String(m.deviceId || '');
+    mappingsByDevice[dId] = (mappingsByDevice[dId] || 0) + 1;
+  }
+
+  const faceByDevice = {};
+  const fingerByDevice = {};
+  const readyOrEnrolledPinsByDevice = {};
+  for (const e of deviceEnrollments) {
+    const dId = String(e.assignedDeviceId || '');
+    if (e.biometricUserId) {
+      if (!readyOrEnrolledPinsByDevice[dId]) readyOrEnrolledPinsByDevice[dId] = new Set();
+      readyOrEnrolledPinsByDevice[dId].add(String(e.biometricUserId));
+    }
+    if (e.faceEnrollmentStatus === 'ENROLLED') {
+      faceByDevice[dId] = (faceByDevice[dId] || 0) + 1;
+    }
+    if (e.fingerprintEnrollmentStatus === 'ENROLLED') {
+      fingerByDevice[dId] = (fingerByDevice[dId] || 0) + 1;
+    }
   }
 
   let online = 0;
@@ -1228,12 +1266,25 @@ const getDevicesOverview = async (query = {}) => {
       ? Math.max(0, Math.floor((nowMs - new Date(d.lastSeenAt).getTime()) / 1000))
       : null;
 
+    const dId = String(d._id);
+    const computedUserCount = Math.max(
+      d.userCount || 0,
+      (d.discoveredUsers || []).length,
+      mappingsByDevice[dId] || 0,
+      readyOrEnrolledPinsByDevice[dId]?.size || 0
+    );
+    const computedFaceCount = Math.max(d.faceCount || 0, faceByDevice[dId] || 0);
+    const computedFingerCount = Math.max(d.fingerprintCount || 0, fingerByDevice[dId] || 0);
+
     return {
       ...d,
+      userCount: computedUserCount,
+      faceCount: computedFaceCount,
+      fingerprintCount: computedFingerCount,
       effectiveStatus,
       lastSeenSecondsAgo,
       health,
-      todayAttendanceCount: countByDevice[String(d._id)] || 0,
+      todayAttendanceCount: countByDevice[dId] || 0,
     };
   });
 
@@ -1261,7 +1312,7 @@ const getDeviceDetails = async (id) => {
   const todayRange = getKolkataDayRange(nowParts.dateStr);
   const monthRange = getKolkataMonthRange(nowParts.year, nowParts.month);
 
-  const [todayCount, monthCount, logs, mappings] = await Promise.all([
+  const [todayCount, monthCount, logs, mappings, enrollments] = await Promise.all([
     Attendance.countDocuments({
       deviceId: device._id,
       checkInTime: { $gte: todayRange.start, $lte: todayRange.end },
@@ -1279,6 +1330,12 @@ const getDeviceDetails = async (id) => {
       .populate('clientProfileId', 'clientId name phone email')
       .sort({ createdAt: -1 })
       .lean(),
+    BiometricEnrollment.find({
+      assignedDeviceId: device._id,
+      status: { $in: ['DEVICE_USER_READY', 'FACE_ENROLLMENT_PENDING', 'ENROLLED'] },
+    })
+      .select('faceEnrollmentStatus fingerprintEnrollmentStatus')
+      .lean(),
   ]);
 
   const nowMs = Date.now();
@@ -1288,9 +1345,16 @@ const getDeviceDetails = async (id) => {
     ? Math.max(0, Math.floor((nowMs - new Date(device.lastSeenAt).getTime()) / 1000))
     : null;
 
+  const activeMappingCount = mappings.filter((m) => m.status === 'ACTIVE').length;
+  const faceEnrolledCount = enrollments.filter((e) => e.faceEnrollmentStatus === 'ENROLLED').length;
+  const fingerEnrolledCount = enrollments.filter((e) => e.fingerprintEnrollmentStatus === 'ENROLLED').length;
+
   return {
     device: {
       ...device,
+      userCount: Math.max(device.userCount || 0, (device.discoveredUsers || []).length, activeMappingCount),
+      faceCount: Math.max(device.faceCount || 0, faceEnrolledCount),
+      fingerprintCount: Math.max(device.fingerprintCount || 0, fingerEnrolledCount),
       effectiveStatus,
       lastSeenSecondsAgo,
       health,
