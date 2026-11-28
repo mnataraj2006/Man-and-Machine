@@ -862,9 +862,8 @@ export default function Clients() {
       paymentStatus: 'PAID',
       paidAmount: firstPrice,
       allowAccessWithBalance: true,
-      biometricEnrollment: { enabled: false, deviceId: '', biometricUserId: '' },
+      biometricConsentAgreed: false,
     });
-    loadBioEnrollDevices(defaultBranchId);
     setIsAddModalOpen(true);
   };
 
@@ -874,11 +873,16 @@ export default function Clients() {
     setAddDuplicateClient(null);
     try {
       setSubmittingAdd(true);
-      const res = await adminService.createClient(addForm);
+      const { biometricConsentAgreed, ...clientPayload } = addForm;
+      const res = await adminService.createClient({
+        ...clientPayload,
+        biometricConsentAgreed: Boolean(biometricConsentAgreed),
+      });
       const createdProfileId = res.client?.profileId || res.client?.id;
       let assignedMembership = null;
       let generatedInvoice = null;
       let generatedPayment = null;
+      let backendBioEnrollment = res.biometricEnrollment || null;
 
       if (addForm.assignMembershipNow && addForm.planId && createdProfileId) {
         const totalFee = Number(addForm.amount || 0);
@@ -900,19 +904,21 @@ export default function Clients() {
           paymentStatus: addForm.paymentStatus,
           paidAmount: computedPaid,
           allowAccessWithBalance: addForm.allowAccessWithBalance,
+          biometricConsentAgreed: Boolean(biometricConsentAgreed),
         });
         assignedMembership = memRes.membership || null;
         generatedInvoice = memRes.invoice || null;
         generatedPayment = memRes.payment || null;
+        if (memRes.biometricEnrollment) {
+          backendBioEnrollment = memRes.biometricEnrollment;
+        }
       }
 
       setPage(1);
       await fetchClients();
       showFeedback(
         'success',
-        assignedMembership
-          ? `Client ${res.client?.clientId || ''} registered and membership assigned.`
-          : res.message || 'Client registered successfully.'
+        'Biometric setup will start automatically after consent. The client must complete face enrollment at the branch device.'
       );
       const branchObj = branches.find((b) => b._id === addForm.branchId);
       setNewlyCreatedClient({
@@ -922,6 +928,7 @@ export default function Clients() {
         membership: assignedMembership,
         invoice: generatedInvoice,
         payment: generatedPayment,
+        biometricEnrollment: backendBioEnrollment,
       });
     } catch (err) {
       if (err.status === 409 && err.data?.existingClient) {
@@ -974,6 +981,7 @@ export default function Clients() {
       paymentMethod: 'CASH',
       paymentStatus: 'FULL',
       referenceNumber: '',
+      biometricConsentAgreed: false,
     });
     setIsAssignModalOpen(true);
   };
@@ -1008,7 +1016,7 @@ export default function Clients() {
         paidAmount = 0;
       }
 
-      await adminService.createClientMembership({
+      const assignRes = await adminService.createClientMembership({
         ...(isWalkIn ? { clientProfileId: clientId } : { userId: clientId }),
         branchId,
         planId: assignForm.planId,
@@ -1020,10 +1028,16 @@ export default function Clients() {
         referenceNumber: assignForm.referenceNumber || undefined,
         startDate: assignForm.startDate,
         allowAccessWithBalance: false,
+        biometricConsentAgreed: Boolean(assignForm.biometricConsentAgreed),
       });
 
       setIsAssignModalOpen(false);
-      showFeedback('success', 'Membership assigned successfully.');
+      showFeedback(
+        'success',
+        assignRes?.biometricEnrollment
+          ? 'Membership assigned. Biometric setup will start automatically after consent. The client must complete face enrollment at the branch device.'
+          : 'Membership assigned successfully.'
+      );
       await fetchClients();
       if (selectedClientId === clientId) {
         handleOpenClientDetails(clientId);
@@ -3406,74 +3420,33 @@ export default function Clients() {
                     )}
                   </div>
 
-                  {/* Optional Walk-In Biometric Enrollment */}
-                  <div className="bg-[#111111] border border-[#252525] rounded-xl p-4 space-y-3">
-                    <label className="flex items-center justify-between cursor-pointer">
+                  {/* Biometric Access Consent */}
+                  <div className="bg-[#111111] border border-[#252525] rounded-xl p-4 space-y-2">
+                    <label className="flex items-start justify-between gap-3 cursor-pointer">
                       <div>
                         <span className="text-xs font-bold text-[#F5F5F5] block">
-                          Queue Biometric Enrollment (Optional)
+                          Client Biometric Consent Granted
                         </span>
-                        <span className="text-[11px] text-[#858585]">
-                          Create an AWAITING_PHYSICAL_ENROLLMENT request on a branch X2008 terminal.
+                        <span className="text-[11px] text-[#858585] block mt-0.5">
+                          Confirm the client explicitly consents to biometric face check-in. Biometric setup will start automatically once membership is active.
                         </span>
                       </div>
                       <input
                         type="checkbox"
-                        checked={Boolean(addForm.biometricEnrollment?.enabled)}
-                        onChange={(e) => {
-                          const enabled = e.target.checked;
-                          if (enabled) loadBioEnrollDevices(addForm.branchId);
+                        checked={Boolean(addForm.biometricConsentAgreed)}
+                        onChange={(e) =>
                           setAddForm((prev) => ({
                             ...prev,
-                            biometricEnrollment: {
-                              ...(prev.biometricEnrollment || {}),
-                              enabled,
-                              deviceId: prev.biometricEnrollment?.deviceId || bioEnrollDevices[0]?._id || '',
-                            },
-                          }));
-                        }}
+                            biometricConsentAgreed: e.target.checked,
+                          }))
+                        }
+                        className="mt-1 shrink-0"
                       />
                     </label>
-
-                    {addForm.biometricEnrollment?.enabled && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#252525]">
-                        <div>
-                          <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Biometric Device *</label>
-                          <select
-                            required
-                            value={addForm.biometricEnrollment?.deviceId || ''}
-                            onChange={(e) =>
-                              setAddForm((prev) => ({
-                                ...prev,
-                                biometricEnrollment: { ...(prev.biometricEnrollment || {}), deviceId: e.target.value },
-                              }))
-                            }
-                            className="w-full min-h-[44px] bg-[#181818] border border-[#303030] rounded-xl px-3 text-xs text-[#F5F5F5]"
-                          >
-                            <option value="">Select branch device</option>
-                            {bioEnrollDevices.map((d) => (
-                              <option key={d._id} value={d._id}>
-                                {d.deviceName} ({d.model})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Device PIN (Auto if blank)</label>
-                          <input
-                            type="text"
-                            value={addForm.biometricEnrollment?.biometricUserId || ''}
-                            onChange={(e) =>
-                              setAddForm((prev) => ({
-                                ...prev,
-                                biometricEnrollment: { ...(prev.biometricEnrollment || {}), biometricUserId: e.target.value },
-                              }))
-                            }
-                            placeholder="e.g. 1001"
-                            className="w-full min-h-[44px] bg-[#181818] border border-[#303030] rounded-xl px-3 text-xs text-[#F5F5F5] font-mono"
-                          />
-                        </div>
-                      </div>
+                    {!addForm.biometricConsentAgreed && (
+                      <p className="text-[11px] text-amber-400">
+                        Without explicit consent, biometric setup will remain in Consent Required until granted.
+                      </p>
                     )}
                   </div>
                 </div>
@@ -3820,74 +3793,33 @@ export default function Clients() {
                     )}
                   </div>
 
-                  {/* Optional Walk-In Biometric Enrollment */}
-                  <div className="bg-[#111111] border border-[#252525] rounded-xl p-4 space-y-3">
-                    <label className="flex items-center justify-between cursor-pointer">
+                  {/* Biometric Access Consent */}
+                  <div className="bg-[#111111] border border-[#252525] rounded-xl p-4 space-y-2">
+                    <label className="flex items-start justify-between gap-3 cursor-pointer">
                       <div>
                         <span className="text-xs font-bold text-[#F5F5F5] block">
-                          Queue Biometric Enrollment (Optional)
+                          Client Biometric Consent Granted
                         </span>
-                        <span className="text-[11px] text-[#858585]">
-                          Create an AWAITING_PHYSICAL_ENROLLMENT request on a branch X2008 terminal.
+                        <span className="text-[11px] text-[#858585] block mt-0.5">
+                          Confirm the client explicitly consents to biometric face check-in. Biometric setup will start automatically once membership is active.
                         </span>
                       </div>
                       <input
                         type="checkbox"
-                        checked={Boolean(addForm.biometricEnrollment?.enabled)}
-                        onChange={(e) => {
-                          const enabled = e.target.checked;
-                          if (enabled) loadBioEnrollDevices(addForm.branchId);
-                          setAddForm((prev) => ({
+                        checked={Boolean(assignForm.biometricConsentAgreed)}
+                        onChange={(e) =>
+                          setAssignForm((prev) => ({
                             ...prev,
-                            biometricEnrollment: {
-                              ...(prev.biometricEnrollment || {}),
-                              enabled,
-                              deviceId: prev.biometricEnrollment?.deviceId || bioEnrollDevices[0]?._id || '',
-                            },
-                          }));
-                        }}
+                            biometricConsentAgreed: e.target.checked,
+                          }))
+                        }
+                        className="mt-1 shrink-0"
                       />
                     </label>
-
-                    {addForm.biometricEnrollment?.enabled && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#252525]">
-                        <div>
-                          <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Biometric Device *</label>
-                          <select
-                            required
-                            value={addForm.biometricEnrollment?.deviceId || ''}
-                            onChange={(e) =>
-                              setAddForm((prev) => ({
-                                ...prev,
-                                biometricEnrollment: { ...(prev.biometricEnrollment || {}), deviceId: e.target.value },
-                              }))
-                            }
-                            className="w-full min-h-[44px] bg-[#181818] border border-[#303030] rounded-xl px-3 text-xs text-[#F5F5F5]"
-                          >
-                            <option value="">Select branch device</option>
-                            {bioEnrollDevices.map((d) => (
-                              <option key={d._id} value={d._id}>
-                                {d.deviceName} ({d.model})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-mono uppercase text-[#B8B8B8] mb-1">Device PIN (Auto if blank)</label>
-                          <input
-                            type="text"
-                            value={addForm.biometricEnrollment?.biometricUserId || ''}
-                            onChange={(e) =>
-                              setAddForm((prev) => ({
-                                ...prev,
-                                biometricEnrollment: { ...(prev.biometricEnrollment || {}), biometricUserId: e.target.value },
-                              }))
-                            }
-                            placeholder="e.g. 1001"
-                            className="w-full min-h-[44px] bg-[#181818] border border-[#303030] rounded-xl px-3 text-xs text-[#F5F5F5] font-mono"
-                          />
-                        </div>
-                      </div>
+                    {!assignForm.biometricConsentAgreed && (
+                      <p className="text-[11px] text-amber-400">
+                        Without explicit consent, biometric setup will remain in Consent Required until granted.
+                      </p>
                     )}
                   </div>
                 </div>

@@ -2955,6 +2955,7 @@ const createClientMembership = async (req, res, next) => {
       membership,
       invoice: generatedInvoice,
       payment: generatedPayment,
+      ...(biometricEnrollment ? { biometricEnrollment } : {}),
     });
     } finally {
       releaseUserPurchaseLock(`admin-mem:${clientProfileId || userId}`);
